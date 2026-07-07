@@ -16,8 +16,8 @@
 | 3 | 核心引擎：清单系统 | ✅ 完成 | SQLite 存储安装记录，WAL 模式，支持回滚 |
 | 4 | 核心引擎：PATH 管理 | ✅ 完成 | Windows 注册表 + Unix shell 配置文件 |
 | 5 | 核心引擎：配置生成 | ✅ 完成 | pip 清华源、npm/yarn 淘宝镜像 |
-| 6 | 配方系统设计 | ⏳ 待做 | 定义配方格式，实现首个配方（Python） |
-| 7 | 集成测试：Python | ⏳ 待做 | `oneinit install python3.7` 全流程验收 |
+| 6 | 配方系统设计 | ✅ 完成 | 定义配方格式，实现首个配方（Python 3.11.9） |
+| 7 | 集成测试：Python | ✅ 完成 | `oneinit install python3.11` 全流程验收通过 |
 
 ## Phase 2: 生态扩展
 

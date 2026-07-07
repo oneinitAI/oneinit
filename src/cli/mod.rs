@@ -1,5 +1,5 @@
 use crate::core::{
-    ensure_dirs, recipe::{self, resolve},
+    ensure_dirs, manifest::Manifest, recipe::{self, resolve},
 };
 use crate::output::OutputFormatter;
 
@@ -21,6 +21,23 @@ pub async fn run_install(formatter: &OutputFormatter, package: &str) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
+    }
+
+    // 检查是否已安装
+    if let Ok(manifest) = Manifest::open() {
+        if let Ok(Some(record)) = manifest.get(package) {
+            formatter.output(
+                &format!("📦 '{}' 已安装 ({})", package, record.install_path),
+                Some(serde_json::json!({
+                    "status": "success",
+                    "action": "install",
+                    "package": package,
+                    "already_installed": true,
+                    "install_path": record.install_path,
+                })),
+            );
+            return;
+        }
     }
 
     // 查找配方

@@ -5,13 +5,14 @@
 src/
 ├── main.rs              # CLI 入口（clap 定义 + async 命令分发）
 ├── cli/
-│   └── mod.rs            # 各子命令处理器（调用核心引擎）
+│   └── mod.rs            # 各子命令处理器（调用配方系统）
 ├── core/
 │   ├── mod.rs            # CoreError 统一错误类型 + 目录函数
 │   ├── downloader.rs     # 异步下载器 + SHA256 校验 + 归档解压
 │   ├── manifest.rs       # SQLite 安装清单系统
 │   ├── path_mgr.rs       # 跨平台 PATH 管理
-│   └── config_gen.rs     # 配置生成器（自动换源）
+│   ├── config_gen.rs     # 配置生成器（自动换源）
+│   └── recipe.rs         # 配方系统（Recipe 结构 + 安装/卸载执行器）
 └── output/
     └── mod.rs            # OutputFormatter（human / json 双模式 + error）
 ```
@@ -49,10 +50,10 @@ src/
 | 命令 | 用途 | 状态 |
 |------|------|------|
 | `oneinit init` | 一键初始化开发环境 | Phase 2 |
-| `oneinit install <pkg>` | 安装指定工具 | 引擎就绪，等配方 |
-| `oneinit uninstall <pkg>` | 卸载指定工具 | 清单已集成 |
+| `oneinit install <pkg>` | 安装指定工具 | ✅ 配方系统集成 |
+| `oneinit uninstall <pkg>` | 卸载指定工具 | ✅ 完整回滚 |
 | `oneinit list` | 列出已安装工具 | ✅ 已接入 SQLite |
-| `oneinit search [kw]` | 搜索可用工具 | Phase 2 |
+| `oneinit search [kw]` | 搜索可用工具 | ✅ 已接入配方注册表 |
 | `oneinit sync` | 从 oneinit.yaml 同步 | Phase 2 |
 
 ### 全局开关
@@ -94,11 +95,46 @@ config_gen::npm_mirror_config() -> AppConfig   // 淘宝镜像
 config_gen::yarn_mirror_config() -> AppConfig  // 淘宝镜像
 ```
 
+### recipe.rs（配方系统）
+```rust
+// 配方结构
+pub struct Recipe {
+    name, version, display_name, download_url, sha256, bin_dir,
+    env_vars: Vec<(String, String)>,
+    configs: Vec<AppConfig>,
+    post_install: Option<PostInstall>,
+}
+pub enum PostInstallStep {
+    DownloadAndRun { url, args },   // 下载脚本并执行
+    ModifyFile { rel_path, action }, // 修改文件
+}
+pub enum ModifyAction {
+    UncommentLine { pattern },    // 取消注释
+    AppendLine { content },        // 追加行
+    ReplaceContent { content },    // 替换内容
+}
+
+// 配方注册表
+pub fn resolve(name: &str) -> Option<Recipe>
+pub fn list_recipes() -> Vec<Recipe>
+
+// 安装/卸载执行器
+pub async fn install(recipe, formatter) -> Result<()>
+pub async fn uninstall(package, formatter) -> Result<()>
+```
+
+### 已实现配方
+| 包名 | 版本 | 来源 | 说明 |
+|------|------|------|------|
+| `python3.11` | 3.11.9 | python.org embeddable | Windows 嵌入式包 + get-pip 引导 + 清华源 |
+
 ## 代码约定
 - **Edition**：2024
 - **输出格式**：通过 `OutputFormatter` 统一管理，永远不要直接 `println!` 业务数据
 - **错误处理**：`core::Result<T>` + `CoreError` 枚举
 - **unsafe**：`std::env::set_var` 在 edition 2024 需要 unsafe 块
+- **formatter.output 类型推断**：传 `None` 时类型推断失败，必须用 `Some(serde_json::Value::Null)` 或具体 JSON 值
+- **已处于 async 上下文**：不要在 async 函数中创建 `tokio::runtime::Runtime`（会 panic），直接 `.await` 即可
 
 ## 依赖清单
 | crate | 版本 | 用途 |

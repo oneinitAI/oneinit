@@ -133,7 +133,7 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
 
     // 6. 执行安装后处理
     if let Some(ref post) = recipe.post_install {
-        execute_post_install(post, &install_dir, formatter)?;
+        execute_post_install(post, &install_dir, formatter).await?;
     }
 
     // 7. 生成配置文件
@@ -241,8 +241,8 @@ pub async fn uninstall(package: &str, formatter: &OutputFormatter) -> Result<()>
 // 安装后处理执行
 // ============================================================
 
-/// 执行安装后处理步骤
-fn execute_post_install(
+/// 执行安装后处理步骤（异步，因为可能需要下载）
+async fn execute_post_install(
     post: &PostInstall,
     install_dir: &Path,
     formatter: &OutputFormatter,
@@ -250,7 +250,7 @@ fn execute_post_install(
     for step in &post.steps {
         match step {
             PostInstallStep::DownloadAndRun { url, args } => {
-                execute_download_and_run(url, args, install_dir, formatter)?;
+                execute_download_and_run(url, args, install_dir, formatter).await?;
             }
             PostInstallStep::ModifyFile { rel_path, action } => {
                 execute_modify_file(rel_path, action, install_dir)?;
@@ -261,7 +261,7 @@ fn execute_post_install(
 }
 
 /// 下载文件并执行
-fn execute_download_and_run(
+async fn execute_download_and_run(
     url: &str,
     args: &[String],
     install_dir: &Path,
@@ -270,12 +270,8 @@ fn execute_download_and_run(
     let file_name = url.rsplit('/').next().unwrap_or("script");
     let dest = install_dir.join(file_name);
 
-    // 下载（同步，因为需要在安装后立即运行）
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| CoreError::Other(format!("无法创建 tokio 运行时: {}", e)))?;
-    rt.block_on(async {
-        downloader::download(url, &dest).await
-    })?;
+    // 下载脚本
+    downloader::download(url, &dest).await?;
 
     formatter.output(
         &format!("✅ 下载脚本: {}", file_name),
@@ -360,6 +356,7 @@ fn execute_modify_file(
 /// 使用 Windows embeddable zip 包，安装后通过 get-pip.py 引导安装 pip。
 fn python311_recipe() -> Recipe {
     let version = "3.11.9";
+    let short_version = "311"; // major.minor 无点，用于 ._pth 和 dll 文件名
 
     Recipe {
         name: "python3.11".to_string(),
@@ -379,15 +376,15 @@ fn python311_recipe() -> Recipe {
             steps: vec![
                 // 修改 ._pth 文件，启用 import site（pip 需要此功能）
                 PostInstallStep::ModifyFile {
-                    rel_path: format!("python{}._pth", version.replace('.', "")),
+                    rel_path: format!("python{}._pth", short_version),
                     action: ModifyAction::UncommentLine {
                         pattern: "import site".to_string(),
                     },
                 },
-                // 下载并运行 get-pip.py 安装 pip
+                // 下载并运行 get-pip.py 安装 pip（使用官方 PyPI 源引导）
                 PostInstallStep::DownloadAndRun {
                     url: "https://bootstrap.pypa.io/get-pip.py".to_string(),
-                    args: vec![],
+                    args: vec!["--index-url".to_string(), "https://pypi.org/simple".to_string()],
                 },
             ],
         }),
@@ -398,9 +395,8 @@ fn python311_recipe() -> Recipe {
 /// URL: https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip
 #[cfg(target_os = "windows")]
 fn python311_sha256() -> String {
-    // 首次构建时需要通过实际下载验证此值
-    // 如果校验失败，查看错误信息中的实际 SHA256 并更新此处
-    "PLACEHOLDER_UPDATE_AFTER_FIRST_DOWNLOAD".to_string()
+    // https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip
+    "009d6bf7e3b2ddca3d784fa09f90fe54336d5b60f0e0f305c37f400bf83cfd3b".to_string()
 }
 
 #[cfg(not(target_os = "windows"))]
