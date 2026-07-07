@@ -2,6 +2,7 @@ mod cli;
 mod core;
 mod output;
 
+use core::Result;
 use clap::{Parser, Subcommand};
 
 /// OneInit — 一条命令，初始化整台电脑
