@@ -1,5 +1,5 @@
 use crate::core::{
-    ensure_dirs, manifest::Manifest,
+    ensure_dirs, recipe::{self, resolve},
 };
 use crate::output::OutputFormatter;
 
@@ -23,42 +23,27 @@ pub async fn run_install(formatter: &OutputFormatter, package: &str) {
         return;
     }
 
-    // 检查是否已安装
-    match Manifest::open() {
-        Ok(manifest) => {
-            if let Ok(Some(record)) = manifest.get(package) {
-                formatter.output(
-                    &format!("📦 '{}' 已安装 ({})", package, record.install_path),
-                    Some(serde_json::json!({
-                        "status": "success",
-                        "action": "install",
-                        "package": package,
-                        "already_installed": true,
-                        "install_path": record.install_path,
-                        "message": "Package already installed"
-                    })),
-                );
-                return;
-            }
-        }
-        Err(e) => {
-            formatter.error(&e);
+    // 查找配方
+    let rec = match resolve(package) {
+        Some(r) => r,
+        None => {
+            formatter.output(
+                &format!("❌ 未找到 '{}' 的安装配方。使用 oneinit search 查看可用工具。", package),
+                Some(serde_json::json!({
+                    "status": "error",
+                    "action": "install",
+                    "package": package,
+                    "message": "Recipe not found"
+                })),
+            );
             return;
         }
-    }
+    };
 
-    // 核心安装流程将在配方系统（Task 6）中实现
-    // 当前仅验证核心引擎基础设施是否正常工作
-    formatter.output(
-        &format!("⏳ install '{}' 的核心引擎已就绪，等待配方系统完成后实现完整安装流程。", package),
-        Some(serde_json::json!({
-            "status": "success",
-            "action": "install",
-            "package": package,
-            "installed": false,
-            "message": "Core engine ready, waiting for recipe system"
-        })),
-    );
+    // 执行安装
+    if let Err(e) = recipe::install(&rec, formatter).await {
+        formatter.error(&e);
+    }
 }
 
 /// oneinit uninstall <package> — 卸载指定工具
@@ -68,41 +53,8 @@ pub async fn run_uninstall(formatter: &OutputFormatter, package: &str) {
         return;
     }
 
-    match Manifest::open() {
-        Ok(manifest) => {
-            match manifest.remove(package) {
-                Ok(Some(record)) => {
-                    formatter.output(
-                        &format!("🗑️ 已移除 '{}' 的安装记录（实际文件未删除，配方系统完成后实现完整卸载）", package),
-                        Some(serde_json::json!({
-                            "status": "success",
-                            "action": "uninstall",
-                            "package": package,
-                            "removed_record": record,
-                            "message": "Record removed, full rollback pending"
-                        })),
-                    );
-                }
-                Ok(None) => {
-                    formatter.output(
-                        &format!("📦 '{}' 未安装，无需卸载。", package),
-                        Some(serde_json::json!({
-                            "status": "success",
-                            "action": "uninstall",
-                            "package": package,
-                            "not_installed": true,
-                            "message": "Package not installed"
-                        })),
-                    );
-                }
-                Err(e) => {
-                    formatter.error(&e);
-                }
-            }
-        }
-        Err(e) => {
-            formatter.error(&e);
-        }
+    if let Err(e) = recipe::uninstall(package, formatter).await {
+        formatter.error(&e);
     }
 }
 
@@ -112,6 +64,8 @@ pub async fn run_list(formatter: &OutputFormatter) {
         formatter.error(&e);
         return;
     }
+
+    use crate::core::manifest::Manifest;
 
     match Manifest::open() {
         Ok(manifest) => {
@@ -145,18 +99,45 @@ pub async fn run_list(formatter: &OutputFormatter) {
 
 /// oneinit search <keyword> — 搜索可用工具
 pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
-    let msg = match keyword {
-        Some(kw) => format!("⏳ search '{}' 将在配方系统完成后实现。", kw),
-        None => "⏳ search 将在配方系统完成后实现。".to_string(),
-    };
+    let all = recipe::list_recipes();
+
+    let results: Vec<_> = all
+        .iter()
+        .filter(|r| {
+            keyword.map_or(true, |kw| {
+                r.name.contains(kw)
+                    || r.display_name.to_lowercase().contains(&kw.to_lowercase())
+            })
+        })
+        .collect();
+
     formatter.output(
-        &msg,
+        &if results.is_empty() {
+            match keyword {
+                Some(kw) => format!("🔍 未找到与 '{}' 相关的工具。", kw),
+                None => "🔍 暂无可用工具。".to_string(),
+            }
+        } else {
+            format!(
+                "🔍 找到 {} 个可用工具:\n{}",
+                results.len(),
+                results
+                    .iter()
+                    .map(|r| format!("  - {} ({})", r.name, r.display_name))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        },
         Some(serde_json::json!({
             "status": "success",
             "action": "search",
             "keyword": keyword,
-            "results": [],
-            "message": "Not yet implemented"
+            "results": results.iter().map(|r| serde_json::json!({
+                "name": r.name,
+                "version": r.version,
+                "display_name": r.display_name,
+            })).collect::<Vec<_>>(),
+            "count": results.len()
         })),
     );
 }
