@@ -3,9 +3,9 @@ name = "oneinit"
 version = "0.1.0"
 edition = "2024"
 description = "One command to init your dev machine — AI-first environment initializer"
-license = "MIT"
+license = "GPL-3.0"
 readme = "README.md"
-repository = "https://github.com/zhaozihan/oneinit"
+repository = "https://github.com/BG4JTS/oneinit"
 keywords = ["dev-tools", "environment", "initializer", "cli", "ai"]
 categories = ["command-line-utilities", "development-tools"]
 
