@@ -4,6 +4,7 @@ pub mod manifest;
 pub mod path_mgr;
 pub mod preset;
 pub mod recipe;
+pub mod sync;
 
 use std::path::PathBuf;
 
