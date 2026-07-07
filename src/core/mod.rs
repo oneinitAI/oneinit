@@ -2,6 +2,7 @@ pub mod config_gen;
 pub mod downloader;
 pub mod manifest;
 pub mod path_mgr;
+pub mod preset;
 pub mod recipe;
 
 use std::path::PathBuf;
