@@ -5,14 +5,16 @@
 src/
 ├── main.rs              # CLI 入口（clap 定义 + async 命令分发）
 ├── cli/
-│   └── mod.rs            # 各子命令处理器（调用配方系统）
+│   └── mod.rs            # 各子命令处理器（调用配方/预置/同步系统）
 ├── core/
 │   ├── mod.rs            # CoreError 统一错误类型 + 目录函数
 │   ├── downloader.rs     # 异步下载器 + SHA256 校验 + 归档解压
 │   ├── manifest.rs       # SQLite 安装清单系统
 │   ├── path_mgr.rs       # 跨平台 PATH 管理
 │   ├── config_gen.rs     # 配置生成器（自动换源）
-│   └── recipe.rs         # 配方系统（Recipe 结构 + 安装/卸载执行器）
+│   ├── recipe.rs         # 配方系统（Recipe 结构 + 安装/卸载执行器）
+│   ├── preset.rs         # 预置套装（Preset 结构 + 内置套装定义）
+│   └── sync.rs           # 同步系统（SyncConfig 结构 + oneinit.yaml 解析）
 └── output/
     └── mod.rs            # OutputFormatter（human / json 双模式 + error）
 ```
@@ -49,12 +51,12 @@ src/
 ### 子命令
 | 命令 | 用途 | 状态 |
 |------|------|------|
-| `oneinit init` | 一键初始化开发环境 | Phase 2 |
+| `oneinit init` | 一键初始化开发环境 | ✅ 预置套装批量安装 |
 | `oneinit install <pkg>` | 安装指定工具 | ✅ 配方系统集成 |
 | `oneinit uninstall <pkg>` | 卸载指定工具 | ✅ 完整回滚 |
 | `oneinit list` | 列出已安装工具 | ✅ 已接入 SQLite |
 | `oneinit search [kw]` | 搜索可用工具 | ✅ 已接入配方注册表 |
-| `oneinit sync` | 从 oneinit.yaml 同步 | Phase 2 |
+| `oneinit sync` | 从 oneinit.yaml 同步 | ✅ YAML 解析 + 批量安装 + 后置命令 |
 
 ### 全局开关
 - `--json`：所有命令支持 JSON 输出，AI 可直接消费
@@ -127,6 +129,38 @@ pub async fn uninstall(package, formatter) -> Result<()>
 | 包名 | 版本 | 来源 | 说明 |
 |------|------|------|------|
 | `python3.11` | 3.11.9 | python.org embeddable | Windows 嵌入式包 + get-pip 引导 + 清华源 |
+
+### preset.rs（预置套装）
+```rust
+pub struct Preset { name, display_name, description, packages: Vec<String> }
+pub fn resolve(name: &str) -> Option<Preset>
+pub fn list_presets() -> Vec<Preset>
+```
+
+内置套装：`python`（Python 3.11）、`ai`（AI 开发）、`frontend`（前端，暂空）、`full`（全栈）
+
+### sync.rs（同步系统）
+```rust
+// oneinit.yaml 结构
+pub struct SyncConfig {
+    pub envs: BTreeMap<String, Value>,        // python: 3.11
+    pub mirrors: Option<BTreeMap<String, String>>, // pip: tsinghua
+    pub post_install: Option<Vec<String>>,    // shell 命令列表
+}
+pub fn load_config(yaml_path) -> Result<SyncConfig>  // 解析 YAML
+pub fn envs_to_recipe_names(config) -> Vec<String>  // envs → recipe 名映射
+pub fn run_post_install(commands, formatter) -> Result<()>  // 执行后置命令
+```
+
+oneinit.yaml 格式：
+```yaml
+envs:
+  python: 3.11
+mirrors:
+  pip: tsinghua
+post_install:
+  - pip install -r requirements.txt
+```
 
 ## 代码约定
 - **Edition**：2024

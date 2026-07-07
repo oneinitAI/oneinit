@@ -21,12 +21,12 @@
 
 ## Phase 2: 生态扩展
 
-| # | 任务 | 说明 |
-|---|------|------|
-| 8 | 包仓库扩展 | Java, Go, Rust, MySQL, Redis |
-| 9 | `init` 命令完整实现 | 预置套装（"AI开发套装"、"前端套装"） |
-| 10 | `sync` 命令完整实现 | 读取 `oneinit.yaml` 批量同步 |
-| 11 | 社区配方机制 | GitHub PR 接受新软件配方 |
+| # | 任务 | 状态 | 说明 |
+|---|------|------|------|
+| 8 | 包仓库扩展 | ⏳ 待做 | Java, Go, Rust, MySQL, Redis |
+| 9 | `init` 命令完整实现 | ✅ 完成 | 预置套装（python/ai/frontend/full） |
+| 10 | `sync` 命令完整实现 | ✅ 完成 | 读取 `oneinit.yaml` 批量同步 |
+| 11 | 社区配方机制 | ⏳ 待做 | GitHub PR 接受新软件配方 |
 
 ## Phase 3: 体验优化
 
