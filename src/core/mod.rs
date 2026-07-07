@@ -32,7 +32,7 @@ pub fn temp_dir() -> PathBuf {
 
 /// 确保所有必要目录存在
 #[allow(dead_code)]
-pub fn ensure_dirs() -> crate::Result<()> {
+pub fn ensure_dirs() -> Result<()> {
     std::fs::create_dir_all(envs_dir())?;
     std::fs::create_dir_all(db_dir())?;
     std::fs::create_dir_all(temp_dir())?;

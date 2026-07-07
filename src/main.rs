@@ -2,7 +2,6 @@ mod cli;
 mod core;
 mod output;
 
-use core::Result;
 use clap::{Parser, Subcommand};
 
 /// OneInit — 一条命令，初始化整台电脑
@@ -62,11 +61,11 @@ async fn main() {
     let formatter = output::OutputFormatter::new(cli.json);
 
     match cli.command {
-        Commands::Init { preset } => cli::run_init(&formatter, preset.as_deref()),
-        Commands::Install { package } => cli::run_install(&formatter, &package),
-        Commands::Uninstall { package } => cli::run_uninstall(&formatter, &package),
-        Commands::List => cli::run_list(&formatter),
-        Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()),
-        Commands::Sync => cli::run_sync(&formatter),
+        Commands::Init { preset } => cli::run_init(&formatter, preset.as_deref()).await,
+        Commands::Install { package } => cli::run_install(&formatter, &package).await,
+        Commands::Uninstall { package } => cli::run_uninstall(&formatter, &package).await,
+        Commands::List => cli::run_list(&formatter).await,
+        Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()).await,
+        Commands::Sync => cli::run_sync(&formatter).await,
     }
 }
