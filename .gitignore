@@ -2,7 +2,7 @@
 /target/
 **/*.rs.bk
 *.pdb
-Cargo.lock
+# Cargo.lock is tracked for binary crates (reproducible builds)
 
 # IDE
 .idea/
@@ -23,3 +23,8 @@ desktop.ini
 # Environment (local dev)
 .env
 .env.local
+
+
+# Added by cargo
+
+/target
