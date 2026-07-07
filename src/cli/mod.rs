@@ -1,16 +1,174 @@
 use crate::core::{
-    ensure_dirs, manifest::Manifest, recipe::{self, resolve},
+    ensure_dirs, manifest::Manifest, preset, recipe::{self, resolve},
 };
 use crate::output::OutputFormatter;
 
-/// oneinit init — 一键初始化开发环境（Phase 2 完整实现）
-pub async fn run_init(formatter: &OutputFormatter, _preset: Option<&str>) {
+/// oneinit init — 一键初始化开发环境
+pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+
+    match preset_name {
+        Some(name) => {
+            // 指定了套装名，执行批量安装
+            let preset = match preset::resolve(name) {
+                Some(p) => p,
+                None => {
+                    formatter.output(
+                        &format!("❌ 未找到套装 '{}'。可用套装：", name),
+                        Some(serde_json::json!({
+                            "status": "error",
+                            "action": "init",
+                            "preset": name,
+                            "message": "Preset not found",
+                            "available": preset::list_presets().iter().map(|p| p.name.clone()).collect::<Vec<_>>()
+                        })),
+                    );
+                    list_available_presets(formatter);
+                    return;
+                }
+            };
+
+            if preset.packages.is_empty() {
+                formatter.output(
+                    &format!("⚠️ 套装 '{}' 暂无可用的配方。({})", preset.display_name, preset.description),
+                    Some(serde_json::json!({
+                        "status": "success",
+                        "action": "init",
+                        "preset": preset.name,
+                        "installed": 0,
+                        "message": "No available packages in preset"
+                    })),
+                );
+                return;
+            }
+
+            formatter.output(
+                &format!("🚀 开始初始化 '{}' ({})...", preset.display_name, preset.description),
+                Some(serde_json::json!({
+                    "status": "success",
+                    "action": "init",
+                    "preset": preset.name,
+                    "display_name": preset.display_name,
+                    "packages": preset.packages,
+                })),
+            );
+
+            // 批量安装
+            batch_install(&preset.packages, formatter).await;
+        }
+        None => {
+            // 未指定套装，列出可用套装
+            formatter.output(
+                "📋 未指定套装。可用的预置套装：",
+                Some(serde_json::json!({
+                    "status": "success",
+                    "action": "init",
+                    "message": "No preset specified, listing available"
+                })),
+            );
+            list_available_presets(formatter);
+        }
+    }
+}
+
+/// 列出所有可用套装
+fn list_available_presets(formatter: &OutputFormatter) {
+    let presets = preset::list_presets();
+    for p in &presets {
+        formatter.output(
+            &format!(
+                "  📦 {} — {} ({})",
+                p.name, p.display_name, p.description
+            ),
+            Some(serde_json::json!({
+                "name": p.name,
+                "display_name": p.display_name,
+                "description": p.description,
+                "package_count": p.packages.len(),
+            })),
+        );
+    }
     formatter.output(
-        "⏳ init 命令将在 Phase 2 实现。届时将根据套装一键初始化整台电脑的开发环境。",
+        "\n使用 oneinit init --preset <名称> 开始初始化。",
         Some(serde_json::json!({
-            "status": "success",
-            "action": "init",
-            "message": "Phase 2: not yet implemented"
+            "usage": "oneinit init --preset <name>"
+        })),
+    );
+}
+
+/// 批量安装配方列表
+async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
+    let mut succeeded: Vec<&str> = Vec::new();
+    let mut skipped: Vec<&str> = Vec::new();
+    let mut failed: Vec<(&str, String)> = Vec::new();
+
+    for pkg_name in packages {
+        // 检查是否已安装
+        if let Ok(manifest) = Manifest::open() {
+            if let Ok(Some(_)) = manifest.get(pkg_name) {
+                formatter.output(
+                    &format!("  ⏭️ '{}' 已安装，跳过", pkg_name),
+                    Some(serde_json::json!({
+                        "package": pkg_name,
+                        "status": "skipped",
+                        "reason": "already_installed"
+                    })),
+                );
+                skipped.push(pkg_name);
+                continue;
+            }
+        }
+
+        // 查找配方
+        let recipe = match resolve(pkg_name) {
+            Some(r) => r,
+            None => {
+                formatter.output(
+                    &format!("  ❌ '{}' 未找到配方，跳过", pkg_name),
+                    Some(serde_json::json!({
+                        "package": pkg_name,
+                        "status": "failed",
+                        "reason": "recipe_not_found"
+                    })),
+                );
+                failed.push((pkg_name, "recipe_not_found".to_string()));
+                continue;
+            }
+        };
+
+        // 安装
+        match recipe::install(&recipe, formatter).await {
+            Ok(()) => succeeded.push(pkg_name),
+            Err(e) => {
+                formatter.output(
+                    &format!("  ❌ '{}' 安装失败: {}", pkg_name, e),
+                    Some(serde_json::json!({
+                        "package": pkg_name,
+                        "status": "failed",
+                        "error": e.to_string()
+                    })),
+                );
+                failed.push((pkg_name, e.to_string()));
+            }
+        }
+    }
+
+    // 输出总结
+    formatter.output(
+        &format!(
+            "\n📊 初始化完成: {} 成功, {} 跳过, {} 失败",
+            succeeded.len(),
+            skipped.len(),
+            failed.len()
+        ),
+        Some(serde_json::json!({
+            "status": "complete",
+            "succeeded": succeeded,
+            "skipped": skipped,
+            "failed": failed.iter().map(|(n, e)| serde_json::json!({"package": n, "error": e})).collect::<Vec<_>>(),
         })),
     );
 }
