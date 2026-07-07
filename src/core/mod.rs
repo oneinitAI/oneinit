@@ -85,3 +85,10 @@ impl From<rusqlite::Error> for CoreError {
         CoreError::Database(e.to_string())
     }
 }
+
+// 让 CoreError 可以从 zip 错误转换
+impl From<zip::result::ZipError> for CoreError {
+    fn from(e: zip::result::ZipError) -> Self {
+        CoreError::Extract(e.to_string())
+    }
+}

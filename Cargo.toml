@@ -18,6 +18,7 @@ serde_yaml = "0.9"
 indicatif = "0.18"
 thiserror = "2"
 reqwest = { version = "0.12", features = ["stream"] }
+futures-util = "0.3"
 sha2 = "0.10"
 flate2 = "1"
 tar = "0.4"
