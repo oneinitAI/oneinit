@@ -1,5 +1,6 @@
 use crate::core::{
     ensure_dirs, manifest::Manifest, preset, recipe::{self, resolve},
+    sync::{self, SyncConfig},
 };
 use crate::output::OutputFormatter;
 
@@ -319,12 +320,87 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
 
 /// oneinit sync — 从 oneinit.yaml 同步环境
 pub async fn run_sync(formatter: &OutputFormatter) {
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+
+    // 1. 查找 oneinit.yaml
+    let yaml_path = std::path::PathBuf::from("oneinit.yaml");
+    if !yaml_path.exists() {
+        formatter.output(
+            "❌ 当前目录未找到 oneinit.yaml 文件。",
+            Some(serde_json::json!({
+                "status": "error",
+                "action": "sync",
+                "message": "oneinit.yaml not found in current directory"
+            })),
+        );
+        return;
+    }
+
+    // 2. 解析配置
+    let config: SyncConfig = match sync::load_config(&yaml_path) {
+        Ok(c) => c,
+        Err(e) => {
+            formatter.error(&e);
+            return;
+        }
+    };
+
     formatter.output(
-        "⏳ sync 将在核心引擎完成后实现。届时将读取 oneinit.yaml 批量同步环境。",
+        &format!("📦 读取 oneinit.yaml: {} 个工具, {} 个镜像, {} 条后置命令",
+            config.envs.len(),
+            config.mirrors.as_ref().map_or(0, |m| m.len()),
+            config.post_install.as_ref().map_or(0, |c| c.len()),
+        ),
         Some(serde_json::json!({
             "status": "success",
             "action": "sync",
-            "message": "Not yet implemented"
+            "envs_count": config.envs.len(),
+            "mirrors": config.mirrors,
+            "post_install_count": config.post_install.as_ref().map_or(0, |c| c.len()),
+        })),
+    );
+
+    // 3. 批量安装 envs
+    let recipe_names = sync::envs_to_recipe_names(&config);
+    batch_install(&recipe_names, formatter).await;
+
+    // 4. 应用镜像配置（记录日志，未来扩展覆盖默认镜像）
+    if let Some(ref mirrors) = config.mirrors {
+        formatter.output(
+            &format!("⚙️ 镜像配置: {:?}", mirrors),
+            Some(serde_json::json!({
+                "mirrors_applied": mirrors,
+            })),
+        );
+    }
+
+    // 5. 执行 post_install 命令
+    if let Some(ref commands) = config.post_install {
+        if !commands.is_empty() {
+            formatter.output(
+                "⚡ 开始执行安装后命令...",
+                Some(serde_json::json!({
+                    "phase": "post_install",
+                    "command_count": commands.len(),
+                })),
+            );
+            if let Err(e) = sync::run_post_install(commands, formatter) {
+                formatter.error(&e);
+                return;
+            }
+        }
+    }
+
+    // 6. 同步完成
+    formatter.output(
+        "🎉 环境同步完成！",
+        Some(serde_json::json!({
+            "status": "complete",
+            "action": "sync",
+            "message": "Environment synchronized successfully"
         })),
     );
 }
