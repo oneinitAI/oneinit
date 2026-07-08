@@ -1,6 +1,7 @@
 mod cli;
 mod core;
 mod output;
+mod tui2;
 
 use clap::{Parser, Subcommand};
 
@@ -52,6 +53,9 @@ enum Commands {
 
     /// 从 oneinit.yaml 同步环境
     Sync,
+
+    /// 启动交互式 TUI 界面
+    Tui,
 }
 
 #[tokio::main]
@@ -67,5 +71,10 @@ async fn main() {
         Commands::List => cli::run_list(&formatter).await,
         Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()).await,
         Commands::Sync => cli::run_sync(&formatter).await,
+        Commands::Tui => {
+            if let Err(e) = tui2::run_tui(&formatter).await {
+                eprintln!("TUI 错误: {}", e);
+            }
+        }
     }
 }
