@@ -1,3 +1,4 @@
+pub mod community_recipe;
 pub mod config_gen;
 pub mod downloader;
 pub mod manifest;
@@ -33,12 +34,19 @@ pub fn temp_dir() -> PathBuf {
     data_dir().join("temp")
 }
 
+/// 获取社区配方目录 ~/.oneinit/recipes/
+#[allow(dead_code)]
+pub fn recipes_dir() -> PathBuf {
+    data_dir().join("recipes")
+}
+
 /// 确保所有必要目录存在
 #[allow(dead_code)]
 pub fn ensure_dirs() -> Result<()> {
     std::fs::create_dir_all(envs_dir())?;
     std::fs::create_dir_all(db_dir())?;
     std::fs::create_dir_all(temp_dir())?;
+    std::fs::create_dir_all(recipes_dir())?;
     Ok(())
 }
 
