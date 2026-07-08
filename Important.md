@@ -209,6 +209,22 @@ post_install:
 - **Windows 按键去重**：crossterm 在 Windows 发送 Press+Release 成对事件，事件循环层用 120ms 去重 + Release 过滤
 - **TUI 模块路径为 `tui2/`**（非 `tui/`），因旧 `tui/` 目录残留权限问题无法删除
 - **社区配方格式**：严格按 `社区配方.md` 实现，声明式 YAML，支持模板变量（`{{install_dir}}` 等），详见 `社区配方.md`
+- **Phase 4 架构适配（关键！）**：设计文档 `数据的采集与迁移.md` 中的代码示例不能直接使用，必须适配：
+  - 统一用 `CoreError`（新增 `Capture(String)` / `Migration(String)` 变体），不引入独立 per-module error 枚举
+  - 模块路径用 `src/core/capture/` 和 `src/core/migration/`（非独立 crate）
+  - 依赖版本必须对齐：`winreg = "0.55"` / `dirs = "6"`（文档写的旧版本）
+  - Edition 2024 原生 async trait 可替代 `async-trait` crate，需验证
+  - MVP 先只做 gzip（flate2 已有），zstd 后续扩展
+  - `tempfile` 需测试 Windows 行为，可能用现有 `temp_dir()`
+
+## Phase 4 新增依赖（待添加）
+| crate | 版本 | 用途 | 阶段 |
+|-------|------|------|------|
+| async-trait | 0.1 | 检测器 trait（或用 Edition 2024 原生） | 4A |
+| walkdir | 2 | 递归遍历目录 | 4B |
+| tempfile | 3 | 安全临时目录 | 4B |
+| gethostname | 0.4 | 导出时记录主机名 | 4B |
+| regex | 1 | 版本号解析 | 4A |
 
 ## 依赖清单
 | crate | 版本 | 用途 |
