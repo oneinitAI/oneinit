@@ -113,18 +113,18 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
     let temp_archive = temp_dir().join(archive_name);
     let dl_result = downloader::download(&recipe.download_url, &temp_archive).await?;
     formatter.output(
-        &format!("✅ 下载完成: {} ({:.1} MB)", archive_name, dl_result.file_size as f64 / 1_048_576.0),
+        &format!("[OK] 下载完成: {} ({:.1} MB)", archive_name, dl_result.file_size as f64 / 1_048_576.0),
         Some(serde_json::json!({"message": "download_complete"})),
     );
 
     // 4. 校验 SHA256
     downloader::verify_sha256(&temp_archive, &recipe.sha256)?;
-    formatter.output("✅ SHA256 校验通过", Some(serde_json::Value::Null));
+    formatter.output("[OK] SHA256 校验通过", Some(serde_json::Value::Null));
 
     // 5. 解压到安装目录
     let extracted = downloader::extract(&temp_archive, &install_dir)?;
     formatter.output(
-        &format!("✅ 解压完成: {} 个文件", extracted.len()),
+        &format!("[OK] 解压完成: {} 个文件", extracted.len()),
         Some(serde_json::Value::Null),
     );
 
@@ -140,7 +140,7 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
     let config_files = apply_configs(&install_dir, &recipe.configs)?;
     for cf in &config_files {
         formatter.output(
-            &format!("✅ 配置文件: {}", cf.display()),
+            &format!("[OK] 配置文件: {}", cf.display()),
             Some(serde_json::Value::Null),
         );
     }
@@ -274,7 +274,7 @@ async fn execute_download_and_run(
     downloader::download(url, &dest).await?;
 
     formatter.output(
-        &format!("✅ 下载脚本: {}", file_name),
+        &format!("[OK] 下载脚本: {}", file_name),
         Some(serde_json::json!({"message": "script_downloaded"})),
     );
 
@@ -286,7 +286,7 @@ async fn execute_download_and_run(
     cmd.current_dir(install_dir);
 
     formatter.output(
-        &format!("⏳ 执行: python {} {}", file_name, args.join(" ")),
+        &format!("[WAIT] 执行: python {} {}", file_name, args.join(" ")),
         Some(serde_json::Value::Null),
     );
 
@@ -295,7 +295,7 @@ async fn execute_download_and_run(
         .map_err(|e| CoreError::Other(format!("执行脚本失败: {}", e)))?;
 
     if output.status.success() {
-        formatter.output("✅ 脚本执行完成", Some(serde_json::Value::Null));
+        formatter.output("[OK] 脚本执行完成", Some(serde_json::Value::Null));
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(CoreError::Other(format!("脚本执行失败: {}", stderr)));

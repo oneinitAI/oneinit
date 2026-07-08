@@ -65,7 +65,7 @@ async fn main_loop(
                         if let Err(e) =
                             app::execute_action(terminal, app_state, target).await
                         {
-                            app_state.message = Some(format!("❌ 操作失败: {}", e));
+                            app_state.message = Some(format!("[ERROR] 操作失败: {}", e));
                             *terminal = backend::init()?;
                         }
                         // 跳出内层循环，重新启动事件循环
@@ -115,9 +115,9 @@ fn handle_event(state: &mut state::AppState, ev: event::AppEvent) -> Option<stat
         }
         AppEvent::InstallComplete(pkg, success) => {
             if success {
-                state.message = Some(format!("✅ {} 安装成功", pkg));
+                state.message = Some(format!("[OK] {} 安装成功", pkg));
             } else {
-                state.message = Some(format!("❌ {} 安装失败", pkg));
+                state.message = Some(format!("[ERROR] {} 安装失败", pkg));
             }
             state.installing = None;
             state.refresh();

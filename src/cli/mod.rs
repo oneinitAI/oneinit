@@ -18,7 +18,7 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
                 Some(p) => p,
                 None => {
                     formatter.output(
-                        &format!("❌ 未找到套装 '{}'。可用套装：", name),
+                        &format!("[ERROR] 未找到套装 '{}'。可用套装：", name),
                         Some(serde_json::json!({
                             "status": "error",
                             "action": "init",
@@ -34,7 +34,7 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
 
             if preset.packages.is_empty() {
                 formatter.output(
-                    &format!("⚠️ 套装 '{}' 暂无可用的配方。({})", preset.display_name, preset.description),
+                    &format!("[WARN] 套装 '{}' 暂无可用的配方。({})", preset.display_name, preset.description),
                     Some(serde_json::json!({
                         "status": "success",
                         "action": "init",
@@ -111,7 +111,7 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
         if let Ok(manifest) = Manifest::open() {
             if let Ok(Some(_)) = manifest.get(pkg_name) {
                 formatter.output(
-                    &format!("  ⏭️ '{}' 已安装，跳过", pkg_name),
+                    &format!("  [SKIP] '{}' 已安装，跳过", pkg_name),
                     Some(serde_json::json!({
                         "package": pkg_name,
                         "status": "skipped",
@@ -128,7 +128,7 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
             Some(r) => r,
             None => {
                 formatter.output(
-                    &format!("  ❌ '{}' 未找到配方，跳过", pkg_name),
+                    &format!("  [ERROR] '{}' 未找到配方，跳过", pkg_name),
                     Some(serde_json::json!({
                         "package": pkg_name,
                         "status": "failed",
@@ -145,7 +145,7 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
             Ok(()) => succeeded.push(pkg_name),
             Err(e) => {
                 formatter.output(
-                    &format!("  ❌ '{}' 安装失败: {}", pkg_name, e),
+                    &format!("  [ERROR] '{}' 安装失败: {}", pkg_name, e),
                     Some(serde_json::json!({
                         "package": pkg_name,
                         "status": "failed",
@@ -204,7 +204,7 @@ pub async fn run_install(formatter: &OutputFormatter, package: &str) {
         Some(r) => r,
         None => {
             formatter.output(
-                &format!("❌ 未找到 '{}' 的安装配方。使用 oneinit search 查看可用工具。", package),
+                &format!("[ERROR] 未找到 '{}' 的安装配方。使用 oneinit search 查看可用工具。", package),
                 Some(serde_json::json!({
                     "status": "error",
                     "action": "install",
@@ -329,7 +329,7 @@ pub async fn run_sync(formatter: &OutputFormatter) {
     let yaml_path = std::path::PathBuf::from("oneinit.yaml");
     if !yaml_path.exists() {
         formatter.output(
-            "❌ 当前目录未找到 oneinit.yaml 文件。",
+            "[ERROR] 当前目录未找到 oneinit.yaml 文件。",
             Some(serde_json::json!({
                 "status": "error",
                 "action": "sync",
@@ -370,7 +370,7 @@ pub async fn run_sync(formatter: &OutputFormatter) {
     // 4. 应用镜像配置（记录日志，未来扩展覆盖默认镜像）
     if let Some(ref mirrors) = config.mirrors {
         formatter.output(
-            &format!("⚙️ 镜像配置: {:?}", mirrors),
+            &format!("[CONF] 镜像配置: {:?}", mirrors),
             Some(serde_json::json!({
                 "mirrors_applied": mirrors,
             })),
@@ -381,7 +381,7 @@ pub async fn run_sync(formatter: &OutputFormatter) {
     if let Some(ref commands) = config.post_install {
         if !commands.is_empty() {
             formatter.output(
-                "⚡ 开始执行安装后命令...",
+                "[RUN] 开始执行安装后命令...",
                 Some(serde_json::json!({
                     "phase": "post_install",
                     "command_count": commands.len(),

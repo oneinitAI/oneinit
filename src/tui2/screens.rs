@@ -90,7 +90,7 @@ fn draw_installed_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
     let list = List::new(items)
         .block(block)
         .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
-        .highlight_symbol("▶ ");
+        .highlight_symbol(">");
 
     frame.render_stateful_widget(list, area, &mut list_state);
 }
@@ -111,7 +111,7 @@ fn draw_available_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
         .iter()
         .map(|r| {
             let is_installed = state.installed.iter().any(|i| i.name == r.name);
-            let prefix = if is_installed { "✓ " } else { "  " };
+            let prefix = if is_installed { "v " } else { "  " };
             ListItem::new(Line::from(vec![
                 Span::raw(prefix),
                 Span::styled(
@@ -134,7 +134,7 @@ fn draw_available_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
     let list = List::new(items)
         .block(block)
         .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
-        .highlight_symbol("▶ ");
+        .highlight_symbol(">");
 
     frame.render_stateful_widget(list, area, &mut list_state);
 }

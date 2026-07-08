@@ -65,7 +65,7 @@ impl OutputFormatter {
                 .unwrap_or_default()
             );
         } else {
-            eprintln!("❌ 错误: {}", err);
+            eprintln!("[ERROR] 错误: {}", err);
         }
     }
 }

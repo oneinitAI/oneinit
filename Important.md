@@ -172,6 +172,7 @@ post_install:
 
 ## 代码约定
 - **Edition**：2024
+- **禁止 emoji**：源码（.rs）中禁止使用 emoji 字符，统一用 ASCII 标记代替（`[OK]` `[ERROR]` `[WAIT]` `[PKG]` `[LIST]` `[SEARCH]` `[SUCCESS]` `[DEL]` `[SKIP]` `[START]` `[DONE]` `[RUN]` `[CONF]` `[WARN]`）。原因：Windows 传统 conhost 对部分 emoji 宽度计算错误，导致终端布局错乱。
 - **输出格式**：通过 `OutputFormatter` 统一管理，永远不要直接 `println!` 业务数据
 - **错误处理**：`core::Result<T>` + `CoreError` 枚举
 - **unsafe**：`std::env::set_var` 在 edition 2024 需要 unsafe 块
@@ -180,6 +181,7 @@ post_install:
 - **TUI 退出执行模式**：执行安装/卸载前必须 `drop(event_tx)` 停止事件循环，否则 `EventStream` 会和 `stdin` 读取竞争导致"按任意键无反应"。执行后重启事件循环。
 - **Windows 按键去重**：crossterm 在 Windows 发送 Press+Release 成对事件，事件循环层用 120ms 去重 + Release 过滤
 - **TUI 模块路径为 `tui2/`**（非 `tui/`），因旧 `tui/` 目录残留权限问题无法删除
+- **社区配方格式**：严格按 `社区配方.md` 实现，声明式 YAML，支持模板变量（`{{install_dir}}` 等），详见 `社区配方.md`
 
 ## 依赖清单
 | crate | 版本 | 用途 |

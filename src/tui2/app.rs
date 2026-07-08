@@ -31,16 +31,16 @@ pub async fn execute_action(
         Target::Install(recipe_name) => match crate::core::recipe::resolve(&recipe_name) {
             Some(recipe) => {
                 match crate::core::recipe::install(&recipe, &formatter).await {
-                    Ok(()) => format!("✅ {} 安装成功", recipe.display_name),
-                    Err(e) => format!("❌ 安装失败: {}", e),
+                    Ok(()) => format!("[OK] {} 安装成功", recipe.display_name),
+                    Err(e) => format!("[ERROR] 安装失败: {}", e),
                 }
             }
-            None => format!("❌ 未找到配方: {}", recipe_name),
+            None => format!("[ERROR] 未找到配方: {}", recipe_name),
         },
         Target::Uninstall(package_name) => {
             match crate::core::recipe::uninstall(&package_name, &formatter).await {
-                Ok(()) => format!("✅ {} 卸载完成", package_name),
-                Err(e) => format!("❌ 卸载失败: {}", e),
+                Ok(()) => format!("[OK] {} 卸载完成", package_name),
+                Err(e) => format!("[ERROR] 卸载失败: {}", e),
             }
         }
     };

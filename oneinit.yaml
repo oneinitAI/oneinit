@@ -1,0 +1,9 @@
+# OneInit 测试配置
+envs:
+  python: 3.11
+
+mirrors:
+  pip: tsinghua
+
+post_install:
+  - echo "Hello from post_install!"

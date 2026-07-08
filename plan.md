@@ -4,36 +4,45 @@
 1. **一次一任务，一次一提交** — 使用 `gh` CLI 每次修改都提交
 2. **任务化** — 每次要做什么先看本计划，有规划地推进
 3. **记录** — 重要信息记录在 `Important.md`
+4. **代码兼容性** — 源码中禁止使用 emoji，用 ASCII 标记代替（如 `[OK]` `[ERROR]`）
 
 ---
 
-## Phase 1: MVP（当前阶段）
+## Phase 1: MVP（已完成）
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 1 | 项目初始化 + CLI 骨架 | ✅ 完成 | Git 仓库、Rust 项目、clap 命令骨架、--json 开关 |
-| 2 | 核心引擎：下载器 | ✅ 完成 | 异步下载 + SHA256 校验 + zip/tar.gz 解压 |
-| 3 | 核心引擎：清单系统 | ✅ 完成 | SQLite 存储安装记录，WAL 模式，支持回滚 |
-| 4 | 核心引擎：PATH 管理 | ✅ 完成 | Windows 注册表 + Unix shell 配置文件 |
-| 5 | 核心引擎：配置生成 | ✅ 完成 | pip 清华源、npm/yarn 淘宝镜像 |
-| 6 | 配方系统设计 | ✅ 完成 | 定义配方格式，实现首个配方（Python 3.11.9） |
-| 7 | 集成测试：Python | ✅ 完成 | `oneinit install python3.11` 全流程验收通过 |
+| 1 | 项目初始化 + CLI 骨架 | 完成 | Git 仓库、Rust 项目、clap 命令骨架、--json 开关 |
+| 2 | 核心引擎：下载器 | 完成 | 异步下载 + SHA256 校验 + zip/tar.gz 解压 |
+| 3 | 核心引擎：清单系统 | 完成 | SQLite 存储安装记录，WAL 模式，支持回滚 |
+| 4 | 核心引擎：PATH 管理 | 完成 | Windows 注册表 + Unix shell 配置文件 |
+| 5 | 核心引擎：配置生成 | 完成 | pip 清华源、npm/yarn 淘宝镜像 |
+| 6 | 配方系统设计 | 完成 | 定义配方格式，实现首个配方（Python 3.11.9） |
+| 7 | 集成测试：Python | 完成 | `oneinit install python3.11` 全流程验收通过 |
 
 ## Phase 2: 生态扩展
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 8 | 包仓库扩展 | ⏳ 待做 | Java, Go, Rust, MySQL, Redis |
-| 9 | `init` 命令完整实现 | ✅ 完成 | 预置套装（python/ai/frontend/full） |
-| 10 | `sync` 命令完整实现 | ✅ 完成 | 读取 `oneinit.yaml` 批量同步 |
-| 11 | 社区配方机制 | ⏳ 待做 | GitHub PR 接受新软件配方 |
+| 8 | 包仓库扩展 | 待做 | Java, Go, Rust, MySQL, Redis（随社区配方机制一起） |
+| 9 | `init` 命令完整实现 | 完成 | 预置套装（python/ai/frontend/full） |
+| 10 | `sync` 命令完整实现 | 完成 | 读取 `oneinit.yaml` 批量同步 |
+| 11 | 社区配方机制 | 待做 | 严格按 `社区配方.md` 实现：声明式 YAML + verify 命令 + 安全提醒 |
 
 ## Phase 3: 体验优化
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 12 | TUI 界面 | ✅ 完成 | ratatui + crossterm 异步事件循环 + 双面板菜单 |
-| 13 | 企业功能 | ⏳ 待做 | 私有配方仓库、离线安装包 |
-| 14 | TUI 功能完善 | ⏳ 待做 | 搜索过滤、包详情页、预置套装选择 |
+| 12 | TUI 界面 | 完成 | ratatui + crossterm 异步事件循环 + 双面板菜单 |
+| 13 | 企业功能 | 待做 | 私有配方仓库、离线安装包 |
+| 14 | TUI 功能完善 + 文档清理 | 完成 | 移除源码 emoji（兼容性）、完善 plan.md/Important.md |
 
 > 注：原 GUI 桌面应用（Tauri）计划已取消，完全转向 TUI 方向。
+
+---
+
+## 里程碑
+
+- **MVP 达成**（Phase 1 全部完成）：`oneinit install python3.11` 全流程可用，pip 走清华源
+- **生态扩展**（Phase 2 部分完成）：init/sync 命令、预置套装
+- **体验优化**（Phase 3 部分完成）：TUI 界面、emoji 清理、文档完善

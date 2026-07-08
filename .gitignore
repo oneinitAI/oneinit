@@ -24,6 +24,10 @@ desktop.ini
 .env
 .env.local
 
+# Local dev artifacts
+/temp/
+*.zip
+.zcode/
 
 # Added by cargo
 
