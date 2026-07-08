@@ -8,11 +8,12 @@ src/
 │   └── mod.rs            # 各子命令处理器（调用配方/预置/同步系统）
 ├── core/
 │   ├── mod.rs            # CoreError 统一错误类型 + 目录函数
+│   ├── community_recipe.rs # 社区配方系统（YAML DTO + 加载 + 验证 + 安装）
 │   ├── downloader.rs     # 异步下载器 + SHA256 校验 + 归档解压
 │   ├── manifest.rs       # SQLite 安装清单系统
 │   ├── path_mgr.rs       # 跨平台 PATH 管理
 │   ├── config_gen.rs     # 配置生成器（自动换源）
-│   ├── recipe.rs         # 配方系统（Recipe 结构 + 安装/卸载执行器）
+│   ├── recipe.rs         # 内置配方系统（Recipe 结构 + 安装/卸载执行器）
 │   ├── preset.rs         # 预置套装（Preset 结构 + 内置套装定义）
 │   └── sync.rs           # 同步系统（SyncConfig 结构 + oneinit.yaml 解析）
 ├── tui2/
@@ -64,6 +65,7 @@ src/
 | `oneinit list` | 列出已安装工具 | ✅ 已接入 SQLite |
 | `oneinit search [kw]` | 搜索可用工具 | ✅ 已接入配方注册表 |
 | `oneinit sync` | 从 oneinit.yaml 同步 | ✅ YAML 解析 + 批量安装 + 后置命令 |
+| `oneinit verify <file>` | 验证社区配方文件 | ✅ YAML 语法 + 字段 + SHA256 + install_type |
 | `oneinit tui` | 启动交互式 TUI 界面 | ✅ ratatui 异步事件循环 + 双面板 |
 
 ### 全局开关
@@ -137,6 +139,31 @@ pub async fn uninstall(package, formatter) -> Result<()>
 | 包名 | 版本 | 来源 | 说明 |
 |------|------|------|------|
 | `python3.11` | 3.11.9 | python.org embeddable | Windows 嵌入式包 + get-pip 引导 + 清华源 |
+
+### community_recipe.rs（社区配方系统）
+严格按 `社区配方.md` 实现。配方 YAML 格式见该文档 1.1 节。
+```rust
+// DTO（serde::Deserialize）
+pub struct CommunityRecipe { name, version, description, platforms, post_install?, depends?, tags?, maintainer? }
+pub struct Platforms { windows?, linux?, darwin? }  // 各为 PlatformConfig
+pub struct PlatformConfig { url, sha256, install_type, install_args?, install_path, path_add }
+
+// 加载与查找
+pub fn load_all() -> Vec<CommunityRecipe>              // 扫描 ~/.oneinit/recipes/*.yaml
+pub fn resolve(name) -> Option<CommunityRecipe>
+pub fn verify(yaml_path) -> Result<VerifyResult>       // 验证配方文件
+
+// 安装（含安全提醒）
+pub async fn install(recipe, formatter) -> Result<()>  // [SECURITY] 确认后下载安装
+pub async fn uninstall(name, formatter) -> Result<()>
+
+// 模板渲染
+pub fn render_template(template, install_dir) -> String  // {{install_dir}} {{mirror_pip}} 等
+```
+
+**安全提醒**：安装前醒目显示下载来源、SHA256、写入目录、将执行的命令，等用户输入 y 确认。
+**install_type 支持**：`zip_extract`、`tar_extract`、`exe_silent`、`binary_copy`（其他报错）
+**集成方式**：`run_install` 先查内置 `recipe::resolve()`，未命中查社区配方；`run_search` 合并显示
 
 ### preset.rs（预置套装）
 ```rust

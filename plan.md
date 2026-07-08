@@ -27,7 +27,7 @@
 | 8 | 包仓库扩展 | 待做 | Java, Go, Rust, MySQL, Redis（随社区配方机制一起） |
 | 9 | `init` 命令完整实现 | 完成 | 预置套装（python/ai/frontend/full） |
 | 10 | `sync` 命令完整实现 | 完成 | 读取 `oneinit.yaml` 批量同步 |
-| 11 | 社区配方机制 | 待做 | 严格按 `社区配方.md` 实现：声明式 YAML + verify 命令 + 安全提醒 |
+| 11 | 社区配方机制 | 完成 | 声明式 YAML 配方 + `verify` 命令 + 安装安全提醒 + `~/.oneinit/recipes/` |
 
 ## Phase 3: 体验优化
 
