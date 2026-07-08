@@ -199,38 +199,49 @@ pub async fn run_install(formatter: &OutputFormatter, package: &str) {
         }
     }
 
-    // 查找配方
-    let rec = match resolve(package) {
-        Some(r) => r,
-        None => {
-            formatter.output(
-                &format!("[ERROR] 未找到 '{}' 的安装配方。使用 oneinit search 查看可用工具。", package),
-                Some(serde_json::json!({
-                    "status": "error",
-                    "action": "install",
-                    "package": package,
-                    "message": "Recipe not found"
-                })),
-            );
-            return;
+    // 查找内置配方
+    if let Some(rec) = resolve(package) {
+        if let Err(e) = recipe::install(&rec, formatter).await {
+            formatter.error(&e);
         }
-    };
-
-    // 执行安装
-    if let Err(e) = recipe::install(&rec, formatter).await {
-        formatter.error(&e);
+        return;
     }
+
+    // 未找到内置配方，尝试社区配方
+    use crate::core::community_recipe;
+    if let Some(rec) = community_recipe::resolve(package) {
+        if let Err(e) = community_recipe::install(&rec, formatter).await {
+            formatter.error(&e);
+        }
+        return;
+    }
+
+    // 都没找到
+    formatter.output(
+        &format!("[ERROR] 未找到 '{}' 的安装配方。使用 oneinit search 查看可用工具。", package),
+        Some(serde_json::json!({
+            "status": "error",
+            "action": "install",
+            "package": package,
+            "message": "Recipe not found"
+        })),
+    );
 }
 
-/// oneinit uninstall <package> — 卸载指定工具
+/// oneinit uninstall <package> -- 卸载指定工具
 pub async fn run_uninstall(formatter: &OutputFormatter, package: &str) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
     }
 
+    // 先尝试内置配方卸载
     if let Err(e) = recipe::uninstall(package, formatter).await {
-        formatter.error(&e);
+        // 内置卸载失败，尝试社区配方卸载
+        use crate::core::community_recipe;
+        if let Err(e2) = community_recipe::uninstall(package, formatter).await {
+            formatter.error(&e2);
+        }
     }
 }
 
@@ -273,11 +284,10 @@ pub async fn run_list(formatter: &OutputFormatter) {
     }
 }
 
-/// oneinit search <keyword> — 搜索可用工具
+/// oneinit search <keyword> -- 搜索可用工具
 pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
-    let all = recipe::list_recipes();
-
-    let results: Vec<_> = all
+    // 内置配方
+    let builtin: Vec<serde_json::Value> = recipe::list_recipes()
         .iter()
         .filter(|r| {
             keyword.map_or(true, |kw| {
@@ -285,35 +295,59 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
                     || r.display_name.to_lowercase().contains(&kw.to_lowercase())
             })
         })
+        .map(|r| serde_json::json!({
+            "name": r.name,
+            "version": r.version,
+            "display_name": r.display_name,
+            "source": "builtin",
+        }))
         .collect();
 
+    // 社区配方
+    let community: Vec<serde_json::Value> = crate::core::community_recipe::load_all()
+        .iter()
+        .filter(|r| {
+            keyword.map_or(true, |kw| {
+                r.name.contains(kw) || r.description.to_lowercase().contains(&kw.to_lowercase())
+            })
+        })
+        .map(|r| serde_json::json!({
+            "name": r.name,
+            "version": r.version,
+            "display_name": r.description,
+            "source": "community",
+        }))
+        .collect();
+
+    let total = builtin.len() + community.len();
+
+    let mut human = String::new();
+    if total == 0 {
+        human.push_str(&match keyword {
+            Some(kw) => format!("[SEARCH] 未找到与 '{}' 相关的工具。", kw),
+            None => "[SEARCH] 暂无可用工具。".to_string(),
+        });
+    } else {
+        human.push_str(&format!("[SEARCH] 找到 {} 个可用工具:\n", total));
+        for r in &builtin {
+            human.push_str(&format!("  - {} v{} [builtin]\n", r["name"], r["version"]));
+        }
+        for r in &community {
+            human.push_str(&format!("  - {} v{} [community]\n", r["name"], r["version"]));
+        }
+    }
+
+    let mut all_results = builtin.clone();
+    all_results.extend(community);
+
     formatter.output(
-        &if results.is_empty() {
-            match keyword {
-                Some(kw) => format!("🔍 未找到与 '{}' 相关的工具。", kw),
-                None => "🔍 暂无可用工具。".to_string(),
-            }
-        } else {
-            format!(
-                "🔍 找到 {} 个可用工具:\n{}",
-                results.len(),
-                results
-                    .iter()
-                    .map(|r| format!("  - {} ({})", r.name, r.display_name))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            )
-        },
+        human.trim(),
         Some(serde_json::json!({
             "status": "success",
             "action": "search",
             "keyword": keyword,
-            "results": results.iter().map(|r| serde_json::json!({
-                "name": r.name,
-                "version": r.version,
-                "display_name": r.display_name,
-            })).collect::<Vec<_>>(),
-            "count": results.len()
+            "results": all_results,
+            "count": total,
         })),
     );
 }
