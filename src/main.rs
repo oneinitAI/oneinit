@@ -54,6 +54,12 @@ enum Commands {
     /// 从 oneinit.yaml 同步环境
     Sync,
 
+    /// 验证社区配方文件
+    Verify {
+        /// 配方文件路径
+        file: String,
+    },
+
     /// 启动交互式 TUI 界面
     Tui,
 }
@@ -71,6 +77,7 @@ async fn main() {
         Commands::List => cli::run_list(&formatter).await,
         Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()).await,
         Commands::Sync => cli::run_sync(&formatter).await,
+        Commands::Verify { file } => cli::run_verify(&formatter, &file).await,
         Commands::Tui => {
             if let Err(e) = tui2::run_tui(&formatter).await {
                 eprintln!("TUI 错误: {}", e);

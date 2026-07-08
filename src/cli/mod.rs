@@ -396,11 +396,70 @@ pub async fn run_sync(formatter: &OutputFormatter) {
 
     // 6. 同步完成
     formatter.output(
-        "🎉 环境同步完成！",
+        "[SUCCESS] 环境同步完成!",
         Some(serde_json::json!({
             "status": "complete",
             "action": "sync",
             "message": "Environment synchronized successfully"
         })),
     );
+}
+
+/// oneinit verify <file> -- 验证社区配方文件
+pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
+    use crate::core::community_recipe;
+
+    let path = std::path::PathBuf::from(file);
+    if !path.exists() {
+        formatter.output(
+            &format!("[ERROR] 文件不存在: {}", file),
+            Some(serde_json::json!({
+                "status": "error",
+                "action": "verify",
+                "file": file,
+                "message": "File not found"
+            })),
+        );
+        return;
+    }
+
+    match community_recipe::verify(&path) {
+        Ok(result) => {
+            let total = result.checks.len();
+            let passed = result.checks.iter().filter(|(_, ok, _)| *ok).count();
+
+            for (name, ok, detail) in &result.checks {
+                let tag = if detail.starts_with("[WARN]") {
+                    "[WARN]"
+                } else if *ok {
+                    "[OK]"
+                } else {
+                    "[FAIL]"
+                };
+                formatter.output(
+                    &format!("  {} {} - {}", tag, name, detail),
+                    Some(serde_json::json!({
+                        "check": name,
+                        "passed": *ok,
+                        "detail": detail,
+                    })),
+                );
+            }
+
+            formatter.output(
+                &format!("\n[{}] 验证完成: {}/{} 项通过", if result.valid { "OK" } else { "FAIL" }, passed, total),
+                Some(serde_json::json!({
+                    "status": if result.valid { "valid" } else { "invalid" },
+                    "action": "verify",
+                    "file": file,
+                    "total_checks": total,
+                    "passed": passed,
+                    "valid": result.valid,
+                })),
+            );
+        }
+        Err(e) => {
+            formatter.error(&e);
+        }
+    }
 }
