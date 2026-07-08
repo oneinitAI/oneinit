@@ -15,6 +15,13 @@ src/
 │   ├── recipe.rs         # 配方系统（Recipe 结构 + 安装/卸载执行器）
 │   ├── preset.rs         # 预置套装（Preset 结构 + 内置套装定义）
 │   └── sync.rs           # 同步系统（SyncConfig 结构 + oneinit.yaml 解析）
+├── tui2/
+│   ├── mod.rs            # TUI 入口 + 主循环（事件循环停止/重启控制）
+│   ├── backend.rs        # 终端初始化/恢复 + 能力检测 + panic hook
+│   ├── event.rs          # 异步事件循环（EventStream + mpsc + 120ms 去重）
+│   ├── screens.rs        # ratatui 渲染（标题/双面板/进度/帮助弹窗）
+│   ├── state.rs          # AppState + Screen 路由 + Pane 焦点
+│   └── app.rs            # 操作执行（退出TUI→install/uninstall→任意键返回）
 └── output/
     └── mod.rs            # OutputFormatter（human / json 双模式 + error）
 ```
@@ -57,6 +64,7 @@ src/
 | `oneinit list` | 列出已安装工具 | ✅ 已接入 SQLite |
 | `oneinit search [kw]` | 搜索可用工具 | ✅ 已接入配方注册表 |
 | `oneinit sync` | 从 oneinit.yaml 同步 | ✅ YAML 解析 + 批量安装 + 后置命令 |
+| `oneinit tui` | 启动交互式 TUI 界面 | ✅ ratatui 异步事件循环 + 双面板 |
 
 ### 全局开关
 - `--json`：所有命令支持 JSON 输出，AI 可直接消费
@@ -169,6 +177,9 @@ post_install:
 - **unsafe**：`std::env::set_var` 在 edition 2024 需要 unsafe 块
 - **formatter.output 类型推断**：传 `None` 时类型推断失败，必须用 `Some(serde_json::Value::Null)` 或具体 JSON 值
 - **已处于 async 上下文**：不要在 async 函数中创建 `tokio::runtime::Runtime`（会 panic），直接 `.await` 即可
+- **TUI 退出执行模式**：执行安装/卸载前必须 `drop(event_tx)` 停止事件循环，否则 `EventStream` 会和 `stdin` 读取竞争导致"按任意键无反应"。执行后重启事件循环。
+- **Windows 按键去重**：crossterm 在 Windows 发送 Press+Release 成对事件，事件循环层用 120ms 去重 + Release 过滤
+- **TUI 模块路径为 `tui2/`**（非 `tui/`），因旧 `tui/` 目录残留权限问题无法删除
 
 ## 依赖清单
 | crate | 版本 | 用途 |
@@ -192,3 +203,6 @@ post_install:
 | winapi | 0.3.x | Windows API（cfg(windows)） |
 | dirs | 6.x | 跨平台 home 目录 |
 | chrono | 0.4.x | 时间戳 |
+| ratatui | 0.29.x (no default-features) | TUI 终端界面渲染 |
+| crossterm | 0.28.x (event-stream) | 终端后端 + 异步事件 |
+| tokio-stream | 0.1.x | EventStream 异步迭代 |
