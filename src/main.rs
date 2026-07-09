@@ -54,6 +54,13 @@ enum Commands {
     /// 从 oneinit.yaml 同步环境
     Sync,
 
+    /// 捕获当前环境生成 oneinit.yaml
+    Capture {
+        /// 输出文件路径（默认 oneinit.yaml）
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+
     /// 验证社区配方文件
     Verify {
         /// 配方文件路径
@@ -77,6 +84,9 @@ async fn main() {
         Commands::List => cli::run_list(&formatter).await,
         Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()).await,
         Commands::Sync => cli::run_sync(&formatter).await,
+        Commands::Capture { output } => {
+            cli::run_capture(&formatter, output.as_deref().unwrap_or("oneinit.yaml")).await
+        }
         Commands::Verify { file } => cli::run_verify(&formatter, &file).await,
         Commands::Tui => {
             if let Err(e) = tui2::run_tui(&formatter).await {

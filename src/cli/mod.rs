@@ -497,3 +497,15 @@ pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
         }
     }
 }
+
+/// oneinit capture [--output <file>] -- 捕获当前开发环境
+pub async fn run_capture(formatter: &OutputFormatter, output: &str) {
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+
+    if let Err(e) = crate::core::capture::run_capture(formatter, output) {
+        formatter.error(&e);
+    }
+}
