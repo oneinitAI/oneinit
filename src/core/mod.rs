@@ -3,6 +3,7 @@ pub mod community_recipe;
 pub mod config_gen;
 pub mod downloader;
 pub mod manifest;
+pub mod migration;
 pub mod path_mgr;
 pub mod preset;
 pub mod recipe;
@@ -75,6 +76,9 @@ pub enum CoreError {
 
     #[error("环境捕获失败: {0}")]
     Capture(String),
+
+    #[error("数据迁移失败: {0}")]
+    Migration(String),
 
     #[error("IO 错误: {0}")]
     Io(#[from] std::io::Error),

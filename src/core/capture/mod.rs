@@ -7,6 +7,10 @@ pub mod detector;
 pub mod python;
 pub mod node;
 pub mod git;
+pub mod rust;
+pub mod go;
+pub mod java;
+pub mod docker;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -166,7 +170,7 @@ pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()>
 }
 
 /// 获取主机名
-fn hostname() -> String {
+pub fn hostname() -> String {
     std::env::var("COMPUTERNAME")
         .or_else(|_| std::env::var("HOSTNAME"))
         .unwrap_or_else(|_| "unknown".to_string())

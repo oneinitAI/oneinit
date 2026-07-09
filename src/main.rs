@@ -67,6 +67,28 @@ enum Commands {
         file: String,
     },
 
+    /// 导出环境为 tar.gz 包
+    Export {
+        /// 输出文件路径（默认 oneinit-backup.tar.gz）
+        #[arg(short, long, default_value = "oneinit-backup.tar.gz")]
+        output: String,
+        /// 包含已安装的工具目录（~/.oneinit/envs/）
+        #[arg(long)]
+        include_envs: bool,
+    },
+
+    /// 从 tar.gz 包导入环境
+    Import {
+        /// 备份文件路径
+        file: String,
+        /// 只预览不实际执行
+        #[arg(long)]
+        dry_run: bool,
+        /// 强制覆盖已存在的文件
+        #[arg(long)]
+        force: bool,
+    },
+
     /// 启动交互式 TUI 界面
     Tui,
 }
@@ -88,6 +110,12 @@ async fn main() {
             cli::run_capture(&formatter, output.as_deref().unwrap_or("oneinit.yaml")).await
         }
         Commands::Verify { file } => cli::run_verify(&formatter, &file).await,
+        Commands::Export { output, include_envs } => {
+            cli::run_export(&formatter, &output, include_envs).await
+        }
+        Commands::Import { file, dry_run, force } => {
+            cli::run_import(&formatter, &file, dry_run, force).await
+        }
         Commands::Tui => {
             if let Err(e) = tui2::run_tui(&formatter).await {
                 eprintln!("TUI 错误: {}", e);

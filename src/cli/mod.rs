@@ -509,3 +509,28 @@ pub async fn run_capture(formatter: &OutputFormatter, output: &str) {
         formatter.error(&e);
     }
 }
+
+/// oneinit export [--output <file>] [--include-envs] -- 导出环境为 tar.gz
+pub async fn run_export(formatter: &OutputFormatter, output: &str, include_envs: bool) {
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+
+    if let Err(e) = crate::core::migration::run_export(formatter, output, include_envs) {
+        formatter.error(&e);
+    }
+}
+
+/// oneinit import <file> [--dry-run] [--force] -- 从 tar.gz 导入环境
+pub async fn run_import(formatter: &OutputFormatter, file: &str, dry_run: bool, force: bool) {
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+
+    let skip_checksum = false;
+    if let Err(e) = crate::core::migration::run_import(formatter, file, dry_run, force, skip_checksum) {
+        formatter.error(&e);
+    }
+}
