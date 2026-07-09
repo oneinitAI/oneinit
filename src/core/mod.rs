@@ -1,3 +1,4 @@
+pub mod capture;
 pub mod community_recipe;
 pub mod config_gen;
 pub mod downloader;
@@ -71,6 +72,9 @@ pub enum CoreError {
 
     #[error("配置生成失败: {0}")]
     ConfigGen(String),
+
+    #[error("环境捕获失败: {0}")]
+    Capture(String),
 
     #[error("IO 错误: {0}")]
     Io(#[from] std::io::Error),
