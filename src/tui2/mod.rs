@@ -131,6 +131,14 @@ fn handle_event(state: &mut state::AppState, ev: event::AppEvent) -> Option<stat
 fn handle_key(state: &mut state::AppState, key: crossterm::event::KeyCode) -> Option<state::Target> {
     use crossterm::event::KeyCode;
 
+    // Capture 屏幕只响应 Esc 返回
+    if state.current_screen == state::Screen::Capture {
+        if key == KeyCode::Esc || key == KeyCode::Enter || key == KeyCode::Char('q') {
+            state.current_screen = state::Screen::PackageList;
+        }
+        return None;
+    }
+
     if state.current_screen == state::Screen::Install {
         return None;
     }
@@ -151,6 +159,11 @@ fn handle_key(state: &mut state::AppState, key: crossterm::event::KeyCode) -> Op
         KeyCode::Char('?') => {
             state.current_screen = state::Screen::Help;
         }
+        KeyCode::Char('c') => {
+            // 执行环境捕获
+            state.message = Some("[SCAN] 正在扫描...".to_string());
+            run_capture_to_state(state);
+        }
         KeyCode::Char('r') => {
             state.refresh();
             state.message = Some("已刷新".to_string());
@@ -162,4 +175,23 @@ fn handle_key(state: &mut state::AppState, key: crossterm::event::KeyCode) -> Op
     }
 
     None
+}
+
+/// 执行环境捕获并写入 state
+fn run_capture_to_state(state: &mut state::AppState) {
+    let mut scheduler = crate::core::capture::detector::DetectorScheduler::new();
+    scheduler.register_defaults();
+    let results = scheduler.scan();
+
+    let mut detected = Vec::new();
+    for (name, opt_env) in &results {
+        if let Some(env) = opt_env {
+            detected.push((env.name.clone(), Some(env.version.clone()), env.install_path.clone()));
+        } else {
+            detected.push((name.clone(), None, "未检测到".to_string()));
+        }
+    }
+
+    state.capture_result = Some(detected);
+    state.current_screen = state::Screen::Capture;
 }

@@ -40,6 +40,7 @@ fn draw_content(frame: &mut Frame, area: Rect, state: &mut AppState) {
         Screen::PackageList => draw_main_screen(frame, area, state),
         Screen::Install => draw_install_screen(frame, area, state),
         Screen::PackageInfo => draw_main_screen(frame, area, state),
+        Screen::Capture => draw_capture_screen(frame, area, state),
         Screen::Help => {
             draw_main_screen(frame, area, state);
             draw_help_popup(frame, frame.area());
@@ -162,9 +163,56 @@ fn draw_install_screen(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(info, chunks[1]);
 }
 
+/// Capture 屏幕：显示环境检测结果
+fn draw_capture_screen(frame: &mut Frame, area: Rect, state: &AppState) {
+    let mut lines: Vec<Line> = Vec::new();
+    lines.push(Line::from(Span::styled(
+        "环境捕获结果",
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(""));
+
+    if let Some(ref results) = state.capture_result {
+        for (name, version, path) in results {
+            let status_tag = if version.is_some() { "[OK]" } else { "[--]" };
+            let ver_str = version.as_deref().unwrap_or("未检测到");
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(status_tag, Style::default().fg(if version.is_some() { Color::Green } else { Color::DarkGray })),
+                Span::raw(" "),
+                Span::styled(name, Style::default().fg(Color::Yellow)),
+                Span::raw(" "),
+                Span::styled(ver_str, Style::default().fg(Color::White)),
+            ]));
+            lines.push(Line::from(Span::styled(
+                format!("       {}", path),
+                Style::default().fg(Color::DarkGray),
+            )));
+        }
+    } else {
+        lines.push(Line::from(Span::styled(
+            "正在扫描...",
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "[Esc]/[q] 返回主菜单",
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    let content = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Capture "),
+    );
+    frame.render_widget(content, area);
+}
+
 /// 底部帮助栏 + 状态消息
 fn draw_footer(frame: &mut Frame, area: Rect, state: &AppState) {
-    let help_text = "[Tab] 切换面板  [↑↓] 移动  [Enter] 安装/卸载  [?] 帮助  [q] 退出";
+    let help_text = "[Tab]切换 [↑↓]移动 [Enter]安装/卸载 [c]捕获环境 [?]帮助 [q]退出";
     let message = state.message.as_deref().unwrap_or("");
 
     let content = format!("{}\n{}", help_text, message);

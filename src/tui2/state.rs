@@ -19,6 +19,8 @@ pub enum Screen {
     PackageInfo,
     /// 帮助弹窗
     Help,
+    /// 环境捕获结果
+    Capture,
 }
 
 /// 当前面板焦点（主屏幕用）
@@ -52,6 +54,8 @@ pub struct AppState {
     pub installing: Option<String>,
     /// 状态消息（操作结果 / 错误）
     pub message: Option<String>,
+    /// 环境捕获结果（Capture 屏幕用）
+    pub capture_result: Option<Vec<(String, Option<String>, String)>>, // (name, version, path)
     /// 是否应退出
     pub should_quit: bool,
 }
@@ -70,6 +74,7 @@ impl AppState {
             install_progress: HashMap::new(),
             installing: None,
             message: None,
+            capture_result: None,
             should_quit: false,
         };
         state.refresh();
