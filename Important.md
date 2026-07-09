@@ -8,6 +8,7 @@ src/
 │   └── mod.rs            # 各子命令处理器（调用配方/预置/同步系统）
 ├── core/
 │   ├── mod.rs            # CoreError 统一错误类型 + 目录函数
+│   ├── capture/          # 环境捕获模块（mod.rs + detector + python + node + git）
 │   ├── community_recipe.rs # 社区配方系统（YAML DTO + 加载 + 验证 + 安装）
 │   ├── downloader.rs     # 异步下载器 + SHA256 校验 + 归档解压
 │   ├── manifest.rs       # SQLite 安装清单系统
@@ -65,6 +66,7 @@ src/
 | `oneinit list` | 列出已安装工具 | ✅ 已接入 SQLite |
 | `oneinit search [kw]` | 搜索可用工具 | ✅ 已接入配方注册表 |
 | `oneinit sync` | 从 oneinit.yaml 同步 | ✅ YAML 解析 + 批量安装 + 后置命令 |
+| `oneinit capture [-o file]` | 捕获当前环境 | ✅ Python/Node/Git 检测 + YAML 输出 |
 | `oneinit verify <file>` | 验证社区配方文件 | ✅ YAML 语法 + 字段 + SHA256 + install_type |
 | `oneinit tui` | 启动交互式 TUI 界面 | ✅ ratatui 异步事件循环 + 双面板 |
 

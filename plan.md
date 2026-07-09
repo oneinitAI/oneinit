@@ -54,11 +54,11 @@
 
 | # | 任务 | 状态 | 说明 | 新增依赖 |
 |---|------|------|------|----------|
-| 15 | 跨平台适配层 `platform/` | 待做 | `where`/`which` 命令查找、常见安装路径、配置目录检测 | 无（winreg 已有） |
-| 16 | Python 检测器 | 待做 | 检测 python3/python.exe、pip 镜像、全局包列表 | `async-trait` |
-| 17 | Node.js + Git 检测器 | 待做 | node/npm/yarn 版本、镜像源、全局包 | `async-trait` |
-| 18 | `capture` 命令 + 配方生成 | 待做 | EnvironmentSnapshot -> oneinit.yaml 输出 | 无（serde_yaml 已有） |
-| 19 | TUI capture 交互界面 | 待做 | 检测进度展示 + 选择性导出 | 无（ratatui 已有） |
+| 15 | 跨平台适配层 + 核心数据结构 | 完成 | EnvDetector trait + DetectorScheduler + find_command + 数据结构 | 零 |
+| 16 | Python 检测器 | 完成 | python3/python.exe + pip 镜像 + 全局包列表 | 零（同步 trait，无 async-trait） |
+| 17 | Node.js + Git 检测器 | 完成 | node/npm 版本 + npm registry + 全局包; git 版本 + user config | 零 |
+| 18 | `capture` 命令 + 配方生成 | 完成 | `oneinit capture [-o file]` -> EnvironmentSnapshot -> YAML | 零 |
+| 19 | TUI capture 交互界面 | 完成 | 按 `c` 触发检测，Capture 屏幕显示结果 | 零 |
 
 ### 4B. 数据迁移（`oneinit export` / `import`）
 
