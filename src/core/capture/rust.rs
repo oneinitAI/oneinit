@@ -9,7 +9,7 @@ use crate::core::Result;
 pub struct RustDetector;
 
 impl EnvDetector for RustDetector {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "rust"
     }
 

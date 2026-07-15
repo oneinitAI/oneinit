@@ -446,9 +446,48 @@ pub async fn install(
             std::fs::copy(&temp_archive, install_dir.join(archive_name))?;
             formatter.output("[OK] 文件复制完成", Some(serde_json::Value::Null));
         }
+        "msi_install" => {
+            // Windows MSI 静默安装: msiexec /i <file> /qn
+            let args = platform_cfg.install_args.clone().unwrap_or_else(|| {
+                vec!["/qn".to_string(), "/norestart".to_string()]
+            });
+            let mut msiexec_args = vec!["/i".to_string(), temp_archive.to_string_lossy().to_string()];
+            msiexec_args.extend(args);
+            let status = Command::new("msiexec")
+                .args(&msiexec_args)
+                .status()
+                .map_err(|e| CoreError::Other(format!("执行 msiexec 失败: {}", e)))?;
+            if !status.success() {
+                return Err(CoreError::Other(format!(
+                    "MSI 安装退出码: {:?}",
+                    status.code()
+                )));
+            }
+            formatter.output("[OK] MSI 安装完成", Some(serde_json::Value::Null));
+        }
+        "pkg_install" => {
+            // macOS .pkg 安装: installer -pkg <file> -target /
+            let target = platform_cfg
+                .install_args
+                .as_ref()
+                .and_then(|a| a.first())
+                .map(|s| s.as_str())
+                .unwrap_or("/");
+            let status = Command::new("installer")
+                .args(["-pkg", &temp_archive.to_string_lossy(), "-target", target])
+                .status()
+                .map_err(|e| CoreError::Other(format!("执行 installer 失败: {}", e)))?;
+            if !status.success() {
+                return Err(CoreError::Other(format!(
+                    "pkg 安装退出码: {:?}",
+                    status.code()
+                )));
+            }
+            formatter.output("[OK] pkg 安装完成", Some(serde_json::Value::Null));
+        }
         other => {
             return Err(CoreError::Other(format!(
-                "install_type '{}' 暂不支持（当前支持: zip_extract, tar_extract, exe_silent, binary_copy）",
+                "install_type '{}' 暂不支持（当前支持: zip_extract, tar_extract, exe_silent, binary_copy, msi_install, pkg_install）",
                 other
             )));
         }

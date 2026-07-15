@@ -171,15 +171,21 @@ fn set_path_unix(new_path: &str) -> Result<()> {
     Ok(())
 }
 
-/// 写入 export PATH=... 到 shell 文件
+/// 写入 export PATH=... 到 shell 文件（检查重复，避免多次追加）
 #[cfg(not(target_os = "windows"))]
 fn write_path_to_shell_file(path: &Path) -> Result<()> {
     use std::io::Write;
 
-    let export_line = format!(
-        "\n# Added by OneInit\nexport PATH=\"{}\"\n",
-        std::env::var("PATH").unwrap_or_default()
-    );
+    let path_val = std::env::var("PATH").unwrap_or_default();
+    let marker = "# Added by OneInit";
+
+    // 检查是否已有 OneInit 写入的 PATH 行，避免重复追加
+    let existing = std::fs::read_to_string(path).unwrap_or_default();
+    if existing.contains(marker) {
+        return Ok(());
+    }
+
+    let export_line = format!("\n{}\nexport PATH=\"{}\"\n", marker, path_val);
 
     let mut file = std::fs::OpenOptions::new()
         .append(true)
@@ -188,13 +194,20 @@ fn write_path_to_shell_file(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 写入 fish 格式的 set -gx PATH
+/// 写入 fish 格式的 set -gx PATH（检查重复，避免多次追加）
 #[cfg(not(target_os = "windows"))]
 fn write_path_to_fish_file(path: &Path) -> Result<()> {
     use std::io::Write;
 
     let path_val = std::env::var("PATH").unwrap_or_default();
-    let fish_path = format!("\n# Added by OneInit\nset -gx PATH {}\n", path_val.replace(':', ' '));
+    let marker = "# Added by OneInit";
+
+    let existing = std::fs::read_to_string(path).unwrap_or_default();
+    if existing.contains(marker) {
+        return Ok(());
+    }
+
+    let fish_path = format!("\n{}\nset -gx PATH {}\n", marker, path_val.replace(':', ' '));
 
     let mut file = std::fs::OpenOptions::new()
         .append(true)

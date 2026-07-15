@@ -9,7 +9,7 @@ use crate::core::Result;
 pub struct GitDetector;
 
 impl EnvDetector for GitDetector {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "git"
     }
 

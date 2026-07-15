@@ -12,9 +12,15 @@ pub mod sync;
 use std::path::PathBuf;
 
 /// 获取 OneInit 数据根目录 ~/.oneinit/
+///
+/// 如果无法获取用户主目录（$HOME 未设置），返回当前目录下的 .oneinit 作为回退。
 #[allow(dead_code)]
 pub fn data_dir() -> PathBuf {
-    let home = dirs::home_dir().expect("无法获取用户主目录");
+    let home = dirs::home_dir().unwrap_or_else(|| {
+        // 回退：使用当前工作目录
+        eprintln!("[WARN] 无法获取用户主目录，使用当前目录作为回退");
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+    });
     home.join(".oneinit")
 }
 

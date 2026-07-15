@@ -80,7 +80,7 @@ pub fn export(
         if envs_source.exists() {
             let cache_dest = work_dir.join("envs");
             std::fs::create_dir_all(&cache_dest)?;
-            copy_dir_recursive(&envs_source, &cache_dest, &mut cache_files, &mut total_size)?;
+            copy_dir_recursive(&envs_source, &cache_dest, &envs_source, &mut cache_files, &mut total_size)?;
             formatter.output(
                 &format!("[EXPORT] 打包 {} 个缓存文件", cache_files.len()),
                 Some(serde_json::Value::Null),
@@ -148,9 +148,12 @@ pub fn export(
 }
 
 /// 递归复制目录，收集文件信息和 SHA256
+///
+/// `src_root` 是最初的源根目录，用于计算文件相对路径。
 fn copy_dir_recursive(
     src: &Path,
     dest: &Path,
+    src_root: &Path,
     entries: &mut Vec<CacheEntry>,
     total_size: &mut u64,
 ) -> Result<()> {
@@ -166,7 +169,7 @@ fn copy_dir_recursive(
 
         if src_path.is_dir() {
             std::fs::create_dir_all(&dest_path)?;
-            copy_dir_recursive(&src_path, &dest_path, entries, total_size)?;
+            copy_dir_recursive(&src_path, &dest_path, src_root, entries, total_size)?;
         } else if src_path.is_file() {
             // 复制文件
             std::fs::copy(&src_path, &dest_path)?;
@@ -180,9 +183,9 @@ fn copy_dir_recursive(
 
             entries.push(CacheEntry {
                 package: file_name.to_string_lossy().to_string(),
-                filename: dest_path
-                    .strip_prefix(&dest_path.ancestors().nth(2).unwrap_or(dest))
-                    .unwrap_or(&dest_path)
+                filename: src_path
+                    .strip_prefix(src_root)
+                    .unwrap_or(&src_path)
                     .to_string_lossy()
                     .to_string(),
                 size,

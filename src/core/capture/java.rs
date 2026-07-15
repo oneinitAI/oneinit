@@ -9,7 +9,7 @@ use crate::core::Result;
 pub struct JavaDetector;
 
 impl EnvDetector for JavaDetector {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "java"
     }
 

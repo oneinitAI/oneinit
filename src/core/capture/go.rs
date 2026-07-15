@@ -9,7 +9,7 @@ use crate::core::Result;
 pub struct GoDetector;
 
 impl EnvDetector for GoDetector {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "go"
     }
 

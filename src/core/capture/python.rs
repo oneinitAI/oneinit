@@ -9,7 +9,7 @@ use crate::core::Result;
 pub struct PythonDetector;
 
 impl EnvDetector for PythonDetector {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "python"
     }
 

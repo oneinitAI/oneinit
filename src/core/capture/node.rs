@@ -9,7 +9,7 @@ use crate::core::Result;
 pub struct NodeDetector;
 
 impl EnvDetector for NodeDetector {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "node"
     }
 

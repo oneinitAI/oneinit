@@ -9,7 +9,7 @@ use crate::core::Result;
 pub struct DockerDetector;
 
 impl EnvDetector for DockerDetector {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "docker"
     }
 

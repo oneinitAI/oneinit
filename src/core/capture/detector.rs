@@ -21,7 +21,7 @@ pub trait EnvDetector: Send + Sync {
     fn detect(&self) -> Result<Option<RuntimeEnv>>;
 
     /// 检测器名称（用于日志和 envs map key）
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
 
     /// 检测优先级（数字越小越优先，默认 50）
     fn priority(&self) -> u8 {
@@ -130,12 +130,8 @@ impl CustomDetector {
 }
 
 impl EnvDetector for CustomDetector {
-    fn name(&self) -> &'static str {
-        // Box<Self> 时返回固定引用不安全，这里用 leak 模式不可取。
-        // 改为在 detect() 中用 self.def.name.clone()。
-        // trait 方法签名要求 &'static str，自定义检测器的 name 是动态的。
-        // 用空字符串占位，实际名称通过 detect 的 RuntimeEnv.name 返回。
-        "custom"
+    fn name(&self) -> &str {
+        &self.def.name
     }
 
     fn detect(&self) -> Result<Option<RuntimeEnv>> {
