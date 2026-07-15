@@ -90,3 +90,61 @@ pub fn run_post_install(commands: &[String], formatter: &crate::output::OutputFo
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_envs_to_recipe_names() {
+        let mut envs = BTreeMap::new();
+        envs.insert("python".to_string(), serde_yaml::Value::String("3.11".to_string()));
+        envs.insert("node".to_string(), serde_yaml::Value::Number(serde_yaml::Number::from(18)));
+
+        let config = SyncConfig {
+            envs,
+            mirrors: None,
+            post_install: None,
+        };
+
+        let names = envs_to_recipe_names(&config);
+        assert!(names.contains(&"python3.11".to_string()));
+        assert!(names.contains(&"node18".to_string()));
+    }
+
+    #[test]
+    fn test_envs_to_recipe_names_empty() {
+        let config = SyncConfig {
+            envs: BTreeMap::new(),
+            mirrors: None,
+            post_install: None,
+        };
+        assert!(envs_to_recipe_names(&config).is_empty());
+    }
+
+    #[test]
+    fn test_load_config_valid() {
+        let yaml = "envs:\n  python: \"3.11\"\nmirrors:\n  pip: tsinghua\n";
+        let dir = std::env::temp_dir();
+        let path = dir.join("oneinit_test_valid.yaml");
+        std::fs::write(&path, yaml).unwrap();
+
+        let config = load_config(&path).unwrap();
+        assert_eq!(config.envs.len(), 1);
+        assert!(config.mirrors.is_some());
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_config_invalid_yaml() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("oneinit_test_invalid.yaml");
+        std::fs::write(&path, "this: is: not: valid: yaml: {{{").unwrap();
+
+        let result = load_config(&path);
+        assert!(result.is_err());
+
+        let _ = std::fs::remove_file(&path);
+    }
+}

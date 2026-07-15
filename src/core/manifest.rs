@@ -185,3 +185,97 @@ impl Manifest {
         Ok(count)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_install_record_json_roundtrip() {
+        let record = InstallRecord {
+            id: "test-uuid".to_string(),
+            name: "test-pkg".to_string(),
+            version: Some("1.0.0".to_string()),
+            install_path: "/tmp/test".to_string(),
+            archive_url: Some("https://example.com/test.zip".to_string()),
+            sha256: Some("abc123".to_string()),
+            path_entries: vec!["/tmp/test/bin".to_string()],
+            config_files: vec!["/tmp/test/config.ini".to_string()],
+            installed_at: "2024-01-01T00:00:00Z".to_string(),
+            original_path: Some("/usr/bin".to_string()),
+            env_vars_backup: serde_json::json!({"PATH": "/usr/bin"}),
+        };
+
+        // 序列化
+        let json = serde_json::to_string(&record).unwrap();
+        assert!(json.contains("test-pkg"));
+        assert!(json.contains("1.0.0"));
+
+        // 反序列化
+        let deserialized: InstallRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "test-pkg");
+        assert_eq!(deserialized.version, Some("1.0.0".to_string()));
+        assert_eq!(deserialized.path_entries.len(), 1);
+    }
+
+    #[test]
+    fn test_path_entries_json_roundtrip() {
+        let entries = vec!["/path/a".to_string(), "/path/b".to_string()];
+        let json = serde_json::to_string(&entries).unwrap();
+        let parsed: Vec<String> = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, entries);
+    }
+
+    #[test]
+    fn test_empty_path_entries_json() {
+        let entries: Vec<String> = vec![];
+        let json = serde_json::to_string(&entries).unwrap();
+        let parsed: Vec<String> = serde_json::from_str(&json).unwrap();
+        assert!(parsed.is_empty());
+    }
+
+    #[test]
+    fn test_manifest_open_and_crud() {
+        // 使用临时数据库路径（覆盖 db_dir 环境变量不可行，
+        // 所以直接用 open() 测试真实 db 的基本 CRUD，测试后清理）
+        let manifest = match Manifest::open() {
+            Ok(m) => m,
+            Err(_) => return, // 环境不支持 SQLite，跳过
+        };
+
+        // 插入一条测试记录
+        let record = InstallRecord {
+            id: "test-crud-uuid".to_string(),
+            name: "test-crud-pkg".to_string(),
+            version: Some("2.0.0".to_string()),
+            install_path: "/tmp/crud-test".to_string(),
+            archive_url: None,
+            sha256: None,
+            path_entries: vec![],
+            config_files: vec![],
+            installed_at: "2024-01-01T00:00:00Z".to_string(),
+            original_path: None,
+            env_vars_backup: serde_json::json!({}),
+        };
+
+        // 如果已存在先删除
+        let _ = manifest.remove("test-crud-pkg");
+
+        // 添加
+        let id = manifest.add(&record).unwrap();
+        assert_eq!(id, "test-crud-uuid");
+
+        // 查询
+        let got = manifest.get("test-crud-pkg").unwrap();
+        assert!(got.is_some());
+        assert_eq!(got.unwrap().version, Some("2.0.0".to_string()));
+
+        // 删除
+        let removed = manifest.remove("test-crud-pkg").unwrap();
+        assert!(removed.is_some());
+
+        // 确认已删除
+        let gone = manifest.get("test-crud-pkg").unwrap();
+        assert!(gone.is_none());
+    }
+}

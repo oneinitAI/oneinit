@@ -654,3 +654,124 @@ fn wait_for_confirmation() -> bool {
         Err(_) => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_template_basic() {
+        let dir = std::path::Path::new("/test/path");
+        let result = render_template("{{install_dir}}/lib", dir);
+        assert!(result.contains("/test/path/lib"));
+    }
+
+    #[test]
+    fn test_render_template_mirror_pip() {
+        let dir = std::path::Path::new("/tmp");
+        let result = render_template("index-url = {{mirror_pip}}", dir);
+        assert!(result.contains("pypi.tuna.tsinghua.edu.cn"));
+    }
+
+    #[test]
+    fn test_render_template_mirror_npm() {
+        let dir = std::path::Path::new("/tmp");
+        let result = render_template("registry = {{mirror_npm}}", dir);
+        assert!(result.contains("registry.npmmirror.com"));
+    }
+
+    #[test]
+    fn test_render_template_no_vars() {
+        let dir = std::path::Path::new("/tmp");
+        let result = render_template("plain text no vars", dir);
+        assert_eq!(result, "plain text no vars");
+    }
+
+    #[test]
+    fn test_verify_valid_recipe() {
+        let yaml = r#"
+name: test-tool
+version: "1.0.0"
+description: "A test"
+platforms:
+  windows:
+    url: "https://example.com/test.zip"
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    install_type: "zip_extract"
+    install_path: "test"
+    path_add: ["{{install_dir}}"]
+"#;
+        let dir = std::env::temp_dir();
+        let path = dir.join("oneinit_verify_test.yaml");
+        std::fs::write(&path, yaml).unwrap();
+
+        let result = verify(&path).unwrap();
+        assert!(result.valid);
+        assert!(result.checks.iter().all(|(_, ok, _)| *ok));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_verify_bad_sha256_length() {
+        let yaml = r#"
+name: bad-tool
+version: "1.0.0"
+description: "Bad SHA"
+platforms:
+  windows:
+    url: "https://example.com/test.zip"
+    sha256: "too_short"
+    install_type: "zip_extract"
+    install_path: "test"
+    path_add: []
+"#;
+        let dir = std::env::temp_dir();
+        let path = dir.join("oneinit_verify_bad_test.yaml");
+        std::fs::write(&path, yaml).unwrap();
+
+        let result = verify(&path).unwrap();
+        assert!(!result.valid);
+        // sha256 检查应该失败
+        assert!(result.checks.iter().any(|(_, ok, _)| !ok));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_verify_invalid_yaml() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("oneinit_verify_bad_yaml.yaml");
+        std::fs::write(&path, "{{{invalid yaml}}}")
+            .unwrap();
+
+        let result = verify(&path).unwrap();
+        assert!(!result.valid);
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_verify_bad_install_type() {
+        let yaml = r#"
+name: bad-type
+version: "1.0.0"
+description: "Bad type"
+platforms:
+  windows:
+    url: "https://example.com/test.zip"
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    install_type: "nonexistent_type"
+    install_path: "test"
+    path_add: []
+"#;
+        let dir = std::env::temp_dir();
+        let path = dir.join("oneinit_verify_type_test.yaml");
+        std::fs::write(&path, yaml).unwrap();
+
+        let result = verify(&path).unwrap();
+        assert!(!result.valid);
+
+        let _ = std::fs::remove_file(&path);
+    }
+}

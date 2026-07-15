@@ -324,3 +324,51 @@ pub fn extract_version(output: &str, prefix: &str) -> Option<String> {
         .and_then(|l| l.split(prefix).nth(1))
         .map(|s| s.trim().to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_version_python() {
+        assert_eq!(
+            extract_version("Python 3.11.9\n", "Python "),
+            Some("3.11.9".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_version_git() {
+        assert_eq!(
+            extract_version("git version 2.43.0.windows.1\n", "git version "),
+            Some("2.43.0.windows.1".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_version_not_found() {
+        assert_eq!(extract_version("hello world", "Python "), None);
+    }
+
+    #[test]
+    fn test_extract_version_multiline() {
+        let output = "some line\nPython 3.8.10\nanother line";
+        assert_eq!(
+            extract_version(output, "Python "),
+            Some("3.8.10".to_string())
+        );
+    }
+
+    #[test]
+    fn test_run_command_nonexistent() {
+        assert!(run_command("this_command_does_not_exist_12345", &[]).is_none());
+    }
+
+    #[test]
+    fn test_find_command_existing() {
+        // git 应该在大多数开发环境中可用
+        let result = find_command("git");
+        // 不做硬断言（CI 可能没有 git），只确保不 panic
+        let _ = result;
+    }
+}

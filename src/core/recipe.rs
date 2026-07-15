@@ -404,3 +404,40 @@ fn python311_sha256() -> String {
     // 非 Windows 平台暂不支持 embeddable 包
     "NOT_AVAILABLE_FOR_NON_WINDOWS".to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_python311() {
+        let recipe = resolve("python3.11");
+        assert!(recipe.is_some());
+        let r = recipe.unwrap();
+        assert_eq!(r.name, "python3.11");
+        assert_eq!(r.version, "3.11.9");
+        assert!(!r.download_url.is_empty());
+        assert!(!r.sha256.is_empty());
+    }
+
+    #[test]
+    fn test_resolve_unknown() {
+        assert!(resolve("nonexistent_package").is_none());
+    }
+
+    #[test]
+    fn test_list_recipes_not_empty() {
+        let recipes = list_recipes();
+        assert!(!recipes.is_empty());
+        assert!(recipes.iter().any(|r| r.name == "python3.11"));
+    }
+
+    #[test]
+    fn test_python311_recipe_fields() {
+        let recipe = python311_recipe();
+        assert_eq!(recipe.bin_dir, ".");
+        assert!(recipe.post_install.is_some());
+        let post = recipe.post_install.unwrap();
+        assert_eq!(post.steps.len(), 2);
+    }
+}
