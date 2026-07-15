@@ -60,17 +60,21 @@
 | 18 | `capture` 命令 + 配方生成 | 完成 | `oneinit capture [-o file]` -> EnvironmentSnapshot -> YAML | 零 |
 | 19 | TUI capture 交互界面 | 完成 | 按 `c` 触发检测，Capture 屏幕显示结果 | 零 |
 
+> 扩展检测器：Rust/Go/Java/Docker 已添加（共 7 个检测器）。find_command 增强为多策略（where/which -> PATH 遍历 -> exe 扩展名）。支持用户自定义检测器（scan_config.yaml）。
+
 ### 4B. 数据迁移（`oneinit export` / `import`）
 
 **核心目标**：将完整开发环境打包为 `.tar.gz`，在新机器上一键恢复。
 
 | # | 任务 | 状态 | 说明 | 新增依赖 |
 |---|------|------|------|----------|
-| 20 | 迁移清单结构 `migration/manifest.rs` | 待做 | manifest.json 结构（CacheEntry/DotfileEntry/PackageList） | 无 |
-| 21 | 导出打包器 `migration/packer.rs` | 待做 | 快照+缓存+dotfiles -> tar.gz + manifest.json | `walkdir` `tempfile` `gethostname` |
-| 22 | 导入解包器 `migration/unpacker.rs` | 待做 | tar.gz -> 验证SHA256 -> 恢复配方/缓存/dotfiles/全局包 | `walkdir` `tempfile` |
-| 23 | `export` / `import` CLI 命令 | 待做 | clap 子命令 + OutputFormatter 集成 | 无 |
+| 20 | 迁移清单结构 `migration/manifest.rs` | 完成 | manifest.json 结构（CacheEntry/PackageListEntry/ManifestMetadata） | 零 |
+| 21 | 导出打包器 `migration/packer.rs` | 完成 | 扫描环境+YAML+可选envs打包+manifest.json+tar.gz | 零（复用 flate2/tar/sha2/uuid） |
+| 22 | 导入解包器 `migration/unpacker.rs` | 完成 | 解压+SHA256校验+恢复配方/envs+dry_run 预览 | 零 |
+| 23 | `export` / `import` CLI 命令 | 完成 | `oneinit export [-o] [--include-envs]` / `oneinit import [--dry-run] [--force]` | 零 |
 | 24 | TUI 迁移界面 | 待做 | 导出预览、导入 dry-run 展示 | 无 |
+
+> Phase 4A+4B 核心功能已完成。capture 支持 7 种语言检测 + 自定义检测器；export/import 完整流程测试通过（6 环境 + 129 全局包 + 可选 envs 缓存打包）。
 
 ### 架构适配要求（关键！）
 

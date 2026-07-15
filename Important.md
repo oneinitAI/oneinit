@@ -8,10 +8,11 @@ src/
 │   └── mod.rs            # 各子命令处理器（调用配方/预置/同步系统）
 ├── core/
 │   ├── mod.rs            # CoreError 统一错误类型 + 目录函数
-│   ├── capture/          # 环境捕获模块（mod.rs + detector + python + node + git）
+│   ├── capture/          # 环境捕获模块（mod.rs + detector + python + node + git + rust + go + java + docker）
 │   ├── community_recipe.rs # 社区配方系统（YAML DTO + 加载 + 验证 + 安装）
 │   ├── downloader.rs     # 异步下载器 + SHA256 校验 + 归档解压
 │   ├── manifest.rs       # SQLite 安装清单系统
+│   ├── migration/        # 数据迁移模块（mod + manifest + packer + unpacker）
 │   ├── path_mgr.rs       # 跨平台 PATH 管理
 │   ├── config_gen.rs     # 配置生成器（自动换源）
 │   ├── recipe.rs         # 内置配方系统（Recipe 结构 + 安装/卸载执行器）
@@ -66,7 +67,9 @@ src/
 | `oneinit list` | 列出已安装工具 | ✅ 已接入 SQLite |
 | `oneinit search [kw]` | 搜索可用工具 | ✅ 已接入配方注册表 |
 | `oneinit sync` | 从 oneinit.yaml 同步 | ✅ YAML 解析 + 批量安装 + 后置命令 |
-| `oneinit capture [-o file]` | 捕获当前环境 | ✅ Python/Node/Git 检测 + YAML 输出 |
+| `oneinit capture [-o file]` | 捕获当前环境 | ✅ Python/Node/Git/Rust/Go/Java/Docker 检测 + YAML |
+| `oneinit export [-o file]` | 导出环境快照 | ✅ tar.gz 打包（环境 + 可选 envs + manifest.json） |
+| `oneinit import <file>` | 导入环境快照 | ✅ 解压 + 校验 + 恢复配方/envs/包列表 |
 | `oneinit verify <file>` | 验证社区配方文件 | ✅ YAML 语法 + 字段 + SHA256 + install_type |
 | `oneinit tui` | 启动交互式 TUI 界面 | ✅ ratatui 异步事件循环 + 双面板 |
 
