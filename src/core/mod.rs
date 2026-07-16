@@ -7,6 +7,7 @@ pub mod migration;
 pub mod path_mgr;
 pub mod preset;
 pub mod recipe;
+pub mod registry;
 pub mod sync;
 
 use std::path::PathBuf;
@@ -48,6 +49,12 @@ pub fn recipes_dir() -> PathBuf {
     data_dir().join("recipes")
 }
 
+/// 获取缓存目录 ~/.oneinit/cache/
+#[allow(dead_code)]
+pub fn cache_dir() -> PathBuf {
+    data_dir().join("cache")
+}
+
 /// 确保所有必要目录存在
 #[allow(dead_code)]
 pub fn ensure_dirs() -> Result<()> {
@@ -55,6 +62,7 @@ pub fn ensure_dirs() -> Result<()> {
     std::fs::create_dir_all(db_dir())?;
     std::fs::create_dir_all(temp_dir())?;
     std::fs::create_dir_all(recipes_dir())?;
+    std::fs::create_dir_all(cache_dir())?;
     Ok(())
 }
 
@@ -82,6 +90,9 @@ pub enum CoreError {
 
     #[error("环境捕获失败: {0}")]
     Capture(String),
+
+    #[error("注册表错误: {0}")]
+    Registry(String),
 
     #[error("数据迁移失败: {0}")]
     Migration(String),
