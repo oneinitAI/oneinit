@@ -207,7 +207,7 @@ pub async fn run_install(formatter: &OutputFormatter, package: &str) {
         return;
     }
 
-    // 未找到内置配方，尝试社区配方
+    // 未找到内置配方，尝试本地社区配方
     use crate::core::community_recipe;
     if let Some(rec) = community_recipe::resolve(package) {
         if let Err(e) = community_recipe::install(&rec, formatter).await {
@@ -216,14 +216,48 @@ pub async fn run_install(formatter: &OutputFormatter, package: &str) {
         return;
     }
 
-    // 都没找到
+    // 尝试远程注册表
+    use crate::core::registry;
+    if let Some(entry) = registry::resolve(package) {
+        formatter.output(
+            &format!("[REMOTE] 从远程仓库获取 {} v{}...", package, entry.latest),
+            Some(serde_json::json!({
+                "status": "fetching",
+                "source": "remote",
+                "package": package,
+                "version": entry.latest,
+            })),
+        );
+        match registry::fetch_recipe(package, &entry.latest).await {
+            Ok(recipe) => {
+                if let Err(e) = community_recipe::install(&recipe, formatter).await {
+                    formatter.error(&e);
+                }
+                return;
+            }
+            Err(e) => {
+                formatter.output(
+                    &format!("[ERROR] 远程获取失败: {}", e),
+                    Some(serde_json::Value::Null),
+                );
+            }
+        }
+    }
+
+    // 都没找到 — 提示用户更新索引
+    let hint = if registry::load_cached_index().is_none() {
+        " 提示: 运行 'oneinit update' 获取远程配方索引。"
+    } else {
+        ""
+    };
     formatter.output(
-        &format!("[ERROR] 未找到 '{}' 的安装配方。使用 oneinit search 查看可用工具。", package),
+        &format!("[ERROR] 未找到 '{}' 的安装配方。{}使用 oneinit search 查看可用工具。", package, hint),
         Some(serde_json::json!({
             "status": "error",
             "action": "install",
             "package": package,
-            "message": "Recipe not found"
+            "message": "Recipe not found",
+            "hint": if hint.is_empty() { None } else { Some("oneinit update") },
         })),
     );
 }
@@ -319,7 +353,23 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
         }))
         .collect();
 
-    let total = builtin.len() + community.len();
+    // 远程配方（从缓存 INDEX）
+    let remote: Vec<serde_json::Value> = crate::core::registry::list_available()
+        .iter()
+        .filter(|(name, _, desc)| {
+            keyword.map_or(true, |kw| {
+                name.contains(kw) || desc.to_lowercase().contains(&kw.to_lowercase())
+            })
+        })
+        .map(|(name, ver, desc)| serde_json::json!({
+            "name": name,
+            "version": ver,
+            "display_name": desc,
+            "source": "remote",
+        }))
+        .collect();
+
+    let total = builtin.len() + community.len() + remote.len();
 
     let mut human = String::new();
     if total == 0 {
@@ -335,10 +385,14 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
         for r in &community {
             human.push_str(&format!("  - {} v{} [community]\n", r["name"], r["version"]));
         }
+        for r in &remote {
+            human.push_str(&format!("  - {} v{} [remote]\n", r["name"], r["version"]));
+        }
     }
 
     let mut all_results = builtin.clone();
     all_results.extend(community);
+    all_results.extend(remote);
 
     formatter.output(
         human.trim(),
@@ -533,4 +587,129 @@ pub async fn run_import(formatter: &OutputFormatter, file: &str, dry_run: bool, 
     if let Err(e) = crate::core::migration::run_import(formatter, file, dry_run, force, skip_checksum) {
         formatter.error(&e);
     }
+}
+
+/// oneinit update -- 更新远程配方索引
+pub async fn run_update(formatter: &OutputFormatter) {
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+
+    use crate::core::registry;
+
+    let config = registry::load_config();
+    formatter.output(
+        &format!("[UPDATE] 正在从 {} 获取配方索引...", config.registry_url),
+        Some(serde_json::json!({
+            "status": "fetching",
+            "action": "update",
+            "registry_url": config.registry_url,
+        })),
+    );
+
+    match registry::fetch_index().await {
+        Ok(index) => {
+            let count = index.packages.len();
+            formatter.output(
+                &format!("[OK] 索引更新完成: {} 个可用包 (更新于 {})", count, index.last_updated),
+                Some(serde_json::json!({
+                    "status": "success",
+                    "action": "update",
+                    "package_count": count,
+                    "last_updated": index.last_updated,
+                    "packages": index.packages.keys().collect::<Vec<_>>(),
+                })),
+            );
+        }
+        Err(e) => {
+            formatter.output(
+                &format!("[ERROR] 索引更新失败: {}", e),
+                Some(serde_json::json!({
+                    "status": "error",
+                    "action": "update",
+                    "error": e.to_string(),
+                    "hint": "If 404, the registry repo may not exist yet. Use oneinit publish.",
+                })),
+            );
+        }
+    }
+}
+
+/// oneinit publish <file> -- 发布配方到远程仓库
+pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
+    use crate::core::community_recipe;
+    use crate::core::registry;
+
+    let path = std::path::PathBuf::from(file);
+    if !path.exists() {
+        formatter.output(
+            &format!("[ERROR] 文件不存在: {}", file),
+            Some(serde_json::json!({
+                "status": "error", "action": "publish", "file": file,
+                "message": "File not found"
+            })),
+        );
+        return;
+    }
+
+    // 1. 验证配方
+    formatter.output("[PUBLISH] 正在验证配方...", Some(serde_json::Value::Null));
+    let verify_result = match community_recipe::verify(&path) {
+        Ok(r) => r,
+        Err(e) => { formatter.error(&e); return; }
+    };
+    if !verify_result.valid {
+        formatter.output("[ERROR] 配方验证未通过", Some(serde_json::json!({
+            "status": "error", "action": "publish", "message": "Validation failed"
+        })));
+        return;
+    }
+
+    // 2. 解析配方
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) => { formatter.error(&e.into()); return; }
+    };
+    let recipe: community_recipe::CommunityRecipe = match serde_yaml::from_str(&content) {
+        Ok(r) => r,
+        Err(e) => {
+            formatter.output(&format!("[ERROR] YAML 解析失败: {}", e), Some(serde_json::Value::Null));
+            return;
+        }
+    };
+
+    // 3. 安全提醒
+    formatter.output("", Some(serde_json::Value::Null));
+    formatter.output("========== [SECURITY] 发布确认 ==========", Some(serde_json::Value::Null));
+    formatter.output(
+        &format!("[SECURITY] 配方名称: {} v{}", recipe.name, recipe.version),
+        Some(serde_json::Value::Null),
+    );
+
+    let recipe_dir = format!("recipes/{}", recipe.name);
+    let recipe_filename = format!("{}.yaml", recipe.version);
+    let config = registry::load_config();
+
+    formatter.output("========================================", Some(serde_json::Value::Null));
+
+    // 4. 生成发布步骤
+    formatter.output("", Some(serde_json::Value::Null));
+    formatter.output("[INFO] 完成发布的步骤:", Some(serde_json::Value::Null));
+    formatter.output("  1. git clone https://github.com/BG4JTS/oneinit-recipes.git", Some(serde_json::Value::Null));
+    formatter.output(&format!("  2. mkdir -p {}", recipe_dir), Some(serde_json::Value::Null));
+    formatter.output(&format!("  3. cp {} {}/{}", file, recipe_dir, recipe_filename), Some(serde_json::Value::Null));
+    formatter.output("  4. 更新 INDEX.json", Some(serde_json::Value::Null));
+    formatter.output("  5. git add . && git commit && git push", Some(serde_json::Value::Null));
+    formatter.output("  6. 创建 Pull Request", Some(serde_json::Value::Null));
+
+    formatter.output(
+        &format!("\n[PUBLISH] {} v{} 已准备就绪", recipe.name, recipe.version),
+        Some(serde_json::json!({
+            "status": "ready", "action": "publish",
+            "recipe_name": recipe.name, "recipe_version": recipe.version,
+            "target_path": format!("{}/{}", recipe_dir, recipe_filename),
+            "registry_url": config.registry_url,
+        })),
+    );
 }

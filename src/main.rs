@@ -67,6 +67,15 @@ enum Commands {
         file: String,
     },
 
+    /// 更新远程配方索引（类似 apt update）
+    Update,
+
+    /// 发布配方到远程仓库
+    Publish {
+        /// 配方文件路径
+        file: String,
+    },
+
     /// 导出环境为 tar.gz 包
     Export {
         /// 输出文件路径（默认 oneinit-backup.tar.gz）
@@ -110,6 +119,8 @@ async fn main() {
             cli::run_capture(&formatter, output.as_deref().unwrap_or("oneinit.yaml")).await
         }
         Commands::Verify { file } => cli::run_verify(&formatter, &file).await,
+        Commands::Update => cli::run_update(&formatter).await,
+        Commands::Publish { file } => cli::run_publish(&formatter, &file).await,
         Commands::Export { output, include_envs } => {
             cli::run_export(&formatter, &output, include_envs).await
         }
