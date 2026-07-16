@@ -29,6 +29,15 @@ desktop.ini
 *.zip
 .zcode/
 
+# Internal docs (not for public repo)
+Important.md
+dev.sh
+tui.md
+开发.md
+优化.md
+数据的采集与迁移.md
+社区配方.md
+
 # Added by cargo
 
 /target

@@ -7,9 +7,8 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Rust](https://img.shields.io/badge/Rust-1.94%2B-orange.svg)](https://www.rust-lang.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-green.svg)](#)
-[![Tests](https://img.shields.io/badge/Tests-26%20passed-brightgreen.svg)](#)
 [![AI Ready](https://img.shields.io/badge/AI-Ready%20(--json)-ff69b4.svg)](#)
-[![Made with Rust](https://img.shields.io/badge/Made%20with-Rust%20%E2%9D%A4-red.svg)](#)
+[![PRs-Welcome](https://img.shields.io/badge/PRs-Welcome-blueviolet.svg)](#)
 
 [English](./README.md) | [中文](./README_CN.md)
 
@@ -98,3 +97,19 @@ Then: `oneinit install my-tool`
 ## License
 
 GPL-3.0
+
+## star
+如果 OneInit 对你有帮助，欢迎 Star !
+
+If OneInit is helpful to you, please feel free to STAR IT!
+
+star！star！star！star！star！
+
+---
+<div align="center">
+
+**[English](./README.md) | [中文](./README_CN.md)**
+
+OneInit
+
+</div>

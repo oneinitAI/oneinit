@@ -197,11 +197,16 @@ oneinit tui
 GPL-3.0
 
 ---
+## star
+如果 OneInit 对你有帮助，欢迎 Star !
+star！star！star！star！star！
+
+---
 
 <div align="center">
 
 **[English](./README.md) | [中文](./README_CN.md)**
 
-如果 OneInit 对你有帮助，欢迎 Star !
+OneInit
 
 </div>
