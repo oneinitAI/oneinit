@@ -80,7 +80,19 @@
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 25 | ZCode AI Skill | 完成 | `.agents/skills/oneinit/SKILL.md`，覆盖全部 12 个 CLI 命令，含 --json 最佳实践、社区配方格式、模板变量速查 |
+| 25 | ZCode AI Skill | 完成 | `.agents/skills/oneinit/SKILL.md`，覆盖全部 CLI 命令 |
+| 26 | 社区配方注册表 | 完成 | npm 式远程仓库：`update`/`publish` 命令 + 3 层安装查找（内置->本地->远程）|
+
+### Phase 6: 社区系统（npm 式）
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| `oneinit update` | 完成 | 从 GitHub raw 拉取 INDEX.json 到本地缓存 |
+| `oneinit publish <file>` | 完成 | 验证配方 + 安全提醒 + git PR 发布步骤 |
+| 远程安装 | 完成 | 3 层查找：内置 -> 本地社区 -> 远程注册表 |
+| 远程搜索 | 完成 | search 显示 [builtin]/[community]/[remote] 三种来源 |
+| INDEX.json 生成 | 完成 | generate_index() 从配方列表生成索引 |
+| 配方仓库初始化 | 待做 | 创建 BG4JTS/oneinit-recipes 仓库 + 初始 INDEX.json |
 
 ### 架构适配要求（关键！）
 

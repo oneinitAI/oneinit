@@ -16,6 +16,7 @@ src/
 │   ├── path_mgr.rs       # 跨平台 PATH 管理
 │   ├── config_gen.rs     # 配置生成器（自动换源）
 │   ├── recipe.rs         # 内置配方系统（Recipe 结构 + 安装/卸载执行器）
+│   ├── registry.rs       # 社区配方注册表（INDEX.json + 远程 fetch + 缓存）
 │   ├── preset.rs         # 预置套装（Preset 结构 + 内置套装定义）
 │   └── sync.rs           # 同步系统（SyncConfig 结构 + oneinit.yaml 解析）
 ├── tui2/
@@ -70,6 +71,8 @@ src/
 | `oneinit capture [-o file]` | 捕获当前环境 | ✅ Python/Node/Git/Rust/Go/Java/Docker 检测 + YAML |
 | `oneinit export [-o file]` | 导出环境快照 | ✅ tar.gz 打包（环境 + 可选 envs + manifest.json） |
 | `oneinit import <file>` | 导入环境快照 | ✅ 解压 + 校验 + 恢复配方/envs/包列表 |
+| `oneinit update` | 更新远程配方索引 | ✅ 拉取 INDEX.json 到缓存（类似 apt update） |
+| `oneinit publish <file>` | 发布配方到远程仓库 | ✅ 验证 + 安全提醒 + git PR 步骤 |
 | `oneinit verify <file>` | 验证社区配方文件 | ✅ YAML 语法 + 字段 + SHA256 + install_type |
 | `oneinit tui` | 启动交互式 TUI 界面 | ✅ ratatui 异步事件循环 + 双面板 |
 
