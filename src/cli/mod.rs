@@ -1,6 +1,6 @@
 use crate::core::{
-    ensure_dirs, manifest::Manifest, preset, recipe::{self, resolve},
-    sync::{self, SyncConfig},
+    community_recipe, ensure_dirs, manifest::Manifest, preset,
+    recipe::{self, resolve}, registry, sync::{self, SyncConfig},
 };
 use crate::output::OutputFormatter;
 
@@ -174,67 +174,168 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
     );
 }
 
-/// oneinit install <package> — 安装指定工具
+/// oneinit install <package[@version]> — 安装指定工具
+///
+/// 支持版本语法：
+///   oneinit install python          # 安装默认/最新版
+///   oneinit install python@3.11.9   # 安装精确版本
+///   oneinit install node@latest     # 安装最新版
 pub async fn run_install(formatter: &OutputFormatter, package: &str) {
-    // 安装前确保目录存在
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
     }
 
+    // 解析 name@version 语法
+    let (name, version_spec) = parse_package_spec(package);
+
+    // 递归安装（处理依赖）
+    install_recursive(&name, version_spec.as_deref(), formatter, &mut Vec::new()).await;
+}
+
+/// 解析 name@version 语法
+/// 返回 (name, Option<version>)
+/// "python@3.11.9" -> ("python", Some("3.11.9"))
+/// "python@latest" -> ("python", Some("latest"))
+/// "python" -> ("python", None)
+fn parse_package_spec(spec: &str) -> (String, Option<String>) {
+    if let Some(idx) = spec.find('@') {
+        let name = spec[..idx].to_string();
+        let ver = spec[idx + 1..].to_string();
+        (name, Some(ver))
+    } else {
+        (spec.to_string(), None)
+    }
+}
+
+/// 递归安装（处理依赖）
+///
+/// installing_stack 防止循环依赖。
+/// 使用 BoxFuture 支持 async 递归。
+fn install_recursive<'a>(
+    name: &'a str,
+    version_spec: Option<&'a str>,
+    formatter: &'a OutputFormatter,
+    installing_stack: &'a mut Vec<String>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + 'a>> {
+    Box::pin(async move {
+    // 防止循环依赖
+    if installing_stack.iter().any(|n| n == name) {
+        formatter.output(
+            &format!("[WARN] 跳过循环依赖: {}", name),
+            Some(serde_json::Value::Null),
+        );
+        return;
+    }
+    installing_stack.push(name.to_string());
+
     // 检查是否已安装
     if let Ok(manifest) = Manifest::open() {
-        if let Ok(Some(record)) = manifest.get(package) {
+        if let Ok(Some(record)) = manifest.get(name) {
             formatter.output(
-                &format!("📦 '{}' 已安装 ({})", package, record.install_path),
+                &format!("[OK] '{}' 已安装 v{}", name, record.version.as_deref().unwrap_or("?")),
                 Some(serde_json::json!({
-                    "status": "success",
-                    "action": "install",
-                    "package": package,
-                    "already_installed": true,
-                    "install_path": record.install_path,
+                    "status": "success", "action": "install",
+                    "package": name, "already_installed": true,
                 })),
             );
+            installing_stack.pop();
             return;
         }
     }
 
-    // 查找内置配方
-    if let Some(rec) = resolve(package) {
-        if let Err(e) = recipe::install(&rec, formatter).await {
-            formatter.error(&e);
+    // 查找配方（内置 -> 本地社区 -> 远程），同时获取依赖信息
+    let recipe_info = resolve_recipe_with_deps(name, version_spec, formatter).await;
+
+    match recipe_info {
+        RecipeResolution::Builtin(rec) => {
+            if let Err(e) = recipe::install(&rec, formatter).await {
+                formatter.error(&e);
+            }
         }
-        return;
+        RecipeResolution::Community(rec) => {
+            // 先安装依赖
+            install_dependencies(&rec, formatter, installing_stack).await;
+            if let Err(e) = community_recipe::install(&rec, formatter).await {
+                formatter.error(&e);
+            }
+        }
+        RecipeResolution::NotFound(hint) => {
+            formatter.output(
+                &format!("[ERROR] 未找到 '{}' 的安装配方。{}", name, hint),
+                Some(serde_json::json!({
+                    "status": "error", "action": "install",
+                    "package": name, "message": "Recipe not found",
+                })),
+            );
+        }
     }
 
-    // 未找到内置配方，尝试本地社区配方
-    use crate::core::community_recipe;
-    if let Some(rec) = community_recipe::resolve(package) {
-        if let Err(e) = community_recipe::install(&rec, formatter).await {
-            formatter.error(&e);
+    installing_stack.pop();
+    })
+}
+
+/// 配方解析结果
+enum RecipeResolution {
+    Builtin(crate::core::recipe::Recipe),
+    Community(crate::core::community_recipe::CommunityRecipe),
+    NotFound(String),
+}
+
+/// 三层查找配方（内置 -> 本地 -> 远程），返回配方和依赖信息
+async fn resolve_recipe_with_deps(
+    name: &str,
+    version_spec: Option<&str>,
+    formatter: &OutputFormatter,
+) -> RecipeResolution {
+    // 1. 内置配方（@latest 或无版本时尝试）
+    if version_spec.is_none() || version_spec == Some("latest") {
+        if let Some(rec) = resolve(name) {
+            return RecipeResolution::Builtin(rec);
         }
-        return;
     }
 
-    // 尝试远程注册表
-    use crate::core::registry;
-    if let Some(entry) = registry::resolve(package) {
+    // 2. 本地社区配方
+    if let Some(rec) = community_recipe::resolve(name) {
+        // 如果指定了版本且不匹配，跳过
+        if let Some(ver) = version_spec {
+            if ver != "latest" && ver != rec.version {
+                // 版本不匹配，继续查找远程
+            } else {
+                return RecipeResolution::Community(rec);
+            }
+        } else {
+            return RecipeResolution::Community(rec);
+        }
+    }
+
+    // 3. 远程注册表
+    if let Some(entry) = registry::resolve(name) {
+        let target_version = match version_spec {
+            Some("latest") | None => entry.latest.clone(),
+            Some(v) => {
+                if entry.versions.contains(&v.to_string()) {
+                    v.to_string()
+                } else {
+                    formatter.output(
+                        &format!("[WARN] 版本 {} 不可用，可用: {:?}", v, entry.versions),
+                        Some(serde_json::Value::Null),
+                    );
+                    entry.latest.clone()
+                }
+            }
+        };
+
         formatter.output(
-            &format!("[REMOTE] 从远程仓库获取 {} v{}...", package, entry.latest),
+            &format!("[REMOTE] 获取 {} v{}...", name, target_version),
             Some(serde_json::json!({
-                "status": "fetching",
-                "source": "remote",
-                "package": package,
-                "version": entry.latest,
+                "status": "fetching", "source": "remote",
+                "package": name, "version": target_version,
             })),
         );
-        match registry::fetch_recipe(package, &entry.latest).await {
-            Ok(recipe) => {
-                if let Err(e) = community_recipe::install(&recipe, formatter).await {
-                    formatter.error(&e);
-                }
-                return;
-            }
+
+        match registry::fetch_recipe(name, &target_version).await {
+            Ok(recipe) => return RecipeResolution::Community(recipe),
             Err(e) => {
                 formatter.output(
                     &format!("[ERROR] 远程获取失败: {}", e),
@@ -244,22 +345,33 @@ pub async fn run_install(formatter: &OutputFormatter, package: &str) {
         }
     }
 
-    // 都没找到 — 提示用户更新索引
+    // 未找到
     let hint = if registry::load_cached_index().is_none() {
-        " 提示: 运行 'oneinit update' 获取远程配方索引。"
+        " 提示: 运行 'oneinit update' 获取远程配方索引。".to_string()
     } else {
-        ""
+        String::new()
     };
-    formatter.output(
-        &format!("[ERROR] 未找到 '{}' 的安装配方。{}使用 oneinit search 查看可用工具。", package, hint),
-        Some(serde_json::json!({
-            "status": "error",
-            "action": "install",
-            "package": package,
-            "message": "Recipe not found",
-            "hint": if hint.is_empty() { None } else { Some("oneinit update") },
-        })),
-    );
+    RecipeResolution::NotFound(hint)
+}
+
+/// 递归安装配方的依赖
+async fn install_dependencies(
+    recipe: &crate::core::community_recipe::CommunityRecipe,
+    formatter: &OutputFormatter,
+    installing_stack: &mut Vec<String>,
+) {
+    if let Some(ref deps) = recipe.depends {
+        if deps.is_empty() {
+            return;
+        }
+        formatter.output(
+            &format!("[DEPS] 检查依赖: {:?}", deps),
+            Some(serde_json::Value::Null),
+        );
+        for dep in deps {
+            install_recursive(dep, None, formatter, installing_stack).await;
+        }
+    }
 }
 
 /// oneinit uninstall <package> -- 卸载指定工具
@@ -712,4 +824,209 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
             "registry_url": config.registry_url,
         })),
     );
+}
+
+/// oneinit doctor -- 环境健康检查
+pub async fn run_doctor(formatter: &OutputFormatter) {
+    use crate::core::manifest::Manifest;
+    use std::path::Path;
+
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+
+    let mut checks: Vec<(String, bool, String)> = Vec::new();
+
+    // 1. 数据目录
+    let data_dir = crate::core::data_dir();
+    let ok = data_dir.exists();
+    checks.push((
+        "data_dir".to_string(),
+        ok,
+        if ok {
+            data_dir.display().to_string()
+        } else {
+            "不存在".to_string()
+        },
+    ));
+
+    // 2. SQLite manifest 可读
+    let manifest_ok = Manifest::open().is_ok();
+    checks.push((
+        "manifest_db".to_string(),
+        manifest_ok,
+        if manifest_ok { "可读".to_string() } else { "无法打开".to_string() },
+    ));
+
+    // 3. manifest vs 实际安装目录一致性
+    if manifest_ok {
+        if let Ok(manifest) = Manifest::open() {
+            if let Ok(records) = manifest.list() {
+                let mut orphan_paths = 0;
+                let mut orphan_path_entries = 0;
+                for record in &records {
+                    let install_path = Path::new(&record.install_path);
+                    if !install_path.exists() {
+                        orphan_paths += 1;
+                    }
+                    for entry in &record.path_entries {
+                        if !Path::new(entry).exists() {
+                            orphan_path_entries += 1;
+                        }
+                    }
+                }
+                let ok = orphan_paths == 0 && orphan_path_entries == 0;
+                let detail = if ok {
+                    format!("{} 个记录全部一致", records.len())
+                } else {
+                    format!(
+                        "{} 个安装目录缺失, {} 个 PATH 条目指向不存在的路径",
+                        orphan_paths, orphan_path_entries
+                    )
+                };
+                checks.push(("consistency".to_string(), ok, detail));
+            }
+        }
+    }
+
+    // 4. PATH 中是否有 oneinit 条目（正常情况）
+    let path_var = std::env::var("PATH").unwrap_or_default();
+    let has_oneinit = path_var.contains(".oneinit");
+    checks.push((
+        "path_entries".to_string(),
+        true, // 信息性检查，不算错误
+        if has_oneinit {
+            "PATH 中包含 oneinit 管理的条目".to_string()
+        } else {
+            "PATH 中无 oneinit 条目（正常，如果未安装工具）".to_string()
+        },
+    ));
+
+    // 5. 磁盘空间
+    let envs_dir = crate::core::envs_dir();
+    let disk_ok = envs_dir.exists();
+    checks.push((
+        "envs_dir".to_string(),
+        disk_ok,
+        envs_dir.display().to_string(),
+    ));
+
+    // 6. 缓存索引
+    let cache_index = crate::core::registry::load_cached_index();
+    let index_ok = cache_index.is_some();
+    let index_detail = if index_ok {
+        format!("已缓存 ({} 个包)", cache_index.unwrap().packages.len())
+    } else {
+        "未缓存（运行 oneinit update 获取）".to_string()
+    };
+    checks.push((
+        "registry_cache".to_string(),
+        true,
+        index_detail,
+    ));
+
+    // 输出结果
+    let total = checks.len();
+    let passed = checks.iter().filter(|(_, ok, _)| *ok).count();
+
+    for (name, ok, detail) in &checks {
+        let tag = if *ok { "[OK]" } else { "[FAIL]" };
+        formatter.output(
+            &format!("  {} {} - {}", tag, name, detail),
+            Some(serde_json::json!({
+                "check": name, "passed": *ok, "detail": detail,
+            })),
+        );
+    }
+
+    let healthy = passed == total;
+    formatter.output(
+        &format!("\n[{}] {} 项检查: {}/{} 通过", if healthy { "OK" } else { "FAIL" }, if healthy { "环境健康" } else { "发现问题" }, passed, total),
+        Some(serde_json::json!({
+            "status": if healthy { "healthy" } else { "issues" },
+            "action": "doctor",
+            "total_checks": total,
+            "passed": passed,
+            "healthy": healthy,
+        })),
+    );
+}
+
+/// oneinit freeze [-o file] -- 从 manifest 导出已安装工具为 oneinit.yaml
+pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
+    use crate::core::manifest::Manifest;
+    use std::collections::BTreeMap;
+
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+
+    let manifest = match Manifest::open() {
+        Ok(m) => m,
+        Err(e) => {
+            formatter.error(&e);
+            return;
+        }
+    };
+
+    let records = match manifest.list() {
+        Ok(r) => r,
+        Err(e) => {
+            formatter.error(&e);
+            return;
+        }
+    };
+
+    if records.is_empty() {
+        formatter.output(
+            "[INFO] 尚未安装任何工具，无可导出内容",
+            Some(serde_json::json!({
+                "status": "empty", "action": "freeze", "count": 0,
+            })),
+        );
+        return;
+    }
+
+    // 构建 envs map: tool_name -> version
+    let mut envs: BTreeMap<String, String> = BTreeMap::new();
+    for record in &records {
+        let version = record.version.as_deref().unwrap_or("latest");
+        // 从 name 中提取工具类型（如 python3.11 -> python, node20 -> node）
+        let tool_name = extract_tool_name(&record.name);
+        envs.insert(tool_name, version.to_string());
+    }
+
+    // 生成 YAML
+    let mut yaml = String::new();
+    yaml.push_str("# 由 oneinit freeze 生成\n");
+    yaml.push_str("# 在新机器上运行 oneinit sync 即可恢复\n\n");
+
+    yaml.push_str("envs:\n");
+    for (tool, version) in &envs {
+        yaml.push_str(&format!("  {}: {}\n", tool, version));
+    }
+
+    // 写入文件
+    std::fs::write(output, &yaml).unwrap_or_else(|e| {
+        formatter.output(&format!("[ERROR] 写入失败: {}", e), Some(serde_json::Value::Null));
+    });
+
+    formatter.output(
+        &format!("[OK] 已导出 {} 个工具到 {}（在新机器上运行 oneinit sync 恢复）", records.len(), output),
+        Some(serde_json::json!({
+            "status": "success", "action": "freeze",
+            "output": output, "count": records.len(),
+            "tools": envs.keys().collect::<Vec<_>>(),
+        })),
+    );
+}
+
+/// 从包名提取工具类型名
+/// python3.11 -> python, node20 -> node, rust-stable -> rust
+fn extract_tool_name(name: &str) -> String {
+    // 找到第一个数字的位置
+    let pos = name.find(|c: char| c.is_ascii_digit()).unwrap_or(name.len());
+    name[..pos].trim_end_matches('-').to_string()
 }

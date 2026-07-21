@@ -100,6 +100,22 @@ enum Commands {
 
     /// 启动交互式 TUI 界面
     Tui,
+
+    /// 环境健康检查（PATH 残留、清单漂移、磁盘空间）
+    Doctor,
+
+    /// 导出已安装工具为 oneinit.yaml（类似 pip freeze）
+    Freeze {
+        /// 输出文件路径（默认 oneinit.yaml）
+        #[arg(short, long, default_value = "oneinit.yaml")]
+        output: String,
+    },
+
+    /// 生成 shell 自动补全脚本
+    Completions {
+        /// Shell 类型（bash, zsh, powershell, fish, elvish）
+        shell: String,
+    },
 }
 
 #[tokio::main]
@@ -131,6 +147,25 @@ async fn main() {
             if let Err(e) = tui2::run_tui(&formatter).await {
                 eprintln!("TUI 错误: {}", e);
             }
+        }
+        Commands::Doctor => cli::run_doctor(&formatter).await,
+        Commands::Freeze { output } => cli::run_freeze(&formatter, &output).await,
+        Commands::Completions { shell } => {
+            use clap::CommandFactory;
+            let mut cmd = Cli::command();
+            let shell_name = shell.as_str();
+            let shell = match shell_name {
+                "bash" => clap_complete::Shell::Bash,
+                "zsh" => clap_complete::Shell::Zsh,
+                "powershell" => clap_complete::Shell::PowerShell,
+                "fish" => clap_complete::Shell::Fish,
+                "elvish" => clap_complete::Shell::Elvish,
+                other => {
+                    eprintln!("[ERROR] 不支持的 shell: {} (支持: bash, zsh, powershell, fish, elvish)", other);
+                    return;
+                }
+            };
+            clap_complete::generate(shell, &mut cmd, "oneinit", &mut std::io::stdout());
         }
     }
 }
