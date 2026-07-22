@@ -63,7 +63,23 @@ oneinit import backup.tar.gz
 
 ## 安装
 
-### 方式一：从源码编译
+### 方式一：通过 npm 安装（推荐）
+
+```bash
+npm install -g oneinit
+```
+
+无需 Rust 工具链，npm 自动处理下载和 PATH 配置。
+
+版本管理：
+```bash
+npm install -g oneinit          # 安装最新版
+npm install -g oneinit@0.1.0    # 安装指定版本
+npm update -g oneinit           # 升级到最新
+npm uninstall -g oneinit        # 卸载
+```
+
+### 方式二：从源码编译
 
 ```bash
 git clone https://github.com/BG4JTS/oneinit.git
@@ -72,7 +88,7 @@ cargo build --release
 # 二进制文件: target/release/oneinit(.exe)
 ```
 
-### 方式二：让 AI 帮你安装
+### 方式三：让 AI 帮你安装
 
 复制以下提示词给你的 AI 助手（ChatGPT、Claude、ZCode 等）：
 
@@ -92,7 +108,7 @@ Follow the guide at:
 https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
 ```
 
-指南内容包括：编译步骤、PATH 配置、工具安装（Python、Node.js）、AI Skill 配置、环境迁移。
+指南内容包括：npm 或编译安装、PATH 配置、工具安装（Python、Node.js）、AI Skill 配置、环境迁移。
 
 ## 命令一览
 

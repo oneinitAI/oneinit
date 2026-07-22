@@ -43,7 +43,23 @@ oneinit capture -o my-env.yaml
 
 ## Installation
 
-### Option 1: Build from source
+### Option 1: Install via npm (recommended)
+
+```bash
+npm install -g oneinit
+```
+
+No Rust toolchain needed. npm handles download and PATH setup.
+
+Version management:
+```bash
+npm install -g oneinit          # install latest
+npm install -g oneinit@0.1.0    # specific version
+npm update -g oneinit           # upgrade
+npm uninstall -g oneinit        # remove
+```
+
+### Option 2: Build from source
 
 ```bash
 git clone https://github.com/BG4JTS/oneinit.git
@@ -52,7 +68,7 @@ cargo build --release
 # Binary: target/release/oneinit(.exe)
 ```
 
-### Option 2: Ask AI to install for you
+### Option 3: Ask AI to install for you
 
 Copy this prompt to your AI assistant (ChatGPT, Claude, ZCode, etc.):
 
@@ -72,7 +88,7 @@ https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
 https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
 ```
 
-The guide includes: build instructions, PATH setup, tool installation (Python, Node.js), AI Skill configuration, and environment migration.
+The guide includes: npm or build instructions, PATH setup, tool installation (Python, Node.js), AI Skill configuration, and environment migration.
 
 ## Commands
 
