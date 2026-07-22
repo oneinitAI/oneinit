@@ -9,10 +9,13 @@
 ```
 Install OneInit on this machine and set up my development environment.
 
-Option A — Install via npm (recommended, no Rust toolchain needed):
+Option A — One-line install (recommended, no prerequisites):
+  curl -fsSL https://raw.githubusercontent.com/BG4JTS/oneinit/main/install.sh | sh
+
+Option B — Install via npm:
   npm install -g oneinit
 
-Option B — Build from source (requires Rust):
+Option C — Build from source (requires Rust):
   git clone https://github.com/BG4JTS/oneinit.git
   cd oneinit && cargo build --release
   # Then add target/release to PATH
@@ -48,10 +51,13 @@ Report each step's result.
 ```
 在这台机器上安装 OneInit 并配置开发环境。
 
-方式 A — 通过 npm 安装（推荐，无需 Rust 工具链）：
+方式 A — 一键安装（推荐，无需任何前置依赖）：
+  curl -fsSL https://raw.githubusercontent.com/BG4JTS/oneinit/main/install.sh | sh
+
+方式 B — 通过 npm 安装：
   npm install -g oneinit
 
-方式 B — 从源码编译（需要 Rust）：
+方式 C — 从源码编译（需要 Rust）：
   git clone https://github.com/BG4JTS/oneinit.git
   cd oneinit && cargo build --release
   # 然后将 target/release 添加到 PATH
