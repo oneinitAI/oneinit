@@ -63,12 +63,36 @@ oneinit import backup.tar.gz
 
 ## 安装
 
+### 方式一：从源码编译
+
 ```bash
 git clone https://github.com/BG4JTS/oneinit.git
 cd oneinit
 cargo build --release
 # 二进制文件: target/release/oneinit(.exe)
 ```
+
+### 方式二：让 AI 帮你安装
+
+复制以下提示词给你的 AI 助手（ChatGPT、Claude、ZCode 等）：
+
+**中文提示词：**
+
+```
+在这台机器上安装 OneInit 并配置开发环境。
+按照以下指南操作：
+https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
+```
+
+**English prompt:**
+
+```
+Install OneInit on this machine and set up my dev environment.
+Follow the guide at:
+https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
+```
+
+指南内容包括：编译步骤、PATH 配置、工具安装（Python、Node.js）、AI Skill 配置、环境迁移。
 
 ## 命令一览
 

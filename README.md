@@ -43,12 +43,36 @@ oneinit capture -o my-env.yaml
 
 ## Installation
 
+### Option 1: Build from source
+
 ```bash
 git clone https://github.com/BG4JTS/oneinit.git
 cd oneinit
 cargo build --release
 # Binary: target/release/oneinit(.exe)
 ```
+
+### Option 2: Ask AI to install for you
+
+Copy this prompt to your AI assistant (ChatGPT, Claude, ZCode, etc.):
+
+**English prompt:**
+
+```
+Install OneInit on this machine and set up my dev environment.
+Follow the guide at:
+https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
+```
+
+**中文提示词：**
+
+```
+在这台机器上安装 OneInit 并配置开发环境。
+按照以下指南操作：
+https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
+```
+
+The guide includes: build instructions, PATH setup, tool installation (Python, Node.js), AI Skill configuration, and environment migration.
 
 ## Commands
 
