@@ -1,0 +1,81 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ============================================================
+  # Lint + test on all platforms
+  # ============================================================
+  check:
+    name: Check + Clippy + Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      # Format check — fail if code not formatted
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+
+      # Clippy lint — warnings as errors
+      - name: clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      # Compile check
+      - name: check
+        run: cargo check --all-targets
+
+      # Unit tests
+      - name: test
+        run: cargo test --verbose
+
+  # ============================================================
+  # Community recipe validation (if recipe YAML files changed)
+  # ============================================================
+  recipe-check:
+    name: Recipe YAML Validation
+    runs-on: ubuntu-latest
+    if: ${{ false }} # Disabled until oneinit binary is available in CI
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for recipe files
+        run: |
+          if find . -name "*.yaml" -path "*/recipes/*" | grep -q .; then
+            echo "Recipe files found, validation would run here"
+          else
+            echo "No recipe files to validate"
+          fi
+
+  # ============================================================
+  # Summary gate — all checks must pass before merge
+  # ============================================================
+  status:
+    name: All Checks Passed
+    runs-on: ubuntu-latest
+    needs: [check]
+    if: always()
+    steps:
+      - name: Gate
+        run: |
+          if [ "${{ needs.check.result }}" != "success" ]; then
+            echo "::error::Check failed"
+            exit 1
+          fi
+          echo "All checks passed!"
