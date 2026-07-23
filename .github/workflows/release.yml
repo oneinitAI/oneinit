@@ -1,0 +1,233 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ============================================================
+  # Build binaries for all platforms
+  # ============================================================
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+            binary: oneinit.exe
+          # Linux x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            binary: oneinit
+          # macOS x86_64 (Intel)
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            archive: tar.gz
+            binary: oneinit
+          # macOS aarch64 (Apple Silicon)
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+            binary: oneinit
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME:-$(git describe --tags --always)}"
+          ARCHIVE_NAME="oneinit-${VERSION}-${{ matrix.target }}"
+          BINARY="target/${{ matrix.target }}/release/${{ matrix.binary }}"
+
+          mkdir -p "$ARCHIVE_NAME"
+          cp "$BINARY" "$ARCHIVE_NAME/"
+          cp README.md "$ARCHIVE_NAME/" 2>/dev/null || true
+          cp LICENSE "$ARCHIVE_NAME/" 2>/dev/null || true
+
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a -tzip "${ARCHIVE_NAME}.zip" "$ARCHIVE_NAME"
+          else
+            tar -czf "${ARCHIVE_NAME}.tar.gz" "$ARCHIVE_NAME"
+          fi
+
+          echo "ARCHIVE_FILE=${ARCHIVE_NAME}.${{ matrix.archive }}" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oneinit-${{ matrix.target }}
+          path: oneinit-*.${{ matrix.archive }}
+
+  # ============================================================
+  # Create GitHub Release with all binaries
+  # ============================================================
+  release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          files: artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================================
+  # Publish to npm
+  # ============================================================
+  npm:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download Windows binary
+        uses: actions/download-artifact@v4
+        with:
+          name: oneinit-x86_64-pc-windows-msvc
+          path: npm/bin/native/
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: oneinit-x86_64-unknown-linux-gnu
+          path: npm/bin/native/
+
+      - name: Download macOS x86_64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: oneinit-x86_64-apple-darwin
+          path: npm/bin/native/
+
+      - name: Download macOS aarch64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: oneinit-aarch64-apple-darwin
+          path: npm/bin/native/
+
+      - name: Prepare npm package
+        shell: bash
+        run: |
+          # Extract all binaries into npm/bin/native/
+          cd npm/bin/native
+          for f in *.zip; do
+            [ -f "$f" ] && unzip -o "$f" && rm "$f"
+          done
+          for f in *.tar.gz; do
+            [ -f "$f" ] && tar -xzf "$f" && rm "$f"
+          done
+          # Move binaries from subdirs to native/
+          find . -name "oneinit*" -type f -exec mv {} . \;
+          find . -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} \; 2>/dev/null || true
+          ls -lh .
+
+      - name: Update postinstall for multi-platform
+        run: |
+          cat > npm/bin/postinstall.js << 'POSTINSTALL_EOF'
+          const fs = require("fs");
+          const path = require("path");
+          const { execFileSync } = require("child_process");
+
+          const platform = process.platform;
+          const arch = process.arch;
+
+          // Map npm platform/arch to our binary naming
+          const platformMap = {
+            "win32-x64": "oneinit.exe",
+            "linux-x64": "oneinit",
+            "darwin-x64": "oneinit",
+            "darwin-arm64": "oneinit",
+          };
+
+          const key = `${platform}-${arch}`;
+          const binaryName = platformMap[key];
+
+          if (!binaryName) {
+            console.log(`[oneinit] Unsupported platform: ${key}`);
+            console.log(`[oneinit] Build from source: https://github.com/BG4JTS/oneinit`);
+            process.exit(0);
+          }
+
+          const binDir = path.join(__dirname, "native");
+          fs.mkdirSync(binDir, { recursive: true });
+
+          const bundled = path.join(__dirname, binaryName);
+          const dest = path.join(binDir, binaryName);
+
+          if (fs.existsSync(bundled)) {
+            fs.copyFileSync(bundled, dest);
+            if (platform !== "win32") fs.chmodSync(dest, 0o755);
+            console.log(`[oneinit] Binary installed for ${key}.`);
+          } else {
+            console.log(`[oneinit] Binary for ${key} not bundled in this package.`);
+            console.log(`[oneinit] Build from source: https://github.com/BG4JTS/oneinit`);
+          }
+          POSTINSTALL_EOF
+
+      - name: Set version from tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cd npm
+          npm version "$VERSION" --no-git-tag-version --allow-scripts
+          echo "Publishing version: $VERSION"
+
+      - name: Copy LICENSE and README
+        run: |
+          cp LICENSE npm/ 2>/dev/null || true
+
+      - name: Publish to npm
+        run: |
+          cd npm
+          # Determine tag (beta/rc -> beta, else latest)
+          if echo "$GITHUB_REF_NAME" | grep -qE "beta|rc"; then
+            TAG="beta"
+          else
+            TAG="latest"
+          fi
+          echo "Publishing with tag: $TAG"
+          npm publish --tag "$TAG" --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

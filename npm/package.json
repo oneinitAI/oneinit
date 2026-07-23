@@ -1,0 +1,37 @@
+{
+  "name": "oneinit",
+  "version": "0.1.0-beta.1",
+  "description": "One command to init your dev machine — AI-first environment initializer",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BG4JTS/oneinit.git"
+  },
+  "homepage": "https://github.com/BG4JTS/oneinit",
+  "bugs": {
+    "url": "https://github.com/BG4JTS/oneinit/issues"
+  },
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/bg4jts"
+  },
+  "keywords": [
+    "dev-tools",
+    "environment",
+    "initializer",
+    "cli",
+    "ai",
+    "setup",
+    "bootstrap"
+  ],
+  "bin": "./bin/oneinit.js",
+  "scripts": {
+    "postinstall": "node bin/postinstall.js"
+  },
+  "files": [
+    "bin/"
+  ],
+  "engines": {
+    "node": ">=14"
+  }
+}
