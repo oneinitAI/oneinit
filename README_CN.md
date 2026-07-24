@@ -238,6 +238,15 @@ oneinit tui
 | reqwest + indicatif | 异步下载 + 进度条 |
 | serde / serde_yaml / serde_json | 序列化 |
 
+## 安全与免责声明
+
+OneInit 会从网络下载文件、修改 PATH 环境变量、写入配置文件，并可能执行安装脚本。使用 OneInit 即表示你知悉并同意：
+
+- **社区配方未经审计。** 安装前请查看 `[SECURITY]` 安全提示（显示下载地址、SHA256、将执行的命令）。
+- **使用 `oneinit verify`** 在安装前验证配方文件。
+- **使用 `oneinit doctor`** 定期检查环境健康状态。
+- OneInit 按 GPL-3.0 协议**"原样"提供，不附任何担保**。作者不对任何损害承担责任。
+
 ## 开源协议
 
 GPL-3.0

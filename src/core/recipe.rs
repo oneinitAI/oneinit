@@ -92,6 +92,29 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
     let start = Instant::now();
     let install_dir = envs_dir().join(&recipe.name);
 
+    // 安全提醒：内置配方仍需告知用户将下载和修改的内容
+    formatter.output("", Some(serde_json::Value::Null));
+    formatter.output(
+        "[SECURITY] 即将安装内置配方，以下操作将被执行:",
+        Some(serde_json::Value::Null),
+    );
+    formatter.output(
+        &format!("[SECURITY]   工具: {} v{}", recipe.name, recipe.version),
+        Some(serde_json::Value::Null),
+    );
+    formatter.output(
+        &format!("[SECURITY]   下载: {}", recipe.download_url),
+        Some(serde_json::Value::Null),
+    );
+    formatter.output(
+        &format!("[SECURITY]   目录: {}", install_dir.display()),
+        Some(serde_json::Value::Null),
+    );
+    formatter.output(
+        "[SECURITY]   操作: 修改 PATH 环境变量、写入配置文件",
+        Some(serde_json::Value::Null),
+    );
+
     // 1. 创建安装目录
     if install_dir.exists() {
         fs::remove_dir_all(&install_dir)?;

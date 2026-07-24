@@ -3,6 +3,7 @@
 mod cli;
 mod core;
 mod output;
+mod security;
 mod tui2;
 
 use clap::{Parser, Subcommand};
@@ -129,6 +130,15 @@ async fn main() {
     let cli = Cli::parse();
 
     let formatter = output::OutputFormatter::new(cli.json);
+
+    // 高风险操作前显示免责声明
+    let is_dangerous = matches!(
+        cli.command,
+        Commands::Install { .. } | Commands::Sync | Commands::Import { dry_run: false, .. }
+    );
+    if is_dangerous {
+        security::print_disclaimer(&formatter);
+    }
 
     match cli.command {
         Commands::Init { preset } => cli::run_init(&formatter, preset.as_deref()).await,

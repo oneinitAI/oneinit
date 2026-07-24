@@ -140,6 +140,15 @@ maintainer:
 
 Then: `oneinit install my-tool`
 
+## Security & Disclaimer
+
+OneInit downloads files from the internet, modifies your PATH, writes config files, and may execute install scripts. By using OneInit you acknowledge:
+
+- **Community recipes are not audited.** Always review the `[SECURITY]` prompt before installing (it shows the download URL, SHA256, and commands that will run).
+- **Use `oneinit verify`** to validate recipe files before installing.
+- **Use `oneinit doctor`** to check for environment issues.
+- OneInit is provided **"as is" without warranty** under GPL-3.0. The authors are not liable for any damage.
+
 ## License
 
 GPL-3.0

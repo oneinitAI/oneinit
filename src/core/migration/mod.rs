@@ -90,6 +90,35 @@ pub fn run_import(
     force: bool,
     skip_checksum: bool,
 ) -> Result<ImportResult> {
+    // 安全提醒
+    if !dry_run {
+        formatter.output("", Some(serde_json::Value::Null));
+        formatter.output(
+            "[SECURITY] 即将导入环境备份，以下操作将被执行:",
+            Some(serde_json::Value::Null),
+        );
+        formatter.output(
+            &format!("[SECURITY]   文件: {}", archive),
+            Some(serde_json::Value::Null),
+        );
+        formatter.output(
+            "[SECURITY]   操作: 恢复配方文件、恢复工具目录、恢复全局包列表",
+            Some(serde_json::Value::Null),
+        );
+        formatter.output(
+            if force {
+                "[SECURITY]   模式: --force 已启用，将覆盖现有文件"
+            } else {
+                "[SECURITY]   模式: 已存在文件将被跳过（使用 --force 覆盖）"
+            },
+            Some(serde_json::Value::Null),
+        );
+        formatter.output(
+            "[SECURITY] 建议先使用 --dry-run 预览导入内容",
+            Some(serde_json::Value::Null),
+        );
+    }
+
     formatter.output(
         &format!("[IMPORT] 开始导入: {} (dry_run={})", archive, dry_run),
         Some(serde_json::json!({
