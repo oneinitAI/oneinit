@@ -1,6 +1,10 @@
 use crate::core::{
-    community_recipe, ensure_dirs, manifest::Manifest, preset,
-    recipe::{self, resolve}, registry, sync::{self, SyncConfig},
+    community_recipe, ensure_dirs,
+    manifest::Manifest,
+    preset,
+    recipe::{self, resolve},
+    registry,
+    sync::{self, SyncConfig},
 };
 use crate::output::OutputFormatter;
 
@@ -34,7 +38,10 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
 
             if preset.packages.is_empty() {
                 formatter.output(
-                    &format!("[WARN] 套装 '{}' 暂无可用的配方。({})", preset.display_name, preset.description),
+                    &format!(
+                        "[WARN] 套装 '{}' 暂无可用的配方。({})",
+                        preset.display_name, preset.description
+                    ),
                     Some(serde_json::json!({
                         "status": "success",
                         "action": "init",
@@ -47,7 +54,10 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
             }
 
             formatter.output(
-                &format!("🚀 开始初始化 '{}' ({})...", preset.display_name, preset.description),
+                &format!(
+                    "🚀 开始初始化 '{}' ({})...",
+                    preset.display_name, preset.description
+                ),
                 Some(serde_json::json!({
                     "status": "success",
                     "action": "init",
@@ -80,10 +90,7 @@ fn list_available_presets(formatter: &OutputFormatter) {
     let presets = preset::list_presets();
     for p in &presets {
         formatter.output(
-            &format!(
-                "  📦 {} — {} ({})",
-                p.name, p.display_name, p.description
-            ),
+            &format!("  📦 {} — {} ({})", p.name, p.display_name, p.description),
             Some(serde_json::json!({
                 "name": p.name,
                 "display_name": p.display_name,
@@ -108,19 +115,19 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
 
     for pkg_name in packages {
         // 检查是否已安装
-        if let Ok(manifest) = Manifest::open() {
-            if let Ok(Some(_)) = manifest.get(pkg_name) {
-                formatter.output(
-                    &format!("  [SKIP] '{}' 已安装，跳过", pkg_name),
-                    Some(serde_json::json!({
-                        "package": pkg_name,
-                        "status": "skipped",
-                        "reason": "already_installed"
-                    })),
-                );
-                skipped.push(pkg_name);
-                continue;
-            }
+        if let Ok(manifest) = Manifest::open()
+            && let Ok(Some(_)) = manifest.get(pkg_name)
+        {
+            formatter.output(
+                &format!("  [SKIP] '{}' 已安装，跳过", pkg_name),
+                Some(serde_json::json!({
+                    "package": pkg_name,
+                    "status": "skipped",
+                    "reason": "already_installed"
+                })),
+            );
+            skipped.push(pkg_name);
+            continue;
         }
 
         // 查找配方
@@ -219,21 +226,26 @@ fn install_recursive<'a>(
     installing_stack: &'a mut Vec<String>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + 'a>> {
     Box::pin(async move {
-    // 防止循环依赖
-    if installing_stack.iter().any(|n| n == name) {
-        formatter.output(
-            &format!("[WARN] 跳过循环依赖: {}", name),
-            Some(serde_json::Value::Null),
-        );
-        return;
-    }
-    installing_stack.push(name.to_string());
-
-    // 检查是否已安装
-    if let Ok(manifest) = Manifest::open() {
-        if let Ok(Some(record)) = manifest.get(name) {
+        // 防止循环依赖
+        if installing_stack.iter().any(|n| n == name) {
             formatter.output(
-                &format!("[OK] '{}' 已安装 v{}", name, record.version.as_deref().unwrap_or("?")),
+                &format!("[WARN] 跳过循环依赖: {}", name),
+                Some(serde_json::Value::Null),
+            );
+            return;
+        }
+        installing_stack.push(name.to_string());
+
+        // 检查是否已安装
+        if let Ok(manifest) = Manifest::open()
+            && let Ok(Some(record)) = manifest.get(name)
+        {
+            formatter.output(
+                &format!(
+                    "[OK] '{}' 已安装 v{}",
+                    name,
+                    record.version.as_deref().unwrap_or("?")
+                ),
                 Some(serde_json::json!({
                     "status": "success", "action": "install",
                     "package": name, "already_installed": true,
@@ -242,43 +254,42 @@ fn install_recursive<'a>(
             installing_stack.pop();
             return;
         }
-    }
 
-    // 查找配方（内置 -> 本地社区 -> 远程），同时获取依赖信息
-    let recipe_info = resolve_recipe_with_deps(name, version_spec, formatter).await;
+        // 查找配方（内置 -> 本地社区 -> 远程），同时获取依赖信息
+        let recipe_info = resolve_recipe_with_deps(name, version_spec, formatter).await;
 
-    match recipe_info {
-        RecipeResolution::Builtin(rec) => {
-            if let Err(e) = recipe::install(&rec, formatter).await {
-                formatter.error(&e);
+        match recipe_info {
+            RecipeResolution::Builtin(rec) => {
+                if let Err(e) = recipe::install(&rec, formatter).await {
+                    formatter.error(&e);
+                }
+            }
+            RecipeResolution::Community(rec) => {
+                // 先安装依赖
+                install_dependencies(&rec, formatter, installing_stack).await;
+                if let Err(e) = community_recipe::install(&rec, formatter).await {
+                    formatter.error(&e);
+                }
+            }
+            RecipeResolution::NotFound(hint) => {
+                formatter.output(
+                    &format!("[ERROR] 未找到 '{}' 的安装配方。{}", name, hint),
+                    Some(serde_json::json!({
+                        "status": "error", "action": "install",
+                        "package": name, "message": "Recipe not found",
+                    })),
+                );
             }
         }
-        RecipeResolution::Community(rec) => {
-            // 先安装依赖
-            install_dependencies(&rec, formatter, installing_stack).await;
-            if let Err(e) = community_recipe::install(&rec, formatter).await {
-                formatter.error(&e);
-            }
-        }
-        RecipeResolution::NotFound(hint) => {
-            formatter.output(
-                &format!("[ERROR] 未找到 '{}' 的安装配方。{}", name, hint),
-                Some(serde_json::json!({
-                    "status": "error", "action": "install",
-                    "package": name, "message": "Recipe not found",
-                })),
-            );
-        }
-    }
 
-    installing_stack.pop();
+        installing_stack.pop();
     })
 }
 
 /// 配方解析结果
 enum RecipeResolution {
     Builtin(crate::core::recipe::Recipe),
-    Community(crate::core::community_recipe::CommunityRecipe),
+    Community(Box<crate::core::community_recipe::CommunityRecipe>),
     NotFound(String),
 }
 
@@ -289,10 +300,10 @@ async fn resolve_recipe_with_deps(
     formatter: &OutputFormatter,
 ) -> RecipeResolution {
     // 1. 内置配方（@latest 或无版本时尝试）
-    if version_spec.is_none() || version_spec == Some("latest") {
-        if let Some(rec) = resolve(name) {
-            return RecipeResolution::Builtin(rec);
-        }
+    if (version_spec.is_none() || version_spec == Some("latest"))
+        && let Some(rec) = resolve(name)
+    {
+        return RecipeResolution::Builtin(rec);
     }
 
     // 2. 本地社区配方
@@ -302,10 +313,10 @@ async fn resolve_recipe_with_deps(
             if ver != "latest" && ver != rec.version {
                 // 版本不匹配，继续查找远程
             } else {
-                return RecipeResolution::Community(rec);
+                return RecipeResolution::Community(Box::new(rec));
             }
         } else {
-            return RecipeResolution::Community(rec);
+            return RecipeResolution::Community(Box::new(rec));
         }
     }
 
@@ -335,7 +346,7 @@ async fn resolve_recipe_with_deps(
         );
 
         match registry::fetch_recipe(name, &target_version).await {
-            Ok(recipe) => return RecipeResolution::Community(recipe),
+            Ok(recipe) => return RecipeResolution::Community(Box::new(recipe)),
             Err(e) => {
                 formatter.output(
                     &format!("[ERROR] 远程获取失败: {}", e),
@@ -382,7 +393,7 @@ pub async fn run_uninstall(formatter: &OutputFormatter, package: &str) {
     }
 
     // 先尝试内置配方卸载
-    if let Err(e) = recipe::uninstall(package, formatter).await {
+    if recipe::uninstall(package, formatter).await.is_err() {
         // 内置卸载失败，尝试社区配方卸载
         use crate::core::community_recipe;
         if let Err(e2) = community_recipe::uninstall(package, formatter).await {
@@ -401,29 +412,35 @@ pub async fn run_list(formatter: &OutputFormatter) {
     use crate::core::manifest::Manifest;
 
     match Manifest::open() {
-        Ok(manifest) => {
-            match manifest.list() {
-                Ok(records) => {
-                    let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();
-                    formatter.output(
-                        &if names.is_empty() {
-                            "📋 尚未安装任何工具。使用 oneinit install <package> 开始。".to_string()
-                        } else {
-                            format!("📋 已安装 {} 个工具:\n{}", names.len(), names.iter().map(|n| format!("  - {}", n)).collect::<Vec<_>>().join("\n"))
-                        },
-                        Some(serde_json::json!({
-                            "status": "success",
-                            "action": "list",
-                            "installed": records,
-                            "count": records.len()
-                        })),
-                    );
-                }
-                Err(e) => {
-                    formatter.error(&e);
-                }
+        Ok(manifest) => match manifest.list() {
+            Ok(records) => {
+                let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();
+                formatter.output(
+                    &if names.is_empty() {
+                        "📋 尚未安装任何工具。使用 oneinit install <package> 开始。".to_string()
+                    } else {
+                        format!(
+                            "📋 已安装 {} 个工具:\n{}",
+                            names.len(),
+                            names
+                                .iter()
+                                .map(|n| format!("  - {}", n))
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        )
+                    },
+                    Some(serde_json::json!({
+                        "status": "success",
+                        "action": "list",
+                        "installed": records,
+                        "count": records.len()
+                    })),
+                );
             }
-        }
+            Err(e) => {
+                formatter.error(&e);
+            }
+        },
         Err(e) => {
             formatter.error(&e);
         }
@@ -436,49 +453,54 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
     let builtin: Vec<serde_json::Value> = recipe::list_recipes()
         .iter()
         .filter(|r| {
-            keyword.map_or(true, |kw| {
-                r.name.contains(kw)
-                    || r.display_name.to_lowercase().contains(&kw.to_lowercase())
+            keyword.is_none_or(|kw| {
+                r.name.contains(kw) || r.display_name.to_lowercase().contains(&kw.to_lowercase())
             })
         })
-        .map(|r| serde_json::json!({
-            "name": r.name,
-            "version": r.version,
-            "display_name": r.display_name,
-            "source": "builtin",
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "name": r.name,
+                "version": r.version,
+                "display_name": r.display_name,
+                "source": "builtin",
+            })
+        })
         .collect();
 
     // 社区配方
     let community: Vec<serde_json::Value> = crate::core::community_recipe::load_all()
         .iter()
         .filter(|r| {
-            keyword.map_or(true, |kw| {
+            keyword.is_none_or(|kw| {
                 r.name.contains(kw) || r.description.to_lowercase().contains(&kw.to_lowercase())
             })
         })
-        .map(|r| serde_json::json!({
-            "name": r.name,
-            "version": r.version,
-            "display_name": r.description,
-            "source": "community",
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "name": r.name,
+                "version": r.version,
+                "display_name": r.description,
+                "source": "community",
+            })
+        })
         .collect();
 
     // 远程配方（从缓存 INDEX）
     let remote: Vec<serde_json::Value> = crate::core::registry::list_available()
         .iter()
         .filter(|(name, _, desc)| {
-            keyword.map_or(true, |kw| {
+            keyword.is_none_or(|kw| {
                 name.contains(kw) || desc.to_lowercase().contains(&kw.to_lowercase())
             })
         })
-        .map(|(name, ver, desc)| serde_json::json!({
-            "name": name,
-            "version": ver,
-            "display_name": desc,
-            "source": "remote",
-        }))
+        .map(|(name, ver, desc)| {
+            serde_json::json!({
+                "name": name,
+                "version": ver,
+                "display_name": desc,
+                "source": "remote",
+            })
+        })
         .collect();
 
     let total = builtin.len() + community.len() + remote.len();
@@ -495,7 +517,10 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
             human.push_str(&format!("  - {} v{} [builtin]\n", r["name"], r["version"]));
         }
         for r in &community {
-            human.push_str(&format!("  - {} v{} [community]\n", r["name"], r["version"]));
+            human.push_str(&format!(
+                "  - {} v{} [community]\n",
+                r["name"], r["version"]
+            ));
         }
         for r in &remote {
             human.push_str(&format!("  - {} v{} [remote]\n", r["name"], r["version"]));
@@ -549,7 +574,8 @@ pub async fn run_sync(formatter: &OutputFormatter) {
     };
 
     formatter.output(
-        &format!("📦 读取 oneinit.yaml: {} 个工具, {} 个镜像, {} 条后置命令",
+        &format!(
+            "📦 读取 oneinit.yaml: {} 个工具, {} 个镜像, {} 条后置命令",
             config.envs.len(),
             config.mirrors.as_ref().map_or(0, |m| m.len()),
             config.post_install.as_ref().map_or(0, |c| c.len()),
@@ -578,19 +604,19 @@ pub async fn run_sync(formatter: &OutputFormatter) {
     }
 
     // 5. 执行 post_install 命令
-    if let Some(ref commands) = config.post_install {
-        if !commands.is_empty() {
-            formatter.output(
-                "[RUN] 开始执行安装后命令...",
-                Some(serde_json::json!({
-                    "phase": "post_install",
-                    "command_count": commands.len(),
-                })),
-            );
-            if let Err(e) = sync::run_post_install(commands, formatter) {
-                formatter.error(&e);
-                return;
-            }
+    if let Some(ref commands) = config.post_install
+        && !commands.is_empty()
+    {
+        formatter.output(
+            "[RUN] 开始执行安装后命令...",
+            Some(serde_json::json!({
+                "phase": "post_install",
+                "command_count": commands.len(),
+            })),
+        );
+        if let Err(e) = sync::run_post_install(commands, formatter) {
+            formatter.error(&e);
+            return;
         }
     }
 
@@ -647,7 +673,12 @@ pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
             }
 
             formatter.output(
-                &format!("\n[{}] 验证完成: {}/{} 项通过", if result.valid { "OK" } else { "FAIL" }, passed, total),
+                &format!(
+                    "\n[{}] 验证完成: {}/{} 项通过",
+                    if result.valid { "OK" } else { "FAIL" },
+                    passed,
+                    total
+                ),
                 Some(serde_json::json!({
                     "status": if result.valid { "valid" } else { "invalid" },
                     "action": "verify",
@@ -696,7 +727,9 @@ pub async fn run_import(formatter: &OutputFormatter, file: &str, dry_run: bool, 
     }
 
     let skip_checksum = false;
-    if let Err(e) = crate::core::migration::run_import(formatter, file, dry_run, force, skip_checksum) {
+    if let Err(e) =
+        crate::core::migration::run_import(formatter, file, dry_run, force, skip_checksum)
+    {
         formatter.error(&e);
     }
 }
@@ -724,7 +757,10 @@ pub async fn run_update(formatter: &OutputFormatter) {
         Ok(index) => {
             let count = index.packages.len();
             formatter.output(
-                &format!("[OK] 索引更新完成: {} 个可用包 (更新于 {})", count, index.last_updated),
+                &format!(
+                    "[OK] 索引更新完成: {} 个可用包 (更新于 {})",
+                    count, index.last_updated
+                ),
                 Some(serde_json::json!({
                     "status": "success",
                     "action": "update",
@@ -769,31 +805,46 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
     formatter.output("[PUBLISH] 正在验证配方...", Some(serde_json::Value::Null));
     let verify_result = match community_recipe::verify(&path) {
         Ok(r) => r,
-        Err(e) => { formatter.error(&e); return; }
+        Err(e) => {
+            formatter.error(&e);
+            return;
+        }
     };
     if !verify_result.valid {
-        formatter.output("[ERROR] 配方验证未通过", Some(serde_json::json!({
-            "status": "error", "action": "publish", "message": "Validation failed"
-        })));
+        formatter.output(
+            "[ERROR] 配方验证未通过",
+            Some(serde_json::json!({
+                "status": "error", "action": "publish", "message": "Validation failed"
+            })),
+        );
         return;
     }
 
     // 2. 解析配方
     let content = match std::fs::read_to_string(&path) {
         Ok(c) => c,
-        Err(e) => { formatter.error(&e.into()); return; }
+        Err(e) => {
+            formatter.error(&e.into());
+            return;
+        }
     };
     let recipe: community_recipe::CommunityRecipe = match serde_yaml::from_str(&content) {
         Ok(r) => r,
         Err(e) => {
-            formatter.output(&format!("[ERROR] YAML 解析失败: {}", e), Some(serde_json::Value::Null));
+            formatter.output(
+                &format!("[ERROR] YAML 解析失败: {}", e),
+                Some(serde_json::Value::Null),
+            );
             return;
         }
     };
 
     // 3. 安全提醒
     formatter.output("", Some(serde_json::Value::Null));
-    formatter.output("========== [SECURITY] 发布确认 ==========", Some(serde_json::Value::Null));
+    formatter.output(
+        "========== [SECURITY] 发布确认 ==========",
+        Some(serde_json::Value::Null),
+    );
     formatter.output(
         &format!("[SECURITY] 配方名称: {} v{}", recipe.name, recipe.version),
         Some(serde_json::Value::Null),
@@ -803,16 +854,31 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
     let recipe_filename = format!("{}.yaml", recipe.version);
     let config = registry::load_config();
 
-    formatter.output("========================================", Some(serde_json::Value::Null));
+    formatter.output(
+        "========================================",
+        Some(serde_json::Value::Null),
+    );
 
     // 4. 生成发布步骤
     formatter.output("", Some(serde_json::Value::Null));
     formatter.output("[INFO] 完成发布的步骤:", Some(serde_json::Value::Null));
-    formatter.output("  1. git clone https://github.com/BG4JTS/oneinit-recipes.git", Some(serde_json::Value::Null));
-    formatter.output(&format!("  2. mkdir -p {}", recipe_dir), Some(serde_json::Value::Null));
-    formatter.output(&format!("  3. cp {} {}/{}", file, recipe_dir, recipe_filename), Some(serde_json::Value::Null));
+    formatter.output(
+        "  1. git clone https://github.com/BG4JTS/oneinit-recipes.git",
+        Some(serde_json::Value::Null),
+    );
+    formatter.output(
+        &format!("  2. mkdir -p {}", recipe_dir),
+        Some(serde_json::Value::Null),
+    );
+    formatter.output(
+        &format!("  3. cp {} {}/{}", file, recipe_dir, recipe_filename),
+        Some(serde_json::Value::Null),
+    );
     formatter.output("  4. 更新 INDEX.json", Some(serde_json::Value::Null));
-    formatter.output("  5. git add . && git commit && git push", Some(serde_json::Value::Null));
+    formatter.output(
+        "  5. git add . && git commit && git push",
+        Some(serde_json::Value::Null),
+    );
     formatter.output("  6. 创建 Pull Request", Some(serde_json::Value::Null));
 
     formatter.output(
@@ -856,38 +922,41 @@ pub async fn run_doctor(formatter: &OutputFormatter) {
     checks.push((
         "manifest_db".to_string(),
         manifest_ok,
-        if manifest_ok { "可读".to_string() } else { "无法打开".to_string() },
+        if manifest_ok {
+            "可读".to_string()
+        } else {
+            "无法打开".to_string()
+        },
     ));
 
     // 3. manifest vs 实际安装目录一致性
-    if manifest_ok {
-        if let Ok(manifest) = Manifest::open() {
-            if let Ok(records) = manifest.list() {
-                let mut orphan_paths = 0;
-                let mut orphan_path_entries = 0;
-                for record in &records {
-                    let install_path = Path::new(&record.install_path);
-                    if !install_path.exists() {
-                        orphan_paths += 1;
-                    }
-                    for entry in &record.path_entries {
-                        if !Path::new(entry).exists() {
-                            orphan_path_entries += 1;
-                        }
-                    }
+    if manifest_ok
+        && let Ok(manifest) = Manifest::open()
+        && let Ok(records) = manifest.list()
+    {
+        let mut orphan_paths = 0;
+        let mut orphan_path_entries = 0;
+        for record in &records {
+            let install_path = Path::new(&record.install_path);
+            if !install_path.exists() {
+                orphan_paths += 1;
+            }
+            for entry in &record.path_entries {
+                if !Path::new(entry).exists() {
+                    orphan_path_entries += 1;
                 }
-                let ok = orphan_paths == 0 && orphan_path_entries == 0;
-                let detail = if ok {
-                    format!("{} 个记录全部一致", records.len())
-                } else {
-                    format!(
-                        "{} 个安装目录缺失, {} 个 PATH 条目指向不存在的路径",
-                        orphan_paths, orphan_path_entries
-                    )
-                };
-                checks.push(("consistency".to_string(), ok, detail));
             }
         }
+        let ok = orphan_paths == 0 && orphan_path_entries == 0;
+        let detail = if ok {
+            format!("{} 个记录全部一致", records.len())
+        } else {
+            format!(
+                "{} 个安装目录缺失, {} 个 PATH 条目指向不存在的路径",
+                orphan_paths, orphan_path_entries
+            )
+        };
+        checks.push(("consistency".to_string(), ok, detail));
     }
 
     // 4. PATH 中是否有 oneinit 条目（正常情况）
@@ -920,11 +989,7 @@ pub async fn run_doctor(formatter: &OutputFormatter) {
     } else {
         "未缓存（运行 oneinit update 获取）".to_string()
     };
-    checks.push((
-        "registry_cache".to_string(),
-        true,
-        index_detail,
-    ));
+    checks.push(("registry_cache".to_string(), true, index_detail));
 
     // 输出结果
     let total = checks.len();
@@ -942,7 +1007,17 @@ pub async fn run_doctor(formatter: &OutputFormatter) {
 
     let healthy = passed == total;
     formatter.output(
-        &format!("\n[{}] {} 项检查: {}/{} 通过", if healthy { "OK" } else { "FAIL" }, if healthy { "环境健康" } else { "发现问题" }, passed, total),
+        &format!(
+            "\n[{}] {} 项检查: {}/{} 通过",
+            if healthy { "OK" } else { "FAIL" },
+            if healthy {
+                "环境健康"
+            } else {
+                "发现问题"
+            },
+            passed,
+            total
+        ),
         Some(serde_json::json!({
             "status": if healthy { "healthy" } else { "issues" },
             "action": "doctor",
@@ -1010,11 +1085,18 @@ pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
 
     // 写入文件
     std::fs::write(output, &yaml).unwrap_or_else(|e| {
-        formatter.output(&format!("[ERROR] 写入失败: {}", e), Some(serde_json::Value::Null));
+        formatter.output(
+            &format!("[ERROR] 写入失败: {}", e),
+            Some(serde_json::Value::Null),
+        );
     });
 
     formatter.output(
-        &format!("[OK] 已导出 {} 个工具到 {}（在新机器上运行 oneinit sync 恢复）", records.len(), output),
+        &format!(
+            "[OK] 已导出 {} 个工具到 {}（在新机器上运行 oneinit sync 恢复）",
+            records.len(),
+            output
+        ),
         Some(serde_json::json!({
             "status": "success", "action": "freeze",
             "output": output, "count": records.len(),
@@ -1027,6 +1109,8 @@ pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
 /// python3.11 -> python, node20 -> node, rust-stable -> rust
 fn extract_tool_name(name: &str) -> String {
     // 找到第一个数字的位置
-    let pos = name.find(|c: char| c.is_ascii_digit()).unwrap_or(name.len());
+    let pos = name
+        .find(|c: char| c.is_ascii_digit())
+        .unwrap_or(name.len());
     name[..pos].trim_end_matches('-').to_string()
 }

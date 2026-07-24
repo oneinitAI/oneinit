@@ -3,11 +3,11 @@
 // 布局：标题栏 + 内容区 + 底部帮助栏
 // 主屏幕内容区分为左右两个面板（已安装 / 可安装）
 
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Gauge};
-use ratatui::Frame;
+use ratatui::widgets::{Block, Borders, Gauge, List, ListItem, ListState, Paragraph};
 
 use super::state::{AppState, Pane, Screen};
 
@@ -18,7 +18,11 @@ pub fn draw(frame: &mut Frame, state: &mut AppState) {
     // 垂直布局：标题栏(3) / 内容区(弹性) / 底部帮助栏(3)
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(1), Constraint::Length(3)])
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(1),
+            Constraint::Length(3),
+        ])
         .split(area);
 
     draw_title(frame, chunks[0]);
@@ -29,7 +33,11 @@ pub fn draw(frame: &mut Frame, state: &mut AppState) {
 /// 标题栏
 fn draw_title(frame: &mut Frame, area: Rect) {
     let title = Paragraph::new("OneInit — 一条命令，初始化整台电脑")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .block(Block::default().borders(Borders::ALL).title(" OneInit "));
     frame.render_widget(title, area);
 }
@@ -61,8 +69,13 @@ fn draw_main_screen(frame: &mut Frame, area: Rect, state: &mut AppState) {
 
 /// 已安装面板
 fn draw_installed_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
-    let is_active = state.active_pane == Pane::Installed && state.current_screen == Screen::PackageList;
-    let border_color = if is_active { Color::Green } else { Color::DarkGray };
+    let is_active =
+        state.active_pane == Pane::Installed && state.current_screen == Screen::PackageList;
+    let border_color = if is_active {
+        Color::Green
+    } else {
+        Color::DarkGray
+    };
 
     let title = format!(" 📦 已安装 ({}) ", state.installed.len());
     let block = Block::default()
@@ -78,7 +91,10 @@ fn draw_installed_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
             ListItem::new(Line::from(vec![
                 Span::styled(&r.name, Style::default().fg(Color::Yellow)),
                 Span::raw(" "),
-                Span::styled(format!("v{}", version), Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!("v{}", version),
+                    Style::default().fg(Color::DarkGray),
+                ),
             ]))
         })
         .collect();
@@ -90,7 +106,11 @@ fn draw_installed_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
 
     let list = List::new(items)
         .block(block)
-        .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
         .highlight_symbol(">");
 
     frame.render_stateful_widget(list, area, &mut list_state);
@@ -98,8 +118,13 @@ fn draw_installed_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
 
 /// 可安装面板
 fn draw_available_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
-    let is_active = state.active_pane == Pane::Available && state.current_screen == Screen::PackageList;
-    let border_color = if is_active { Color::Green } else { Color::DarkGray };
+    let is_active =
+        state.active_pane == Pane::Available && state.current_screen == Screen::PackageList;
+    let border_color = if is_active {
+        Color::Green
+    } else {
+        Color::DarkGray
+    };
 
     let title = format!(" 🔍 可安装 ({}) ", state.available.len());
     let block = Block::default()
@@ -134,7 +159,11 @@ fn draw_available_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
 
     let list = List::new(items)
         .block(block)
-        .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
         .highlight_symbol(">");
 
     frame.render_stateful_widget(list, area, &mut list_state);
@@ -152,7 +181,11 @@ fn draw_install_screen(frame: &mut Frame, area: Rect, state: &AppState) {
     // 进度条
     let progress = state.install_progress.get(pkg).copied().unwrap_or(0);
     let gauge = Gauge::default()
-        .block(Block::default().borders(Borders::ALL).title(format!(" 正在安装: {} ", pkg)))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!(" 正在安装: {} ", pkg)),
+        )
         .gauge_style(Style::default().fg(Color::Cyan))
         .percent(progress.into());
     frame.render_widget(gauge, chunks[0]);
@@ -168,7 +201,9 @@ fn draw_capture_screen(frame: &mut Frame, area: Rect, state: &AppState) {
     let mut lines: Vec<Line> = Vec::new();
     lines.push(Line::from(Span::styled(
         "环境捕获结果",
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(""));
 
@@ -178,7 +213,14 @@ fn draw_capture_screen(frame: &mut Frame, area: Rect, state: &AppState) {
             let ver_str = version.as_deref().unwrap_or("未检测到");
             lines.push(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(status_tag, Style::default().fg(if version.is_some() { Color::Green } else { Color::DarkGray })),
+                Span::styled(
+                    status_tag,
+                    Style::default().fg(if version.is_some() {
+                        Color::Green
+                    } else {
+                        Color::DarkGray
+                    }),
+                ),
                 Span::raw(" "),
                 Span::styled(name, Style::default().fg(Color::Yellow)),
                 Span::raw(" "),
@@ -202,11 +244,8 @@ fn draw_capture_screen(frame: &mut Frame, area: Rect, state: &AppState) {
         Style::default().fg(Color::DarkGray),
     )));
 
-    let content = Paragraph::new(lines).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(" Capture "),
-    );
+    let content =
+        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(" Capture "));
     frame.render_widget(content, area);
 }
 
@@ -227,7 +266,12 @@ fn draw_help_popup(frame: &mut Frame, area: Rect) {
     let popup_area = centered_rect(60, 50, area);
 
     let help = Paragraph::new(vec![
-        Line::from(Span::styled("OneInit 帮助", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "OneInit 帮助",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
         Line::from("  Tab     切换面板（已安装 ↔ 可安装）"),
         Line::from("  ↑ / ↓   上下移动选择"),
@@ -235,9 +279,17 @@ fn draw_help_popup(frame: &mut Frame, area: Rect) {
         Line::from("  ?       显示/隐藏帮助"),
         Line::from("  q / Esc 退出"),
         Line::from(""),
-        Line::from(Span::styled("按任意键关闭帮助", Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(
+            "按任意键关闭帮助",
+            Style::default().fg(Color::DarkGray),
+        )),
     ])
-    .block(Block::default().borders(Borders::ALL).title(" 帮助 ").style(Style::default().fg(Color::White)));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" 帮助 ")
+            .style(Style::default().fg(Color::White)),
+    );
 
     frame.render_widget(help, popup_area);
 }

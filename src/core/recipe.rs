@@ -47,10 +47,7 @@ pub struct PostInstall {
 #[derive(Debug, Clone)]
 pub enum PostInstallStep {
     /// 下载文件并执行（如 get-pip.py）
-    DownloadAndRun {
-        url: String,
-        args: Vec<String>,
-    },
+    DownloadAndRun { url: String, args: Vec<String> },
     /// 修改已有文件
     ModifyFile {
         rel_path: String,
@@ -105,15 +102,15 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
     let path_backup = path_mgr::backup()?;
 
     // 3. 下载压缩包
-    let archive_name = recipe
-        .download_url
-        .rsplit('/')
-        .next()
-        .unwrap_or("archive");
+    let archive_name = recipe.download_url.rsplit('/').next().unwrap_or("archive");
     let temp_archive = temp_dir().join(archive_name);
     let dl_result = downloader::download(&recipe.download_url, &temp_archive).await?;
     formatter.output(
-        &format!("[OK] 下载完成: {} ({:.1} MB)", archive_name, dl_result.file_size as f64 / 1_048_576.0),
+        &format!(
+            "[OK] 下载完成: {} ({:.1} MB)",
+            archive_name,
+            dl_result.file_size as f64 / 1_048_576.0
+        ),
         Some(serde_json::json!({"message": "download_complete"})),
     );
 
@@ -159,7 +156,10 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
         archive_url: Some(recipe.download_url.clone()),
         sha256: Some(recipe.sha256.clone()),
         path_entries: vec![bin_path.to_string_lossy().to_string()],
-        config_files: config_files.iter().map(|p| p.to_string_lossy().to_string()).collect(),
+        config_files: config_files
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect(),
         installed_at: chrono::Utc::now().to_rfc3339(),
         original_path: Some(path_backup),
         env_vars_backup: serde_json::json!({}),
@@ -308,11 +308,7 @@ async fn execute_download_and_run(
 }
 
 /// 执行文件修改操作
-fn execute_modify_file(
-    rel_path: &str,
-    action: &ModifyAction,
-    install_dir: &Path,
-) -> Result<()> {
+fn execute_modify_file(rel_path: &str, action: &ModifyAction, install_dir: &Path) -> Result<()> {
     let file_path = install_dir.join(rel_path);
 
     let content = fs::read_to_string(&file_path)?;
@@ -325,7 +321,11 @@ fn execute_modify_file(
                     if trimmed.starts_with('#') && trimmed[1..].trim_start().starts_with(pattern) {
                         // 取消注释：删除行首的 # 和紧随的空格
                         let after_hash = &trimmed[1..];
-                        format!("{}{}", &line[..line.len() - trimmed.len()], after_hash.trim_start())
+                        format!(
+                            "{}{}",
+                            &line[..line.len() - trimmed.len()],
+                            after_hash.trim_start()
+                        )
                     } else {
                         line.to_string()
                     }
@@ -384,7 +384,10 @@ fn python311_recipe() -> Recipe {
                 // 下载并运行 get-pip.py 安装 pip（使用官方 PyPI 源引导）
                 PostInstallStep::DownloadAndRun {
                     url: "https://bootstrap.pypa.io/get-pip.py".to_string(),
-                    args: vec!["--index-url".to_string(), "https://pypi.org/simple".to_string()],
+                    args: vec![
+                        "--index-url".to_string(),
+                        "https://pypi.org/simple".to_string(),
+                    ],
                 },
             ],
         }),

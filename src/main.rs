@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod cli;
 mod core;
 mod output;
@@ -14,7 +16,11 @@ use clap::{Parser, Subcommand};
 #[command(propagate_version = true)]
 struct Cli {
     /// 全局开关：所有命令输出 JSON 格式（AI 模式）
-    #[arg(global = true, long = "json", help = "Output in JSON format (AI-friendly)")]
+    #[arg(
+        global = true,
+        long = "json",
+        help = "Output in JSON format (AI-friendly)"
+    )]
     json: bool,
 
     #[command(subcommand)]
@@ -137,12 +143,15 @@ async fn main() {
         Commands::Verify { file } => cli::run_verify(&formatter, &file).await,
         Commands::Update => cli::run_update(&formatter).await,
         Commands::Publish { file } => cli::run_publish(&formatter, &file).await,
-        Commands::Export { output, include_envs } => {
-            cli::run_export(&formatter, &output, include_envs).await
-        }
-        Commands::Import { file, dry_run, force } => {
-            cli::run_import(&formatter, &file, dry_run, force).await
-        }
+        Commands::Export {
+            output,
+            include_envs,
+        } => cli::run_export(&formatter, &output, include_envs).await,
+        Commands::Import {
+            file,
+            dry_run,
+            force,
+        } => cli::run_import(&formatter, &file, dry_run, force).await,
         Commands::Tui => {
             if let Err(e) = tui2::run_tui(&formatter).await {
                 eprintln!("TUI 错误: {}", e);
@@ -161,7 +170,10 @@ async fn main() {
                 "fish" => clap_complete::Shell::Fish,
                 "elvish" => clap_complete::Shell::Elvish,
                 other => {
-                    eprintln!("[ERROR] 不支持的 shell: {} (支持: bash, zsh, powershell, fish, elvish)", other);
+                    eprintln!(
+                        "[ERROR] 不支持的 shell: {} (支持: bash, zsh, powershell, fish, elvish)",
+                        other
+                    );
                     return;
                 }
             };

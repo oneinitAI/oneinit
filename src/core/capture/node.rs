@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use super::detector::{find_command, run_command, EnvDetector};
 use super::RuntimeEnv;
+use super::detector::{EnvDetector, find_command, run_command};
 use crate::core::Result;
 
 pub struct NodeDetector;
@@ -19,9 +19,7 @@ impl EnvDetector for NodeDetector {
 
     fn detect(&self) -> Result<Option<RuntimeEnv>> {
         // 1. 查找 node 命令
-        let node_cmd = if cfg!(windows) { "node" } else { "node" };
-
-        let node_path = match find_command(node_cmd) {
+        let node_path = match find_command("node") {
             Some(p) => p,
             None => return Ok(None),
         };
@@ -45,31 +43,31 @@ impl EnvDetector for NodeDetector {
 
         // 4. 检测 npm 镜像源
         let mut mirrors = BTreeMap::new();
-        if let Some(registry) = run_command(&npm_cmd, &["config", "get", "registry"]) {
-            if !registry.is_empty() && registry != "undefined" {
-                mirrors.insert("npm".to_string(), registry);
-            }
+        if let Some(registry) = run_command(&npm_cmd, &["config", "get", "registry"])
+            && !registry.is_empty()
+            && registry != "undefined"
+        {
+            mirrors.insert("npm".to_string(), registry);
         }
 
         // 5. 获取全局包列表
-        let global_packages =
-            run_command(&npm_cmd, &["ls", "-g", "--depth=0", "--parseable"])
-                .map(|output| {
-                    // --parseable 输出绝对路径，最后一段是包名
-                    output
-                        .lines()
-                        .skip(1) // 跳过 npm 根目录
-                        .filter_map(|line| {
-                            let name = line.rsplit(['/', '\\']).next()?;
-                            if name.is_empty() || name.contains("node_modules") {
-                                None
-                            } else {
-                                Some(name.to_string())
-                            }
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
+        let global_packages = run_command(&npm_cmd, &["ls", "-g", "--depth=0", "--parseable"])
+            .map(|output| {
+                // --parseable 输出绝对路径，最后一段是包名
+                output
+                    .lines()
+                    .skip(1) // 跳过 npm 根目录
+                    .filter_map(|line| {
+                        let name = line.rsplit(['/', '\\']).next()?;
+                        if name.is_empty() || name.contains("node_modules") {
+                            None
+                        } else {
+                            Some(name.to_string())
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
 
         Ok(Some(RuntimeEnv {
             name: "node".to_string(),

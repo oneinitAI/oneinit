@@ -10,7 +10,7 @@ pub mod unpacker;
 
 use serde::{Deserialize, Serialize};
 
-use super::{CoreError, Result};
+use super::Result;
 use crate::output::OutputFormatter;
 
 /// 导出结果

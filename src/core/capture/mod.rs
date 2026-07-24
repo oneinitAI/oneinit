@@ -4,16 +4,16 @@
 // 检测器为同步 trait（Command::output 是阻塞调用，无需 async）。
 
 pub mod detector;
-pub mod python;
-pub mod node;
+pub mod docker;
 pub mod git;
-pub mod rust;
 pub mod go;
 pub mod java;
-pub mod docker;
+pub mod node;
+pub mod python;
+pub mod rust;
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -156,7 +156,10 @@ pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()>
 
     let detected_count = snapshot.envs.len();
     formatter.output(
-        &format!("[OK] 环境快照已保存到 {} (检测到 {} 个环境)", output_path, detected_count),
+        &format!(
+            "[OK] 环境快照已保存到 {} (检测到 {} 个环境)",
+            output_path, detected_count
+        ),
         Some(serde_json::json!({
             "status": "success",
             "action": "capture",

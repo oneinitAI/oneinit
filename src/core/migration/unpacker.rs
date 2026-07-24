@@ -2,11 +2,11 @@
 //
 // 复用 downloader::extract 解压 tar.gz，手写递归遍历恢复文件。
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use super::manifest::MigrationManifest;
 use super::ImportResult;
-use crate::core::{recipes_dir, temp_dir, CoreError, Result};
+use super::manifest::MigrationManifest;
+use crate::core::{CoreError, Result, recipes_dir, temp_dir};
 use crate::output::OutputFormatter;
 
 /// 执行导入
@@ -19,10 +19,7 @@ pub fn import(
 ) -> Result<ImportResult> {
     let archive_path = Path::new(archive);
     if !archive_path.exists() {
-        return Err(CoreError::Migration(format!(
-            "文件不存在: {}",
-            archive
-        )));
+        return Err(CoreError::Migration(format!("文件不存在: {}", archive)));
     }
 
     // 1. 解压到临时目录
@@ -100,20 +97,18 @@ pub fn import(
     let recipe_dest = recipes_dir().join("imported.yaml");
     let recipe_path_str = recipe_dest.to_string_lossy().to_string();
 
-    if !dry_run {
-        if recipe_src.exists() {
-            if recipe_dest.exists() && !force {
-                formatter.output(
-                    "[WARN] imported.yaml 已存在，使用 --force 覆盖",
-                    Some(serde_json::Value::Null),
-                );
-            } else {
-                std::fs::copy(&recipe_src, &recipe_dest)?;
-                formatter.output(
-                    &format!("[OK] 配方恢复: {}", recipe_dest.display()),
-                    Some(serde_json::Value::Null),
-                );
-            }
+    if !dry_run && recipe_src.exists() {
+        if recipe_dest.exists() && !force {
+            formatter.output(
+                "[WARN] imported.yaml 已存在，使用 --force 覆盖",
+                Some(serde_json::Value::Null),
+            );
+        } else {
+            std::fs::copy(&recipe_src, &recipe_dest)?;
+            formatter.output(
+                &format!("[OK] 配方恢复: {}", recipe_dest.display()),
+                Some(serde_json::Value::Null),
+            );
         }
     }
 
@@ -126,7 +121,11 @@ pub fn import(
         if dry_run {
             cache_restored = count_files_recursive(&envs_src);
             formatter.output(
-                &format!("[PREVIEW] 将恢复 {} 个文件到 {}", cache_restored, envs_dest.display()),
+                &format!(
+                    "[PREVIEW] 将恢复 {} 个文件到 {}",
+                    cache_restored,
+                    envs_dest.display()
+                ),
                 Some(serde_json::Value::Null),
             );
         } else {

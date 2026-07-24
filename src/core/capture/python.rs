@@ -2,8 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use super::detector::{extract_version, find_command, run_command, run_command_combined, EnvDetector};
 use super::RuntimeEnv;
+use super::detector::{
+    EnvDetector, extract_version, find_command, run_command, run_command_combined,
+};
 use crate::core::Result;
 
 pub struct PythonDetector;
@@ -22,8 +24,7 @@ impl EnvDetector for PythonDetector {
         // Windows: 先试 python，再试 py launcher
         // Unix: 先试 python3，再试 python
         let python_path = if cfg!(windows) {
-            find_command("python")
-                .or_else(|| find_py_launcher())
+            find_command("python").or_else(find_py_launcher)
         } else {
             find_command("python3").or_else(|| find_command("python"))
         };
@@ -48,10 +49,9 @@ impl EnvDetector for PythonDetector {
         if let Some(mirror) = run_command(&python_str, &["-m", "pip", "config", "get", "index-url"])
             .or_else(|| run_command("pip3", &["config", "get", "index-url"]))
             .or_else(|| run_command("pip", &["config", "get", "index-url"]))
+            && !mirror.is_empty()
         {
-            if !mirror.is_empty() {
-                mirrors.insert("pip".to_string(), mirror);
-            }
+            mirrors.insert("pip".to_string(), mirror);
         }
 
         // 4. 获取全局包列表
@@ -82,10 +82,7 @@ fn find_py_launcher() -> Option<std::path::PathBuf> {
     if !cfg!(windows) {
         return None;
     }
-    let output = std::process::Command::new("py")
-        .arg("-0p")
-        .output()
-        .ok()?;
+    let output = std::process::Command::new("py").arg("-0p").output().ok()?;
 
     if !output.status.success() {
         return None;

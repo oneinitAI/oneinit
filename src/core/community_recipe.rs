@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use serde::Deserialize;
 
-use super::{db_dir, envs_dir, CoreError, Result};
+use super::{CoreError, Result, envs_dir};
 use crate::output::OutputFormatter;
 
 // ============================================================
@@ -112,12 +112,11 @@ pub fn load_all() -> Vec<CommunityRecipe> {
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("yaml") {
-                if let Ok(content) = std::fs::read_to_string(&path) {
-                    if let Ok(recipe) = serde_yaml::from_str::<CommunityRecipe>(&content) {
-                        recipes.push(recipe);
-                    }
-                }
+            if path.extension().and_then(|e| e.to_str()) == Some("yaml")
+                && let Ok(content) = std::fs::read_to_string(&path)
+                && let Ok(recipe) = serde_yaml::from_str::<CommunityRecipe>(&content)
+            {
+                recipes.push(recipe);
             }
         }
     }
@@ -241,7 +240,11 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
     checks.push((
         "description 字段".to_string(),
         ok,
-        if ok { "存在".to_string() } else { "为空".to_string() },
+        if ok {
+            "存在".to_string()
+        } else {
+            "为空".to_string()
+        },
     ));
 
     // 5. 至少一个平台已配置
@@ -273,7 +276,11 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
             checks.push((
                 format!("{}.url", os),
                 url_ok,
-                if url_ok { cfg.url.clone() } else { "为空".to_string() },
+                if url_ok {
+                    cfg.url.clone()
+                } else {
+                    "为空".to_string()
+                },
             ));
 
             // sha256 长度
@@ -318,16 +325,12 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
 /// 1. 醒目显示下载来源、SHA256、写入目录、执行的命令
 /// 2. 等待用户输入 y 确认
 /// 3. 下载 -> 校验 -> 解压/安装 -> post_install -> PATH -> Manifest
-pub async fn install(
-    recipe: &CommunityRecipe,
-    formatter: &OutputFormatter,
-) -> Result<()> {
+pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> Result<()> {
     let start = Instant::now();
 
     // 获取当前平台配置
-    let platform_cfg = current_platform_config(recipe).ok_or_else(|| {
-        CoreError::Other(format!("配方 '{}' 不支持当前平台", recipe.name))
-    })?;
+    let platform_cfg = current_platform_config(recipe)
+        .ok_or_else(|| CoreError::Other(format!("配方 '{}' 不支持当前平台", recipe.name)))?;
 
     let install_dir = envs_dir().join(&platform_cfg.install_path);
 
@@ -376,8 +379,11 @@ pub async fn install(
     }
 
     formatter.output(
-        &format!("[SECURITY] 安装路径: {}",
-            platform_cfg.path_add.iter()
+        &format!(
+            "[SECURITY] 安装路径: {}",
+            platform_cfg
+                .path_add
+                .iter()
                 .map(|p| render_template(p, &install_dir))
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -413,7 +419,11 @@ pub async fn install(
     let temp_archive = super::temp_dir().join(archive_name);
     let dl_result = super::downloader::download(&platform_cfg.url, &temp_archive).await?;
     formatter.output(
-        &format!("[OK] 下载完成: {} ({:.1} MB)", archive_name, dl_result.file_size as f64 / 1_048_576.0),
+        &format!(
+            "[OK] 下载完成: {} ({:.1} MB)",
+            archive_name,
+            dl_result.file_size as f64 / 1_048_576.0
+        ),
         Some(serde_json::Value::Null),
     );
 
@@ -448,10 +458,12 @@ pub async fn install(
         }
         "msi_install" => {
             // Windows MSI 静默安装: msiexec /i <file> /qn
-            let args = platform_cfg.install_args.clone().unwrap_or_else(|| {
-                vec!["/qn".to_string(), "/norestart".to_string()]
-            });
-            let mut msiexec_args = vec!["/i".to_string(), temp_archive.to_string_lossy().to_string()];
+            let args = platform_cfg
+                .install_args
+                .clone()
+                .unwrap_or_else(|| vec!["/qn".to_string(), "/norestart".to_string()]);
+            let mut msiexec_args =
+                vec!["/i".to_string(), temp_archive.to_string_lossy().to_string()];
             msiexec_args.extend(args);
             let status = Command::new("msiexec")
                 .args(&msiexec_args)
@@ -628,7 +640,11 @@ fn execute_post_install(
                     if !out.status.success() {
                         let stderr = String::from_utf8_lossy(&out.stderr);
                         formatter.output(
-                            &format!("  [WARN] 命令退出码: {:?} {}", out.status.code(), stderr.trim()),
+                            &format!(
+                                "  [WARN] 命令退出码: {:?} {}",
+                                out.status.code(),
+                                stderr.trim()
+                            ),
                             Some(serde_json::Value::Null),
                         );
                     }
@@ -649,8 +665,8 @@ fn execute_post_install(
 /// 等待用户输入 y 确认
 fn wait_for_confirmation() -> bool {
     let mut buf = [0u8; 1];
-    match io::stdin().read(&mut buf) {
-        Ok(_) => buf[0] == b'y' || buf[0] == b'Y',
+    match io::stdin().read_exact(&mut buf) {
+        Ok(()) => buf[0] == b'y' || buf[0] == b'Y',
         Err(_) => false,
     }
 }
@@ -742,8 +758,7 @@ platforms:
     fn test_verify_invalid_yaml() {
         let dir = std::env::temp_dir();
         let path = dir.join("oneinit_verify_bad_yaml.yaml");
-        std::fs::write(&path, "{{{invalid yaml}}}")
-            .unwrap();
+        std::fs::write(&path, "{{{invalid yaml}}}").unwrap();
 
         let result = verify(&path).unwrap();
         assert!(!result.valid);

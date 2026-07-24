@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use super::detector::{extract_version, find_command, run_command, EnvDetector};
 use super::RuntimeEnv;
+use super::detector::{EnvDetector, extract_version, find_command, run_command};
 use crate::core::Result;
 
 pub struct GoDetector;
@@ -35,15 +35,15 @@ impl EnvDetector for GoDetector {
 
         // 3. 获取 GOPATH 和 GOROOT
         let mut mirrors = BTreeMap::new();
-        if let Some(gopath) = run_command(&go_str, &["env", "GOPATH"]) {
-            if !gopath.is_empty() {
-                mirrors.insert("GOPATH".to_string(), gopath);
-            }
+        if let Some(gopath) = run_command(&go_str, &["env", "GOPATH"])
+            && !gopath.is_empty()
+        {
+            mirrors.insert("GOPATH".to_string(), gopath);
         }
-        if let Some(goroot) = run_command(&go_str, &["env", "GOROOT"]) {
-            if !goroot.is_empty() {
-                mirrors.insert("GOROOT".to_string(), goroot);
-            }
+        if let Some(goroot) = run_command(&go_str, &["env", "GOROOT"])
+            && !goroot.is_empty()
+        {
+            mirrors.insert("GOROOT".to_string(), goroot);
         }
 
         Ok(Some(RuntimeEnv {

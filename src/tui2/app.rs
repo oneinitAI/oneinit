@@ -29,12 +29,10 @@ pub async fn execute_action(
     let formatter = OutputFormatter::new(false);
     let result_msg = match target {
         Target::Install(recipe_name) => match crate::core::recipe::resolve(&recipe_name) {
-            Some(recipe) => {
-                match crate::core::recipe::install(&recipe, &formatter).await {
-                    Ok(()) => format!("[OK] {} 安装成功", recipe.display_name),
-                    Err(e) => format!("[ERROR] 安装失败: {}", e),
-                }
-            }
+            Some(recipe) => match crate::core::recipe::install(&recipe, &formatter).await {
+                Ok(()) => format!("[OK] {} 安装成功", recipe.display_name),
+                Err(e) => format!("[ERROR] 安装失败: {}", e),
+            },
             None => format!("[ERROR] 未找到配方: {}", recipe_name),
         },
         Target::Uninstall(package_name) => {

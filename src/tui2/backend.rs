@@ -7,10 +7,10 @@ use std::io::{self, Stdout};
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::execute;
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 /// TUI 终端类型别名
 pub type Tui = Terminal<CrosstermBackend<Stdout>>;
@@ -43,7 +43,7 @@ pub fn restore(terminal: &mut Tui) -> io::Result<()> {
 pub fn supports_underline_color() -> bool {
     if cfg!(windows) {
         std::env::var("WT_SESSION").is_ok()
-            || std::env::var("TERM_PROGRAM").map_or(false, |v| v == "vscode")
+            || std::env::var("TERM_PROGRAM").is_ok_and(|v| v == "vscode")
     } else {
         true
     }

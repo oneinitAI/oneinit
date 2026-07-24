@@ -44,9 +44,7 @@ pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
     );
     pb.set_message(file_name);
 
-    let mut file = tokio::fs::File::create(dest)
-        .await
-        .map_err(|e| CoreError::Io(e.into()))?;
+    let mut file = tokio::fs::File::create(dest).await.map_err(CoreError::Io)?;
 
     let mut downloaded: u64 = 0;
     let mut stream = response.bytes_stream();
@@ -54,16 +52,12 @@ pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
     use futures_util::StreamExt;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| CoreError::Download(e.to_string()))?;
-        file.write_all(&chunk)
-            .await
-            .map_err(|e| CoreError::Io(e.into()))?;
+        file.write_all(&chunk).await.map_err(CoreError::Io)?;
         downloaded += chunk.len() as u64;
         pb.set_position(downloaded);
     }
 
-    file.flush()
-        .await
-        .map_err(|e| CoreError::Io(e.into()))?;
+    file.flush().await.map_err(CoreError::Io)?;
     pb.finish_with_message("下载完成");
 
     let sha256 = compute_sha256(dest)?;
@@ -166,7 +160,10 @@ fn extract_tar_gz(archive: &Path, dest: &Path) -> Result<Vec<PathBuf>> {
         let out_path = dest.join(&path);
 
         // 跳过绝对路径和路径遍历
-        if out_path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        if out_path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
             continue;
         }
 

@@ -62,9 +62,7 @@ async fn main_loop(
                         while event_rx.try_recv().is_ok() {}
 
                         // 执行操作（恢复终端 → 安装/卸载 → 按任意键 → 重新进入 TUI）
-                        if let Err(e) =
-                            app::execute_action(terminal, app_state, target).await
-                        {
+                        if let Err(e) = app::execute_action(terminal, app_state, target).await {
                             app_state.message = Some(format!("[ERROR] 操作失败: {}", e));
                             *terminal = backend::init()?;
                         }
@@ -92,14 +90,14 @@ async fn main_loop(
 /// 处理单个事件
 fn handle_event(state: &mut state::AppState, ev: event::AppEvent) -> Option<state::Target> {
     use event::AppEvent;
-    use state::{Screen, Target};
+    use state::Screen;
 
     // 帮助弹窗优先：任意键关闭
-    if state.current_screen == Screen::Help {
-        if let AppEvent::Key(_) = ev {
-            state.current_screen = Screen::PackageList;
-            return None;
-        }
+    if state.current_screen == Screen::Help
+        && let AppEvent::Key(_) = ev
+    {
+        state.current_screen = Screen::PackageList;
+        return None;
     }
 
     match ev {
@@ -128,7 +126,10 @@ fn handle_event(state: &mut state::AppState, ev: event::AppEvent) -> Option<stat
 }
 
 /// 处理按键
-fn handle_key(state: &mut state::AppState, key: crossterm::event::KeyCode) -> Option<state::Target> {
+fn handle_key(
+    state: &mut state::AppState,
+    key: crossterm::event::KeyCode,
+) -> Option<state::Target> {
     use crossterm::event::KeyCode;
 
     // Capture 屏幕只响应 Esc 返回
@@ -186,7 +187,11 @@ fn run_capture_to_state(state: &mut state::AppState) {
     let mut detected = Vec::new();
     for (name, opt_env) in &results {
         if let Some(env) = opt_env {
-            detected.push((env.name.clone(), Some(env.version.clone()), env.install_path.clone()));
+            detected.push((
+                env.name.clone(),
+                Some(env.version.clone()),
+                env.install_path.clone(),
+            ));
         } else {
             detected.push((name.clone(), None, "未检测到".to_string()));
         }

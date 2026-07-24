@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use super::detector::{extract_version, find_command, run_command, EnvDetector};
 use super::RuntimeEnv;
+use super::detector::{EnvDetector, extract_version, find_command, run_command};
 use crate::core::Result;
 
 pub struct GitDetector;
@@ -19,9 +19,7 @@ impl EnvDetector for GitDetector {
 
     fn detect(&self) -> Result<Option<RuntimeEnv>> {
         // 1. 查找 git 命令
-        let git_cmd = if cfg!(windows) { "git" } else { "git" };
-
-        let git_path = match find_command(git_cmd) {
+        let git_path = match find_command("git") {
             Some(p) => p,
             None => return Ok(None),
         };
@@ -37,15 +35,15 @@ impl EnvDetector for GitDetector {
 
         // 3. 检测 git 用户配置（用已解析的 git 路径）
         let mut mirrors = BTreeMap::new();
-        if let Some(user_name) = run_command(&git_str, &["config", "user.name"]) {
-            if !user_name.is_empty() {
-                mirrors.insert("user.name".to_string(), user_name);
-            }
+        if let Some(user_name) = run_command(&git_str, &["config", "user.name"])
+            && !user_name.is_empty()
+        {
+            mirrors.insert("user.name".to_string(), user_name);
         }
-        if let Some(user_email) = run_command(&git_str, &["config", "user.email"]) {
-            if !user_email.is_empty() {
-                mirrors.insert("user.email".to_string(), user_email);
-            }
+        if let Some(user_email) = run_command(&git_str, &["config", "user.email"])
+            && !user_email.is_empty()
+        {
+            mirrors.insert("user.email".to_string(), user_email);
         }
 
         Ok(Some(RuntimeEnv {

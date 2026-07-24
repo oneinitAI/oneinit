@@ -4,19 +4,16 @@
 // 递归遍历手写 read_dir，临时目录用 core::temp_dir() + uuid。
 
 use std::fs::File;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 use tar::Builder;
 
-use super::manifest::{
-    CacheEntry, ManifestMetadata, MigrationManifest, PackageListEntry,
-};
 use super::ExportResult;
-use crate::core::{capture, temp_dir, Result};
+use super::manifest::{CacheEntry, ManifestMetadata, MigrationManifest, PackageListEntry};
 use crate::core::{CoreError, envs_dir};
+use crate::core::{Result, capture, temp_dir};
 use crate::output::OutputFormatter;
 
 /// 执行导出
@@ -80,7 +77,13 @@ pub fn export(
         if envs_source.exists() {
             let cache_dest = work_dir.join("envs");
             std::fs::create_dir_all(&cache_dest)?;
-            copy_dir_recursive(&envs_source, &cache_dest, &envs_source, &mut cache_files, &mut total_size)?;
+            copy_dir_recursive(
+                &envs_source,
+                &cache_dest,
+                &envs_source,
+                &mut cache_files,
+                &mut total_size,
+            )?;
             formatter.output(
                 &format!("[EXPORT] 打包 {} 个缓存文件", cache_files.len()),
                 Some(serde_json::Value::Null),
@@ -90,21 +93,21 @@ pub fn export(
 
     // 5. 收集全局包列表
     let mut global_packages = Vec::new();
-    if let Some(python_env) = snapshot.envs.get("python") {
-        if !python_env.global_packages.is_empty() {
-            global_packages.push(PackageListEntry {
-                manager: "pip".to_string(),
-                packages: python_env.global_packages.clone(),
-            });
-        }
+    if let Some(python_env) = snapshot.envs.get("python")
+        && !python_env.global_packages.is_empty()
+    {
+        global_packages.push(PackageListEntry {
+            manager: "pip".to_string(),
+            packages: python_env.global_packages.clone(),
+        });
     }
-    if let Some(node_env) = snapshot.envs.get("node") {
-        if !node_env.global_packages.is_empty() {
-            global_packages.push(PackageListEntry {
-                manager: "npm".to_string(),
-                packages: node_env.global_packages.clone(),
-            });
-        }
+    if let Some(node_env) = snapshot.envs.get("node")
+        && !node_env.global_packages.is_empty()
+    {
+        global_packages.push(PackageListEntry {
+            manager: "npm".to_string(),
+            packages: node_env.global_packages.clone(),
+        });
     }
 
     // 6. 生成 manifest.json
@@ -216,11 +219,7 @@ fn create_archive(source_dir: &Path, output_path: &Path) -> Result<()> {
 }
 
 /// 递归添加目录到 tar 归档
-fn add_dir_to_tar(
-    builder: &mut Builder<GzEncoder<File>>,
-    dir: &Path,
-    base: &Path,
-) -> Result<()> {
+fn add_dir_to_tar(builder: &mut Builder<GzEncoder<File>>, dir: &Path, base: &Path) -> Result<()> {
     for entry in std::fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();

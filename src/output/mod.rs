@@ -1,5 +1,5 @@
-/// 统一输出格式化模块
-/// 支持 human-readable 和 --json 两种输出模式
+//! 统一输出格式化模块
+//! 支持 human-readable 和 --json 两种输出模式
 
 use crate::core::CoreError;
 use serde::Serialize;
@@ -41,12 +41,19 @@ impl OutputFormatter {
     pub fn output<T: Serialize>(&self, human_text: &str, json_data: Option<T>) {
         if self.json_mode {
             if let Some(data) = json_data {
-                println!("{}", serde_json::to_string_pretty(&data).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&data).unwrap_or_default()
+                );
             } else {
-                println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-                    "status": "success",
-                    "message": human_text
-                })).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "status": "success",
+                        "message": human_text
+                    }))
+                    .unwrap_or_default()
+                );
             }
         } else {
             println!("{}", human_text);

@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-use super::{db_dir, CoreError, Result};
+use super::{CoreError, Result, db_dir};
 
 /// 安装记录，对应 SQLite 表的一行
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -115,8 +115,10 @@ impl Manifest {
                 install_path: row.get(3)?,
                 archive_url: row.get(4)?,
                 sha256: row.get(5)?,
-                path_entries: serde_json::from_str(row.get::<_, String>(6)?.as_str()).unwrap_or_default(),
-                config_files: serde_json::from_str(row.get::<_, String>(7)?.as_str()).unwrap_or_default(),
+                path_entries: serde_json::from_str(row.get::<_, String>(6)?.as_str())
+                    .unwrap_or_default(),
+                config_files: serde_json::from_str(row.get::<_, String>(7)?.as_str())
+                    .unwrap_or_default(),
                 installed_at: row.get(8)?,
                 original_path: row.get(9)?,
                 env_vars_backup: serde_json::from_str(row.get::<_, String>(10)?.as_str())
@@ -147,8 +149,10 @@ impl Manifest {
                 install_path: row.get(3)?,
                 archive_url: row.get(4)?,
                 sha256: row.get(5)?,
-                path_entries: serde_json::from_str(row.get::<_, String>(6)?.as_str()).unwrap_or_default(),
-                config_files: serde_json::from_str(row.get::<_, String>(7)?.as_str()).unwrap_or_default(),
+                path_entries: serde_json::from_str(row.get::<_, String>(6)?.as_str())
+                    .unwrap_or_default(),
+                config_files: serde_json::from_str(row.get::<_, String>(7)?.as_str())
+                    .unwrap_or_default(),
                 installed_at: row.get(8)?,
                 original_path: row.get(9)?,
                 env_vars_backup: serde_json::from_str(row.get::<_, String>(10)?.as_str())
@@ -171,8 +175,10 @@ impl Manifest {
             return Ok(None);
         }
 
-        self.db
-            .execute("DELETE FROM installed WHERE name = ?1", rusqlite::params![name])?;
+        self.db.execute(
+            "DELETE FROM installed WHERE name = ?1",
+            rusqlite::params![name],
+        )?;
         Ok(record)
     }
 

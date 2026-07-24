@@ -43,3 +43,4 @@ oneinit.yaml
 # Added by cargo
 
 /target
+oneinit-recipes/

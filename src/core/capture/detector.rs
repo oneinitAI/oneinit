@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::Command;
 
-use super::{RuntimeEnv, Result};
+use super::{Result, RuntimeEnv};
 
 // ============================================================
 // 检测器 trait（同步，无 async-trait）
@@ -63,11 +63,11 @@ impl DetectorScheduler {
     /// 从 ~/.oneinit/scan_config.yaml 加载自定义检测器
     fn register_custom(&mut self) {
         let config_path = crate::core::data_dir().join("scan_config.yaml");
-        if let Ok(content) = std::fs::read_to_string(&config_path) {
-            if let Ok(config) = serde_yaml::from_str::<CustomDetectorConfig>(&content) {
-                for def in config.custom_detectors {
-                    self.detectors.push(Box::new(CustomDetector::new(def)));
-                }
+        if let Ok(content) = std::fs::read_to_string(&config_path)
+            && let Ok(config) = serde_yaml::from_str::<CustomDetectorConfig>(&content)
+        {
+            for def in config.custom_detectors {
+                self.detectors.push(Box::new(CustomDetector::new(def)));
             }
         }
     }
@@ -222,10 +222,7 @@ pub fn find_command(name: &str) -> Option<PathBuf> {
 fn find_via_system(name: &str) -> Option<PathBuf> {
     let lookup_cmd = if cfg!(windows) { "where" } else { "which" };
 
-    let output = Command::new(lookup_cmd)
-        .arg(name)
-        .output()
-        .ok()?;
+    let output = Command::new(lookup_cmd).arg(name).output().ok()?;
 
     if !output.status.success() {
         return None;

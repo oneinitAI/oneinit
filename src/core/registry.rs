@@ -6,16 +6,15 @@
 //   本地 ~/.oneinit/cache/ 缓存 INDEX.json 和已下载的配方
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use super::{cache_dir, data_dir, CoreError, Result};
+use super::{CoreError, Result, cache_dir, data_dir};
 
 /// 默认注册表 URL（GitHub raw content）
-const DEFAULT_REGISTRY_URL: &str =
-    "https://raw.githubusercontent.com/BG4JTS/oneinit-recipes/main";
+const DEFAULT_REGISTRY_URL: &str = "https://raw.githubusercontent.com/BG4JTS/oneinit-recipes/main";
 
 // ============================================================
 // 数据结构
@@ -166,7 +165,10 @@ pub async fn fetch_index() -> Result<Index> {
 /// 从远程下载单个配方 YAML
 ///
 /// 路径: {registry_url}/recipes/{name}/{version}.yaml
-pub async fn fetch_recipe(name: &str, version: &str) -> Result<super::community_recipe::CommunityRecipe> {
+pub async fn fetch_recipe(
+    name: &str,
+    version: &str,
+) -> Result<super::community_recipe::CommunityRecipe> {
     let config = load_config();
     let url = format!("{}/recipes/{}/{}.yaml", config.registry_url, name, version);
 
@@ -184,7 +186,9 @@ pub async fn fetch_recipe(name: &str, version: &str) -> Result<super::community_
     if !response.status().is_success() {
         return Err(CoreError::Registry(format!(
             "配方 {}={} HTTP {}",
-            name, version, response.status()
+            name,
+            version,
+            response.status()
         )));
     }
 
@@ -224,7 +228,11 @@ pub fn list_available() -> Vec<(String, String, String)> {
         .packages
         .iter()
         .map(|(name, entry)| {
-            (name.clone(), entry.latest.clone(), entry.description.clone())
+            (
+                name.clone(),
+                entry.latest.clone(),
+                entry.description.clone(),
+            )
         })
         .collect()
 }
@@ -288,12 +296,11 @@ pub fn generate_index(recipes: &[super::community_recipe::CommunityRecipe]) -> I
         }
 
         // 合并 maintainers
-        if let Some(ref m) = recipe.maintainer {
-            if let Some(ref name) = m.github {
-                if !entry.maintainers.contains(name) {
-                    entry.maintainers.push(name.clone());
-                }
-            }
+        if let Some(ref m) = recipe.maintainer
+            && let Some(ref name) = m.github
+            && !entry.maintainers.contains(name)
+        {
+            entry.maintainers.push(name.clone());
         }
     }
 

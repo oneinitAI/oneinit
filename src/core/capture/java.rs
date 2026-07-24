@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use super::detector::{extract_version, find_command, run_command_with_stderr, EnvDetector};
 use super::RuntimeEnv;
+use super::detector::{EnvDetector, extract_version, find_command, run_command_with_stderr};
 use crate::core::Result;
 
 pub struct JavaDetector;
@@ -52,19 +52,25 @@ impl EnvDetector for JavaDetector {
         // 3. 检测 JDK（javac）和 JAVA_HOME
         let mut mirrors = BTreeMap::new();
 
-        if let Some(javac_version) = find_command("javac").and_then(|p| {
-            run_command_with_stderr(&p.to_string_lossy(), &["-version"])
-        }) {
+        if let Some(javac_version) = find_command("javac")
+            .and_then(|p| run_command_with_stderr(&p.to_string_lossy(), &["-version"]))
+        {
             // javac -version 输出如 "javac 17.0.1"
-            let jv = extract_version(&javac_version, "javac ")
-                .unwrap_or_else(|| javac_version.lines().next().unwrap_or("").trim().to_string());
+            let jv = extract_version(&javac_version, "javac ").unwrap_or_else(|| {
+                javac_version
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string()
+            });
             mirrors.insert("javac".to_string(), jv);
         }
 
-        if let Ok(java_home) = std::env::var("JAVA_HOME") {
-            if !java_home.is_empty() {
-                mirrors.insert("JAVA_HOME".to_string(), java_home);
-            }
+        if let Ok(java_home) = std::env::var("JAVA_HOME")
+            && !java_home.is_empty()
+        {
+            mirrors.insert("JAVA_HOME".to_string(), java_home);
         }
 
         Ok(Some(RuntimeEnv {

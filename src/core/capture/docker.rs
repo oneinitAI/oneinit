@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use super::detector::{extract_version, find_command, run_command, EnvDetector};
 use super::RuntimeEnv;
+use super::detector::{EnvDetector, extract_version, find_command, run_command};
 use crate::core::Result;
 
 pub struct DockerDetector;
@@ -42,8 +42,15 @@ impl EnvDetector for DockerDetector {
 
         if let Some(compose_version) = run_command(&docker_str, &["compose", "version"]) {
             // "Docker Compose version v2.23.0" -> "v2.23.0"
-            let cv = extract_version(&compose_version, "Docker Compose version ")
-                .unwrap_or_else(|| compose_version.lines().next().unwrap_or("").trim().to_string());
+            let cv =
+                extract_version(&compose_version, "Docker Compose version ").unwrap_or_else(|| {
+                    compose_version
+                        .lines()
+                        .next()
+                        .unwrap_or("")
+                        .trim()
+                        .to_string()
+                });
             mirrors.insert("compose".to_string(), cv);
         }
 

@@ -41,7 +41,10 @@ pub fn envs_to_recipe_names(config: &SyncConfig) -> Vec<String> {
 }
 
 /// 执行 post_install 命令列表
-pub fn run_post_install(commands: &[String], formatter: &crate::output::OutputFormatter) -> crate::core::Result<()> {
+pub fn run_post_install(
+    commands: &[String],
+    formatter: &crate::output::OutputFormatter,
+) -> crate::core::Result<()> {
     if commands.is_empty() {
         return Ok(());
     }
@@ -56,13 +59,9 @@ pub fn run_post_install(commands: &[String], formatter: &crate::output::OutputFo
         );
 
         let output = if cfg!(target_os = "windows") {
-            Command::new("cmd")
-                .args(["/C", cmd_str])
-                .output()?
+            Command::new("cmd").args(["/C", cmd_str]).output()?
         } else {
-            Command::new("sh")
-                .args(["-c", cmd_str])
-                .output()?
+            Command::new("sh").args(["-c", cmd_str]).output()?
         };
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -98,8 +97,14 @@ mod tests {
     #[test]
     fn test_envs_to_recipe_names() {
         let mut envs = BTreeMap::new();
-        envs.insert("python".to_string(), serde_yaml::Value::String("3.11".to_string()));
-        envs.insert("node".to_string(), serde_yaml::Value::Number(serde_yaml::Number::from(18)));
+        envs.insert(
+            "python".to_string(),
+            serde_yaml::Value::String("3.11".to_string()),
+        );
+        envs.insert(
+            "node".to_string(),
+            serde_yaml::Value::Number(serde_yaml::Number::from(18)),
+        );
 
         let config = SyncConfig {
             envs,

@@ -95,8 +95,8 @@ fn set_path(new_path: &str) -> Result<()> {
 /// Windows: 写入注册表 + 广播 WM_SETTINGCHANGE
 #[cfg(target_os = "windows")]
 fn set_path_windows(new_path: &str) -> Result<()> {
-    use winreg::enums::*;
     use winreg::RegKey;
+    use winreg::enums::*;
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let env = hkcu
@@ -122,7 +122,10 @@ fn broadcast_setting_change() {
     use std::os::windows::ffi::OsStrExt;
 
     unsafe {
-        let env: Vec<u16> = OsStr::new("Environment").encode_wide().chain(std::iter::once(0)).collect();
+        let env: Vec<u16> = OsStr::new("Environment")
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
         let hwnd = winapi::um::winuser::HWND_BROADCAST;
         winapi::um::winuser::SendMessageW(
             hwnd,
@@ -136,7 +139,8 @@ fn broadcast_setting_change() {
 /// Unix: 写入 shell 配置文件
 #[cfg(not(target_os = "windows"))]
 fn set_path_unix(new_path: &str) -> Result<()> {
-    let home = dirs::home_dir().ok_or_else(|| CoreError::PathOp("无法获取用户主目录".to_string()))?;
+    let home =
+        dirs::home_dir().ok_or_else(|| CoreError::PathOp("无法获取用户主目录".to_string()))?;
 
     // 检测可用的 shell 并写入对应配置文件
     let mut written = false;
@@ -187,9 +191,7 @@ fn write_path_to_shell_file(path: &Path) -> Result<()> {
 
     let export_line = format!("\n{}\nexport PATH=\"{}\"\n", marker, path_val);
 
-    let mut file = std::fs::OpenOptions::new()
-        .append(true)
-        .open(path)?;
+    let mut file = std::fs::OpenOptions::new().append(true).open(path)?;
     file.write_all(export_line.as_bytes())?;
     Ok(())
 }
@@ -207,11 +209,13 @@ fn write_path_to_fish_file(path: &Path) -> Result<()> {
         return Ok(());
     }
 
-    let fish_path = format!("\n{}\nset -gx PATH {}\n", marker, path_val.replace(':', ' '));
+    let fish_path = format!(
+        "\n{}\nset -gx PATH {}\n",
+        marker,
+        path_val.replace(':', ' ')
+    );
 
-    let mut file = std::fs::OpenOptions::new()
-        .append(true)
-        .open(path)?;
+    let mut file = std::fs::OpenOptions::new().append(true).open(path)?;
     file.write_all(fish_path.as_bytes())?;
     Ok(())
 }

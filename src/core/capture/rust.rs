@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use super::detector::{extract_version, find_command, run_command, EnvDetector};
 use super::RuntimeEnv;
+use super::detector::{EnvDetector, extract_version, find_command, run_command};
 use crate::core::Result;
 
 pub struct RustDetector;
@@ -35,8 +35,8 @@ impl EnvDetector for RustDetector {
 
         // 3. 获取 cargo 版本
         let mut mirrors = BTreeMap::new();
-        if let Some(cargo_version) = find_command("cargo")
-            .and_then(|p| run_command(&p.to_string_lossy(), &["--version"]))
+        if let Some(cargo_version) =
+            find_command("cargo").and_then(|p| run_command(&p.to_string_lossy(), &["--version"]))
         {
             mirrors.insert("cargo".to_string(), cargo_version);
         }
