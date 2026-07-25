@@ -1,6 +1,7 @@
 import { Nav } from "../components/nav";
 import { Hero } from "../components/hero";
 import { Problem } from "../components/problem";
+import { HorizontalScroll } from "../components/horizontal-scroll";
 import { CommandShowcase } from "../components/command-showcase";
 import { Capabilities } from "../components/capabilities";
 import { Installation } from "../components/installation";
@@ -12,6 +13,7 @@ export default function Home() {
       <Nav />
       <Hero />
       <Problem />
+      <HorizontalScroll />
       <CommandShowcase />
       <Capabilities />
       <Installation />
