@@ -18,7 +18,7 @@ impl EnvDetector for RustDetector {
     }
 
     fn detect(&self) -> Result<Option<RuntimeEnv>> {
-        // 1. 查找 rustc 命令
+        // 1. find rustc command
         let rustc_path = match find_command("rustc") {
             Some(p) => p,
             None => return Ok(None),
@@ -33,7 +33,7 @@ impl EnvDetector for RustDetector {
             .and_then(|s| extract_version(s, "rustc "))
             .unwrap_or_else(|| "unknown".to_string());
 
-        // 3. 获取 cargo 版本
+        // 3. get cargo version
         let mut mirrors = BTreeMap::new();
         if let Some(cargo_version) =
             find_command("cargo").and_then(|p| run_command(&p.to_string_lossy(), &["--version"]))
@@ -41,7 +41,7 @@ impl EnvDetector for RustDetector {
             mirrors.insert("cargo".to_string(), cargo_version);
         }
 
-        // 4. 获取 rustup toolchain 信息
+        // 4. get rustup toolchain info
         if let Some(toolchain) = run_command("rustup", &["show", "active-toolchain"]) {
             // 输出如 "stable-x86_64-pc-windows-msvc (default)"
             let tc = toolchain.split_whitespace().next().unwrap_or("");

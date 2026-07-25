@@ -9,15 +9,15 @@ mod tui2;
 
 use clap::{Parser, Subcommand};
 
-/// OneInit — 一条命令，初始化整台电脑
+/// OneInit — One command to init your dev machine
 ///
-/// 拿到一台新电脑后，第一个要装的工具。
-/// 装完它，这台电脑就是开发者就绪的机器。
+/// The first tool to install on a new machine.
+/// Developer-ready after one command.
 #[derive(Parser)]
 #[command(name = "oneinit", version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
-    /// 全局开关：所有命令输出 JSON 格式（AI 模式）
+    /// Output in JSON format (AI-friendly)
     #[arg(
         global = true,
         long = "json",
@@ -31,60 +31,60 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// 一键初始化开发环境
+    /// Initialize dev environment with presets
     Init {
         /// 预置套装名称（如 "python", "frontend", "ai"）
         #[arg(short, long)]
         preset: Option<String>,
     },
 
-    /// 安装指定工具（如 python3.7, node18）
+    /// Install a tool（如 python3.7, node18）
     Install {
         /// 要安装的工具包名称
         package: String,
     },
 
-    /// 卸载指定工具
+    /// Uninstall a tool
     Uninstall {
         /// 要卸载的工具包名称
         package: String,
     },
 
-    /// 列出已安装的工具
+    /// List installed tools
     List,
 
-    /// 搜索可用工具
+    /// Search available tools
     Search {
         /// 搜索关键词
         keyword: Option<String>,
     },
 
-    /// 从 oneinit.yaml 同步环境
+    /// Sync from oneinit.yaml
     Sync,
 
-    /// 捕获当前环境生成 oneinit.yaml
+    /// Capture environment to oneinit.yaml
     Capture {
         /// 输出文件路径（默认 oneinit.yaml）
         #[arg(short, long)]
         output: Option<String>,
     },
 
-    /// 验证社区配方文件
+    /// Validate community recipe YAML
     Verify {
-        /// 配方文件路径
+        /// recipe文件路径
         file: String,
     },
 
-    /// 更新远程配方索引（类似 apt update）
+    /// Update remote recipe index (like apt update)
     Update,
 
-    /// 发布配方到远程仓库
+    /// Publish recipe to remote registry
     Publish {
-        /// 配方文件路径
+        /// recipe文件路径
         file: String,
     },
 
-    /// 导出环境为 tar.gz 包
+    /// Export environment as tar.gz
     Export {
         /// 输出文件路径（默认 oneinit-backup.tar.gz）
         #[arg(short, long, default_value = "oneinit-backup.tar.gz")]
@@ -101,31 +101,31 @@ enum Commands {
         /// 只预览不实际执行
         #[arg(long)]
         dry_run: bool,
-        /// 强制覆盖已存在的文件
+        /// 强制覆盖已exists的文件
         #[arg(long)]
         force: bool,
     },
 
-    /// 启动交互式 TUI 界面
+    /// Launch interactive TUI
     Tui,
 
-    /// 环境健康检查（PATH 残留、清单漂移、磁盘空间）
+    /// Environment health check（PATH 残留、清单漂移、磁盘空间）
     Doctor,
 
-    /// 导出已安装工具为 oneinit.yaml（类似 pip freeze）
+    /// Export installed tools (like pip freeze)
     Freeze {
         /// 输出文件路径（默认 oneinit.yaml）
         #[arg(short, long, default_value = "oneinit.yaml")]
         output: String,
     },
 
-    /// 生成 shell 自动补全脚本
+    /// Generate shell completion script
     Completions {
         /// Shell 类型（bash, zsh, powershell, fish, elvish）
         shell: String,
     },
 
-    /// 安装/管理 AI Skill（让 AI 助手能调用 oneinit）
+    /// Install/manage AI Skill
     Skill {
         #[command(subcommand)]
         action: SkillAction,
@@ -134,15 +134,15 @@ enum Commands {
 
 #[derive(clap::Subcommand)]
 enum SkillAction {
-    /// 安装 oneinit Skill 到已检测到的 AI 助手
+    /// Install Skill to detected AI agents
     Install {
         /// 指定 AI 助手（zcode, codex, claude, agents, all）。默认 all
         #[arg(short, long, default_value = "all")]
         target: String,
     },
-    /// 查看已安装的 Skill 状态
+    /// Show Skill installation status
     Status,
-    /// 卸载 oneinit Skill
+    /// Uninstall Skill
     Uninstall,
 }
 
@@ -185,7 +185,7 @@ async fn main() {
         } => cli::run_import(&formatter, &file, dry_run, force).await,
         Commands::Tui => {
             if let Err(e) = tui2::run_tui(&formatter).await {
-                eprintln!("TUI 错误: {}", e);
+                eprintln!("TUI error: {}", e);
             }
         }
         Commands::Doctor => cli::run_doctor(&formatter).await,

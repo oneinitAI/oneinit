@@ -18,7 +18,7 @@ impl EnvDetector for GitDetector {
     }
 
     fn detect(&self) -> Result<Option<RuntimeEnv>> {
-        // 1. 查找 git 命令
+        // 1. find git command
         let git_path = match find_command("git") {
             Some(p) => p,
             None => return Ok(None),
@@ -26,7 +26,7 @@ impl EnvDetector for GitDetector {
 
         let git_str = git_path.to_string_lossy().to_string();
 
-        // 2. 获取版本号 (输出如 "git version 2.43.0.windows.1")
+        // 2. get version (输出如 "git version 2.43.0.windows.1")
         let version_str = run_command(&git_str, &["--version"]);
         let version = version_str
             .as_deref()

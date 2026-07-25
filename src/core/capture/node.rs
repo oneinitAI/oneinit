@@ -18,7 +18,7 @@ impl EnvDetector for NodeDetector {
     }
 
     fn detect(&self) -> Result<Option<RuntimeEnv>> {
-        // 1. 查找 node 命令
+        // 1. find node command
         let node_path = match find_command("node") {
             Some(p) => p,
             None => return Ok(None),
@@ -26,7 +26,7 @@ impl EnvDetector for NodeDetector {
 
         let node_str = node_path.to_string_lossy().to_string();
 
-        // 2. 获取版本号 (输出如 "v18.19.0")
+        // 2. get version (输出如 "v18.19.0")
         let version_str = run_command(&node_str, &["--version"]);
         let version = version_str
             .as_deref()
@@ -41,7 +41,7 @@ impl EnvDetector for NodeDetector {
         // 3. 解析 npm 路径（通常在 node 同目录或 ../npm.cmd）
         let npm_cmd = resolve_npm(&node_path);
 
-        // 4. 检测 npm 镜像源
+        // 4. detect npm registry
         let mut mirrors = BTreeMap::new();
         if let Some(registry) = run_command(&npm_cmd, &["config", "get", "registry"])
             && !registry.is_empty()
@@ -50,7 +50,7 @@ impl EnvDetector for NodeDetector {
             mirrors.insert("npm".to_string(), registry);
         }
 
-        // 5. 获取全局包列表
+        // 5. get global packages
         let global_packages = run_command(&npm_cmd, &["ls", "-g", "--depth=0", "--parseable"])
             .map(|output| {
                 // --parseable 输出绝对路径，最后一段是包名

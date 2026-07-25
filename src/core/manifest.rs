@@ -13,9 +13,9 @@ pub struct InstallRecord {
     pub version: Option<String>,
     /// 安装路径（如 ~/.oneinit/envs/python3.7）
     pub install_path: String,
-    /// 原始下载 URL
+    /// 原始download URL
     pub archive_url: Option<String>,
-    /// SHA256 校验值
+    /// SHA256 verify值
     pub sha256: Option<String>,
     /// 写入 PATH 的条目列表（JSON 数组）
     pub path_entries: Vec<String>,
@@ -264,7 +264,7 @@ mod tests {
             env_vars_backup: serde_json::json!({}),
         };
 
-        // 如果已存在先删除
+        // 如果已exists先删除
         let _ = manifest.remove("test-crud-pkg");
 
         // 添加

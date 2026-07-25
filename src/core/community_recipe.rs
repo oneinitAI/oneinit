@@ -1,7 +1,7 @@
-// 社区配方系统 — 按 社区配方.md 实现
+// 社区recipe系统 — 按 社区recipe.md 实现
 //
-// 声明式 YAML 配方格式，支持多平台、模板变量、安全提醒。
-// 配方文件存放在 ~/.oneinit/recipes/*.yaml
+// declarative YAML recipe, multi-platform, template vars, security.
+// recipe files stored in ~/.oneinit/recipes/*.yaml
 
 use std::collections::BTreeMap;
 use std::io::{self, Read, Write};
@@ -15,10 +15,10 @@ use super::{CoreError, Result, envs_dir};
 use crate::output::OutputFormatter;
 
 // ============================================================
-// 配方 DTO（严格对应 社区配方.md 1.1 节 YAML 格式）
+// recipe DTO（严格对应 社区recipe.md 1.1 节 YAML 格式）
 // ============================================================
 
-/// 社区配方（从 YAML 反序列化）
+/// 社区recipe（deserialized from YAML）
 #[derive(Debug, Clone, Deserialize)]
 pub struct CommunityRecipe {
     pub name: String,
@@ -35,7 +35,7 @@ pub struct CommunityRecipe {
     pub maintainer: Option<Maintainer>,
 }
 
-/// 平台配置集合
+/// platform configuration set
 #[derive(Debug, Clone, Deserialize)]
 pub struct Platforms {
     pub windows: Option<PlatformConfig>,
@@ -43,7 +43,7 @@ pub struct Platforms {
     pub darwin: Option<PlatformConfig>,
 }
 
-/// 单平台配置
+/// single platform configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct PlatformConfig {
     pub url: String,
@@ -54,7 +54,7 @@ pub struct PlatformConfig {
     pub path_add: Vec<String>,
 }
 
-/// 后置配置
+/// post-install configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct PostInstallConfig {
     #[allow(dead_code)]
@@ -63,14 +63,14 @@ pub struct PostInstallConfig {
     pub commands: Option<Vec<String>>,
 }
 
-/// 配置文件定义（模板）
+/// config file definition (template)
 #[derive(Debug, Clone, Deserialize)]
 pub struct ConfigFile {
     pub path: String,
     pub template: String,
 }
 
-/// 维护者信息
+/// maintainer information
 #[derive(Debug, Clone, Deserialize)]
 pub struct Maintainer {
     #[allow(dead_code)]
@@ -81,7 +81,7 @@ pub struct Maintainer {
     pub email: Option<String>,
 }
 
-/// 合法的 install_type 值
+/// valid install_type values
 const VALID_INSTALL_TYPES: &[&str] = &[
     "zip_extract",
     "tar_extract",
@@ -95,16 +95,16 @@ const VALID_INSTALL_TYPES: &[&str] = &[
 // 目录助手
 // ============================================================
 
-/// 社区配方存放目录: ~/.oneinit/recipes/
+/// community recipe storage directory: ~/.oneinit/recipes/
 pub fn recipes_dir() -> PathBuf {
     super::data_dir().join("recipes")
 }
 
 // ============================================================
-// 加载与查找
+// load and lookup
 // ============================================================
 
-/// 从 ~/.oneinit/recipes/*.yaml 加载所有社区配方
+/// 从 ~/.oneinit/recipes/*.yaml load all community recipes
 pub fn load_all() -> Vec<CommunityRecipe> {
     let dir = recipes_dir();
     let mut recipes = Vec::new();
@@ -124,17 +124,17 @@ pub fn load_all() -> Vec<CommunityRecipe> {
     recipes
 }
 
-/// 按名称查找社区配方
+/// 按名称find community recipe by name
 pub fn resolve(name: &str) -> Option<CommunityRecipe> {
     load_all().into_iter().find(|r| r.name == name)
 }
 
-/// 列出所有社区配方名
+/// list all community recipe names
 pub fn list_names() -> Vec<String> {
     load_all().iter().map(|r| r.name.clone()).collect()
 }
 
-/// 获取当前平台的配置
+/// get current platform configuration
 pub fn current_platform_config(recipe: &CommunityRecipe) -> Option<&PlatformConfig> {
     #[cfg(target_os = "windows")]
     {
@@ -155,17 +155,17 @@ pub fn current_platform_config(recipe: &CommunityRecipe) -> Option<&PlatformConf
 }
 
 // ============================================================
-// 模板变量渲染
+// template variable rendering
 // ============================================================
 
 /// 渲染模板变量
 ///
-/// 支持的变量（按 社区配方.md）：
-/// - {{install_dir}} — 安装目录绝对路径
-/// - {{user_home}} — 用户主目录
-/// - {{mirror_pip}} — pip 清华源 URL
-/// - {{mirror_pip_host}} — pip 清华源主机名
-/// - {{mirror_npm}} — npm 淘宝源 URL
+/// supported variables (per community recipe spec):
+/// - {{install_dir}} — absolute install directory path
+/// - {{user_home}} — user home directory
+/// - {{mirror_pip}} — pip Tsinghua mirror URL
+/// - {{mirror_pip_host}} — pip Tsinghua mirror hostname
+/// - {{mirror_npm}} — npm npmmirror URL
 pub fn render_template(template: &str, install_dir: &Path) -> String {
     let install_dir_str = install_dir.to_string_lossy().to_string();
     let user_home = dirs::home_dir()
@@ -184,26 +184,26 @@ pub fn render_template(template: &str, install_dir: &Path) -> String {
 // 验证
 // ============================================================
 
-/// 验证结果
+/// verification result
 #[derive(Debug)]
 pub struct VerifyResult {
     pub valid: bool,
     pub checks: Vec<(String, bool, String)>, // (检查项, 是否通过, 说明)
 }
 
-/// 验证配方文件
+/// validate recipe file
 pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
     let content = std::fs::read_to_string(yaml_path)?;
     let mut checks = Vec::new();
 
-    // 1. YAML 语法
+    // 1. YAML syntax
     let recipe: CommunityRecipe = match serde_yaml::from_str(&content) {
         Ok(r) => {
-            checks.push(("YAML 语法".to_string(), true, "解析成功".to_string()));
+            checks.push(("YAML syntax".to_string(), true, "parse success".to_string()));
             r
         }
         Err(e) => {
-            checks.push(("YAML 语法".to_string(), false, e.to_string()));
+            checks.push(("YAML syntax".to_string(), false, e.to_string()));
             return Ok(VerifyResult {
                 valid: false,
                 checks,
@@ -214,40 +214,40 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
     // 2. name 非空
     let ok = !recipe.name.is_empty();
     checks.push((
-        "name 字段".to_string(),
+        "name field".to_string(),
         ok,
         if ok {
             recipe.name.clone()
         } else {
-            "为空".to_string()
+            "empty".to_string()
         },
     ));
 
     // 3. version 非空
     let ok = !recipe.version.is_empty();
     checks.push((
-        "version 字段".to_string(),
+        "version field".to_string(),
         ok,
         if ok {
             recipe.version.clone()
         } else {
-            "为空".to_string()
+            "empty".to_string()
         },
     ));
 
     // 4. description 非空
     let ok = !recipe.description.is_empty();
     checks.push((
-        "description 字段".to_string(),
+        "description field".to_string(),
         ok,
         if ok {
-            "存在".to_string()
+            "exists".to_string()
         } else {
-            "为空".to_string()
+            "empty".to_string()
         },
     ));
 
-    // 5. 至少一个平台已配置
+    // 5. 至少一 platforms已配置
     let platform_count = [
         recipe.platforms.windows.is_some(),
         recipe.platforms.linux.is_some(),
@@ -259,10 +259,10 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
     checks.push((
         "平台覆盖".to_string(),
         platform_count > 0,
-        format!("{} 个平台", platform_count),
+        format!("{}  platforms", platform_count),
     ));
 
-    // 6. 逐平台检查 url/sha256/install_type
+    // 6. per-platform check url/sha256/install_type
     let platforms: Vec<(&str, Option<&PlatformConfig>)> = vec![
         ("windows", recipe.platforms.windows.as_ref()),
         ("linux", recipe.platforms.linux.as_ref()),
@@ -279,7 +279,7 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
                 if url_ok {
                     cfg.url.clone()
                 } else {
-                    "为空".to_string()
+                    "empty".to_string()
                 },
             ));
 
@@ -288,7 +288,7 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
             checks.push((
                 format!("{}.sha256", os),
                 sha_ok,
-                format!("{} 字符", cfg.sha256.len()),
+                format!("{}  chars", cfg.sha256.len()),
             ));
 
             // install_type 合法
@@ -301,12 +301,12 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
         }
     }
 
-    // 7. maintainer 警告（非阻塞）
+    // 7. maintainer warning (non-blocking)
     if recipe.maintainer.is_none() {
         checks.push((
             "maintainer".to_string(),
-            true, // 不影响 valid
-            "[WARN] 未填写维护者信息，社区配方建议填写".to_string(),
+            true, // does not affect validity
+            "[WARN] 未填写maintainer information，社区recipe建议填写".to_string(),
         ));
     }
 
@@ -319,33 +319,37 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
 // 安装与卸载（含安全提醒）
 // ============================================================
 
-/// 安装社区配方
+/// 安装社区recipe
 ///
-/// 安全流程（按 社区配方.md 第四节要求）：
-/// 1. 醒目显示下载来源、SHA256、写入目录、执行的命令
-/// 2. 等待用户输入 y 确认
-/// 3. 下载 -> 校验 -> 解压/安装 -> post_install -> PATH -> Manifest
+/// Security flow（按 社区recipe.md 第四节要求）：
+/// 1. prominently display source, SHA256, target dir, commands
+/// 2. wait for user to type y to confirm
+/// 3. download -> verify -> extract/install -> post_install -> PATH -> Manifest
 pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> Result<()> {
     let start = Instant::now();
 
-    // 获取当前平台配置
-    let platform_cfg = current_platform_config(recipe)
-        .ok_or_else(|| CoreError::Other(format!("配方 '{}' 不支持当前平台", recipe.name)))?;
+    // get current platform config
+    let platform_cfg = current_platform_config(recipe).ok_or_else(|| {
+        CoreError::Other(format!(
+            "recipe '{}' unsupported on this platform",
+            recipe.name
+        ))
+    })?;
 
     let install_dir = envs_dir().join(&platform_cfg.install_path);
 
-    // ====== 安全提醒（社区配方.md 第四节核心要求）======
+    // ====== 安全提醒（社区recipe.md 第四节核心要求）======
     formatter.output("", Some(serde_json::Value::Null));
     formatter.output(
-        "========== [SECURITY] 安装确认 ==========",
+        "========== [SECURITY] Install confirmation ==========",
         Some(serde_json::Value::Null),
     );
     formatter.output(
-        &format!("[SECURITY] 名称:     {} v{}", recipe.name, recipe.version),
+        &format!("[SECURITY] Name:     {} v{}", recipe.name, recipe.version),
         Some(serde_json::Value::Null),
     );
     formatter.output(
-        &format!("[SECURITY] 下载来源: {}", platform_cfg.url),
+        &format!("[SECURITY] Source: {}", platform_cfg.url),
         Some(serde_json::Value::Null),
     );
     formatter.output(
@@ -353,17 +357,17 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
         Some(serde_json::Value::Null),
     );
     formatter.output(
-        &format!("[SECURITY] 安装目录: {}", install_dir.display()),
+        &format!("[SECURITY] Install to: {}", install_dir.display()),
         Some(serde_json::Value::Null),
     );
 
-    // 显示将要执行的命令
+    // display commands to be executed
     if let Some(ref post) = recipe.post_install {
         if let Some(ref cmds) = post.commands {
             for cmd in cmds {
                 let rendered = render_template(cmd, &install_dir);
                 formatter.output(
-                    &format!("[SECURITY] 将执行:   {}", rendered),
+                    &format!("[SECURITY] Will run:   {}", rendered),
                     Some(serde_json::Value::Null),
                 );
             }
@@ -371,7 +375,7 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
         if let Some(ref configs) = post.config_files {
             for cf in configs {
                 formatter.output(
-                    &format!("[SECURITY] 将写入:   {}", cf.path),
+                    &format!("[SECURITY] Will write:   {}", cf.path),
                     Some(serde_json::Value::Null),
                 );
             }
@@ -380,7 +384,7 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
 
     formatter.output(
         &format!(
-            "[SECURITY] 安装路径: {}",
+            "[SECURITY] PATH add: {}",
             platform_cfg
                 .path_add
                 .iter()
@@ -395,66 +399,72 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
         Some(serde_json::Value::Null),
     );
 
-    // 等待用户确认
-    print!("[SECURITY] 输入 y 确认安装，其他键取消: ");
+    // wait for user confirmation
+    print!("[SECURITY] Type y to confirm, any other key to cancel: ");
     io::stdout().flush()?;
     let confirmed = wait_for_confirmation();
     if !confirmed {
-        formatter.output("[CANCEL] 已取消安装", Some(serde_json::Value::Null));
+        formatter.output(
+            "[CANCEL] Installation cancelled",
+            Some(serde_json::Value::Null),
+        );
         return Ok(());
     }
 
-    // ====== 执行安装 ======
-    // 1. 创建安装目录
+    // ====== execute install ======
+    // 1. create install directory
     if install_dir.exists() {
         std::fs::remove_dir_all(&install_dir)?;
     }
     std::fs::create_dir_all(&install_dir)?;
 
-    // 2. 备份 PATH
+    // 2. backup PATH
     let path_backup = super::path_mgr::backup()?;
 
-    // 3. 下载
+    // 3. download
     let archive_name = platform_cfg.url.rsplit('/').next().unwrap_or("archive");
     let temp_archive = super::temp_dir().join(archive_name);
     let dl_result = super::downloader::download(&platform_cfg.url, &temp_archive).await?;
     formatter.output(
         &format!(
-            "[OK] 下载完成: {} ({:.1} MB)",
+            "[OK] download complete: {} ({:.1} MB)",
             archive_name,
             dl_result.file_size as f64 / 1_048_576.0
         ),
         Some(serde_json::Value::Null),
     );
 
-    // 4. SHA256 校验
+    // 4. SHA256 verify
     super::downloader::verify_sha256(&temp_archive, &platform_cfg.sha256)?;
-    formatter.output("[OK] SHA256 校验通过", Some(serde_json::Value::Null));
+    formatter.output("[OK] SHA256 verified", Some(serde_json::Value::Null));
 
-    // 5. 按 install_type 分派安装
+    // 5. dispatch by install_type
     match platform_cfg.install_type.as_str() {
         "zip_extract" | "tar_extract" => {
             super::downloader::extract(&temp_archive, &install_dir)?;
-            formatter.output("[OK] 解压完成", Some(serde_json::Value::Null));
+            formatter.output("[OK] Extraction complete", Some(serde_json::Value::Null));
         }
         "exe_silent" => {
-            // 静默安装：运行 exe 并等待
+            // silent install: run exe and wait
             let args = platform_cfg.install_args.clone().unwrap_or_default();
             let status = Command::new(&temp_archive)
                 .args(&args)
                 .status()
-                .map_err(|e| CoreError::Other(format!("执行安装程序失败: {}", e)))?;
+                .map_err(|e| CoreError::Other(format!("installer execution failed: {}", e)))?;
             if !status.success() {
                 return Err(CoreError::Other(format!(
                     "安装程序退出码: {:?}",
                     status.code()
                 )));
             }
-            formatter.output("[OK] 静默安装完成", Some(serde_json::Value::Null));
+            formatter.output(
+                "[OK] Silent install complete",
+                Some(serde_json::Value::Null),
+            );
         }
         "binary_copy" => {
             std::fs::copy(&temp_archive, install_dir.join(archive_name))?;
-            formatter.output("[OK] 文件复制完成", Some(serde_json::Value::Null));
+            formatter.output("[OK] File copy complete", Some(serde_json::Value::Null));
         }
         "msi_install" => {
             // Windows MSI 静默安装: msiexec /i <file> /qn
@@ -468,14 +478,14 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
             let status = Command::new("msiexec")
                 .args(&msiexec_args)
                 .status()
-                .map_err(|e| CoreError::Other(format!("执行 msiexec 失败: {}", e)))?;
+                .map_err(|e| CoreError::Other(format!("msiexec execution failed: {}", e)))?;
             if !status.success() {
                 return Err(CoreError::Other(format!(
                     "MSI 安装退出码: {:?}",
                     status.code()
                 )));
             }
-            formatter.output("[OK] MSI 安装完成", Some(serde_json::Value::Null));
+            formatter.output("[OK] MSI install complete", Some(serde_json::Value::Null));
         }
         "pkg_install" => {
             // macOS .pkg 安装: installer -pkg <file> -target /
@@ -488,14 +498,14 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
             let status = Command::new("installer")
                 .args(["-pkg", &temp_archive.to_string_lossy(), "-target", target])
                 .status()
-                .map_err(|e| CoreError::Other(format!("执行 installer 失败: {}", e)))?;
+                .map_err(|e| CoreError::Other(format!("installer execution failed: {}", e)))?;
             if !status.success() {
                 return Err(CoreError::Other(format!(
                     "pkg 安装退出码: {:?}",
                     status.code()
                 )));
             }
-            formatter.output("[OK] pkg 安装完成", Some(serde_json::Value::Null));
+            formatter.output("[OK] PKG install complete", Some(serde_json::Value::Null));
         }
         other => {
             return Err(CoreError::Other(format!(
@@ -505,15 +515,15 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
         }
     }
 
-    // 清理临时文件
+    // cleanup temp file
     let _ = std::fs::remove_file(&temp_archive);
 
-    // 6. 执行 post_install
+    // 6. execute post_install
     if let Some(ref post) = recipe.post_install {
         execute_post_install(post, &install_dir, formatter)?;
     }
 
-    // 7. 添加 path_add 到 PATH
+    // 7. add path_add to PATH
     let mut path_entries = Vec::new();
     for path_template in &platform_cfg.path_add {
         let rendered = render_template(path_template, &install_dir);
@@ -522,7 +532,7 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
         path_entries.push(rendered);
     }
 
-    // 8. 记录到 Manifest
+    // 8. record to Manifest
     let manifest = super::manifest::Manifest::open()?;
     let record = super::manifest::InstallRecord {
         id: uuid::Uuid::new_v4().to_string(),
@@ -542,7 +552,7 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
     let duration = start.elapsed();
     formatter.output(
         &format!(
-            "[SUCCESS] {} v{} 安装成功 ({:.1}s)",
+            "[SUCCESS] {} v{} installation complete ({:.1}s)",
             recipe.name,
             recipe.version,
             duration.as_secs_f64()
@@ -561,29 +571,29 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
     Ok(())
 }
 
-/// 卸载社区配方
+/// uninstall community recipe
 pub async fn uninstall(name: &str, formatter: &OutputFormatter) -> Result<()> {
     let manifest = super::manifest::Manifest::open()?;
     let record = manifest
         .get(name)?
-        .ok_or_else(|| CoreError::Other(format!("'{}' 未安装", name)))?;
+        .ok_or_else(|| CoreError::Other(format!("'{}' not installed", name)))?;
 
-    // 从 PATH 移除
+    // remove from PATH
     for entry in &record.path_entries {
         super::path_mgr::remove(Path::new(entry))?;
     }
 
-    // 删除安装目录
+    // delete install directory
     let install_path = Path::new(&record.install_path);
     if install_path.exists() {
         std::fs::remove_dir_all(install_path)?;
     }
 
-    // 从清单删除
+    // remove from manifest
     manifest.remove(name)?;
 
     formatter.output(
-        &format!("[DEL] '{}' 卸载完成", name),
+        &format!("[DEL] '{}' uninstalled", name),
         Some(serde_json::json!({
             "status": "success",
             "action": "uninstall",
@@ -604,7 +614,7 @@ fn execute_post_install(
     install_dir: &Path,
     formatter: &OutputFormatter,
 ) -> Result<()> {
-    // 1. 生成配置文件
+    // 1. generate config files
     if let Some(ref configs) = post.config_files {
         for cf in configs {
             let full_path = install_dir.join(&cf.path);
@@ -614,13 +624,13 @@ fn execute_post_install(
             let content = render_template(&cf.template, install_dir);
             std::fs::write(&full_path, &content)?;
             formatter.output(
-                &format!("[OK] 配置文件: {}", full_path.display()),
+                &format!("[OK] config file: {}", full_path.display()),
                 Some(serde_json::Value::Null),
             );
         }
     }
 
-    // 2. 执行命令
+    // 2. execute commands
     if let Some(ref commands) = post.commands {
         for cmd in commands {
             let rendered = render_template(cmd, install_dir);
@@ -651,7 +661,7 @@ fn execute_post_install(
                 }
                 Err(e) => {
                     formatter.output(
-                        &format!("  [WARN] 执行失败: {}", e),
+                        &format!("  [WARN] execution failed: {}", e),
                         Some(serde_json::Value::Null),
                     );
                 }
@@ -662,7 +672,7 @@ fn execute_post_install(
     Ok(())
 }
 
-/// 等待用户输入 y 确认
+/// wait for user to type y to confirm
 fn wait_for_confirmation() -> bool {
     let mut buf = [0u8; 1];
     match io::stdin().read_exact(&mut buf) {

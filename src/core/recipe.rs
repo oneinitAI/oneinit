@@ -11,10 +11,10 @@ use super::{CoreError, Result, envs_dir, temp_dir};
 use crate::output::OutputFormatter;
 
 // ============================================================
-// 配方定义
+// recipe定义
 // ============================================================
 
-/// 安装配方 — 描述一个工具的完整安装过程
+/// 安装recipe — 描述一个工具的完整安装过程
 #[derive(Debug, Clone)]
 pub struct Recipe {
     /// 包标识符（如 "python3.11"）
@@ -23,7 +23,7 @@ pub struct Recipe {
     pub version: String,
     /// 显示名称（如 "Python 3.11.9"）
     pub display_name: String,
-    /// 下载 URL
+    /// download URL
     pub download_url: String,
     /// 预期 SHA256（小写十六进制）
     pub sha256: String,
@@ -46,7 +46,7 @@ pub struct PostInstall {
 /// 安装后处理步骤
 #[derive(Debug, Clone)]
 pub enum PostInstallStep {
-    /// 下载文件并执行（如 get-pip.py）
+    /// download文件并执行（如 get-pip.py）
     DownloadAndRun { url: String, args: Vec<String> },
     /// 修改已有文件
     ModifyFile {
@@ -67,10 +67,10 @@ pub enum ModifyAction {
 }
 
 // ============================================================
-// 配方注册表
+// recipe注册表
 // ============================================================
 
-/// 根据包名查找配方
+/// 根据包名查找recipe
 pub fn resolve(name: &str) -> Option<Recipe> {
     match name {
         "python3.11" => Some(python311_recipe()),
@@ -78,7 +78,7 @@ pub fn resolve(name: &str) -> Option<Recipe> {
     }
 }
 
-/// 列出所有已知配方
+/// 列出所有已知recipe
 pub fn list_recipes() -> Vec<Recipe> {
     vec![python311_recipe()]
 }
@@ -87,27 +87,27 @@ pub fn list_recipes() -> Vec<Recipe> {
 // 安装执行器
 // ============================================================
 
-/// 执行配方安装（完整流程）
+/// 执行recipe安装（完整流程）
 pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()> {
     let start = Instant::now();
     let install_dir = envs_dir().join(&recipe.name);
 
-    // 安全提醒：内置配方仍需告知用户将下载和修改的内容
+    // 安全提醒：内置recipe仍需告知用户将download和修改的内容
     formatter.output("", Some(serde_json::Value::Null));
     formatter.output(
-        "[SECURITY] 即将安装内置配方，以下操作将被执行:",
+        "[SECURITY] 即将安装内置recipe，以下操作将被执行:",
         Some(serde_json::Value::Null),
     );
     formatter.output(
-        &format!("[SECURITY]   工具: {} v{}", recipe.name, recipe.version),
+        &format!("[SECURITY]   tool: {} v{}", recipe.name, recipe.version),
         Some(serde_json::Value::Null),
     );
     formatter.output(
-        &format!("[SECURITY]   下载: {}", recipe.download_url),
+        &format!("[SECURITY]   download: {}", recipe.download_url),
         Some(serde_json::Value::Null),
     );
     formatter.output(
-        &format!("[SECURITY]   目录: {}", install_dir.display()),
+        &format!("[SECURITY]   dir: {}", install_dir.display()),
         Some(serde_json::Value::Null),
     );
     formatter.output(
@@ -115,7 +115,7 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
         Some(serde_json::Value::Null),
     );
 
-    // 1. 创建安装目录
+    // 1. create install directory
     if install_dir.exists() {
         fs::remove_dir_all(&install_dir)?;
     }
@@ -124,43 +124,43 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
     // 2. 备份当前 PATH
     let path_backup = path_mgr::backup()?;
 
-    // 3. 下载压缩包
+    // 3. download压缩包
     let archive_name = recipe.download_url.rsplit('/').next().unwrap_or("archive");
     let temp_archive = temp_dir().join(archive_name);
     let dl_result = downloader::download(&recipe.download_url, &temp_archive).await?;
     formatter.output(
         &format!(
-            "[OK] 下载完成: {} ({:.1} MB)",
+            "[OK] download complete: {} ({:.1} MB)",
             archive_name,
             dl_result.file_size as f64 / 1_048_576.0
         ),
         Some(serde_json::json!({"message": "download_complete"})),
     );
 
-    // 4. 校验 SHA256
+    // 4. verify SHA256
     downloader::verify_sha256(&temp_archive, &recipe.sha256)?;
-    formatter.output("[OK] SHA256 校验通过", Some(serde_json::Value::Null));
+    formatter.output("[OK] SHA256 verified", Some(serde_json::Value::Null));
 
     // 5. 解压到安装目录
     let extracted = downloader::extract(&temp_archive, &install_dir)?;
     formatter.output(
-        &format!("[OK] 解压完成: {} 个文件", extracted.len()),
+        &format!("[OK] Extraction complete: {}  files", extracted.len()),
         Some(serde_json::Value::Null),
     );
 
     // 清理临时压缩包
     let _ = fs::remove_file(&temp_archive);
 
-    // 6. 执行安装后处理
+    // 6. execute install后处理
     if let Some(ref post) = recipe.post_install {
         execute_post_install(post, &install_dir, formatter).await?;
     }
 
-    // 7. 生成配置文件
+    // 7. generate config files
     let config_files = apply_configs(&install_dir, &recipe.configs)?;
     for cf in &config_files {
         formatter.output(
-            &format!("[OK] 配置文件: {}", cf.display()),
+            &format!("[OK] config file: {}", cf.display()),
             Some(serde_json::Value::Null),
         );
     }
@@ -192,7 +192,7 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
     let duration = start.elapsed();
     formatter.output(
         &format!(
-            "🎉 {} 安装成功！\n  路径: {}\n  耗时: {:.1}s",
+            "🎉 {} installation complete！\n  路径: {}\n  耗时: {:.1}s",
             recipe.display_name,
             install_dir.display(),
             duration.as_secs_f64()
@@ -224,7 +224,7 @@ pub async fn uninstall(package: &str, formatter: &OutputFormatter) -> Result<()>
     // 1. 获取安装记录
     let record = manifest
         .get(package)?
-        .ok_or_else(|| CoreError::Other(format!("'{}' 未安装", package)))?;
+        .ok_or_else(|| CoreError::Other(format!("'{}' not installed", package)))?;
 
     let install_path = Path::new(&record.install_path);
 
@@ -239,7 +239,7 @@ pub async fn uninstall(package: &str, formatter: &OutputFormatter) -> Result<()>
         remove_configs(install_path, &recipe.configs)?;
     }
 
-    // 4. 删除安装目录
+    // 4. delete install directory
     if install_path.exists() {
         fs::remove_dir_all(install_path)?;
     }
@@ -248,7 +248,7 @@ pub async fn uninstall(package: &str, formatter: &OutputFormatter) -> Result<()>
     manifest.remove(package)?;
 
     formatter.output(
-        &format!("🗑️ '{}' 卸载完成，所有文件已清理。", package),
+        &format!("'{}' uninstalled, all files cleaned.", package),
         Some(serde_json::json!({
             "status": "success",
             "action": "uninstall",
@@ -264,7 +264,7 @@ pub async fn uninstall(package: &str, formatter: &OutputFormatter) -> Result<()>
 // 安装后处理执行
 // ============================================================
 
-/// 执行安装后处理步骤（异步，因为可能需要下载）
+/// execute install后处理步骤（异步，因为可能需要download）
 async fn execute_post_install(
     post: &PostInstall,
     install_dir: &Path,
@@ -283,7 +283,7 @@ async fn execute_post_install(
     Ok(())
 }
 
-/// 下载文件并执行
+/// download文件并执行
 async fn execute_download_and_run(
     url: &str,
     args: &[String],
@@ -293,11 +293,11 @@ async fn execute_download_and_run(
     let file_name = url.rsplit('/').next().unwrap_or("script");
     let dest = install_dir.join(file_name);
 
-    // 下载脚本
+    // download脚本
     downloader::download(url, &dest).await?;
 
     formatter.output(
-        &format!("[OK] 下载脚本: {}", file_name),
+        &format!("[OK] script downloaded: {}", file_name),
         Some(serde_json::json!({"message": "script_downloaded"})),
     );
 
@@ -309,19 +309,22 @@ async fn execute_download_and_run(
     cmd.current_dir(install_dir);
 
     formatter.output(
-        &format!("[WAIT] 执行: python {} {}", file_name, args.join(" ")),
+        &format!("[WAIT] running: python {} {}", file_name, args.join(" ")),
         Some(serde_json::Value::Null),
     );
 
     let output = cmd
         .output()
-        .map_err(|e| CoreError::Other(format!("执行脚本失败: {}", e)))?;
+        .map_err(|e| CoreError::Other(format!("script execution failed: {}", e)))?;
 
     if output.status.success() {
-        formatter.output("[OK] 脚本执行完成", Some(serde_json::Value::Null));
+        formatter.output("[OK] script completed", Some(serde_json::Value::Null));
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(CoreError::Other(format!("脚本执行失败: {}", stderr)));
+        return Err(CoreError::Other(format!(
+            "script execution failed: {}",
+            stderr
+        )));
     }
 
     // 清理脚本文件
@@ -371,10 +374,10 @@ fn execute_modify_file(rel_path: &str, action: &ModifyAction, install_dir: &Path
 }
 
 // ============================================================
-// Python 3.11.9 配方（Windows embeddable + get-pip）
+// Python 3.11.9 recipe（Windows embeddable + get-pip）
 // ============================================================
 
-/// Python 3.11.9 安装配方
+/// Python 3.11.9 安装recipe
 ///
 /// 使用 Windows embeddable zip 包，安装后通过 get-pip.py 引导安装 pip。
 fn python311_recipe() -> Recipe {
@@ -390,7 +393,7 @@ fn python311_recipe() -> Recipe {
             version, version
         ),
         // 注意：首次安装时会计算实际 SHA256 并验证
-        // 此值为占位，如果首次下载校验失败需要更新
+        // 此值为占位，如果首次downloadverification failed需要更新
         sha256: python311_sha256(),
         bin_dir: ".".to_string(),
         env_vars: vec![],
@@ -404,7 +407,7 @@ fn python311_recipe() -> Recipe {
                         pattern: "import site".to_string(),
                     },
                 },
-                // 下载并运行 get-pip.py 安装 pip（使用官方 PyPI 源引导）
+                // download并运行 get-pip.py 安装 pip（使用官方 PyPI 源引导）
                 PostInstallStep::DownloadAndRun {
                     url: "https://bootstrap.pypa.io/get-pip.py".to_string(),
                     args: vec![

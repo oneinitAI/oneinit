@@ -3,7 +3,7 @@
 // 退出TUI执行模式流程：
 //   1. 主循环检测到 Enter → 返回 Target
 //   2. 主循环 drop event_tx（停止事件循环任务，释放 EventStream 对 stdin 的占用）
-//   3. 调用 execute_action：恢复终端 → 执行安装/卸载 → 按任意键 → 重新进入 TUI
+//   3. 调用 execute_action：恢复终端 → execute install/卸载 → 按任意键 → 重新进入 TUI
 //   4. 主循环重启事件循环
 //
 // 关键：execute_action 必须在事件循环停止后调用，否则 EventStream 会
@@ -30,21 +30,21 @@ pub async fn execute_action(
     let result_msg = match target {
         Target::Install(recipe_name) => match crate::core::recipe::resolve(&recipe_name) {
             Some(recipe) => match crate::core::recipe::install(&recipe, &formatter).await {
-                Ok(()) => format!("[OK] {} 安装成功", recipe.display_name),
-                Err(e) => format!("[ERROR] 安装失败: {}", e),
+                Ok(()) => format!("[OK] {} installation complete", recipe.display_name),
+                Err(e) => format!("[ERROR] installation failed: {}", e),
             },
-            None => format!("[ERROR] 未找到配方: {}", recipe_name),
+            None => format!("[ERROR] recipe not found: {}", recipe_name),
         },
         Target::Uninstall(package_name) => {
             match crate::core::recipe::uninstall(&package_name, &formatter).await {
-                Ok(()) => format!("[OK] {} 卸载完成", package_name),
-                Err(e) => format!("[ERROR] 卸载失败: {}", e),
+                Ok(()) => format!("[OK] {} uninstalled", package_name),
+                Err(e) => format!("[ERROR] uninstall failed: {}", e),
             }
         }
     };
 
     println!("\n{}", result_msg);
-    println!("\n按任意键返回 TUI...");
+    println!("\nPress any key to return to TUI...");
     io::stdout().flush()?;
 
     // 3. 等待按键（此时 raw mode 已关闭，事件循环已停止）

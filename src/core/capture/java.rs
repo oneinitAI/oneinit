@@ -18,7 +18,7 @@ impl EnvDetector for JavaDetector {
     }
 
     fn detect(&self) -> Result<Option<RuntimeEnv>> {
-        // 1. 查找 java 命令
+        // 1. find java command
         let java_path = match find_command("java") {
             Some(p) => p,
             None => return Ok(None),
@@ -26,7 +26,7 @@ impl EnvDetector for JavaDetector {
 
         let java_str = java_path.to_string_lossy().to_string();
 
-        // 2. 获取版本号
+        // 2. get version
         // java -version 输出到 stderr！格式如:
         //   openjdk version "17.0.1" 2021-10-19
         //   java version "1.8.0_291"
@@ -49,7 +49,7 @@ impl EnvDetector for JavaDetector {
             })
             .unwrap_or_else(|| "unknown".to_string());
 
-        // 3. 检测 JDK（javac）和 JAVA_HOME
+        // 3. detect JDK (javac) and JAVA_HOME
         let mut mirrors = BTreeMap::new();
 
         if let Some(javac_version) = find_command("javac")

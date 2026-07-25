@@ -1,4 +1,4 @@
-// 导入解包器 — tar.gz -> 校验 -> 恢复配方/环境
+// 导入解包器 — tar.gz -> verify -> 恢复recipe/环境
 //
 // 复用 downloader::extract 解压 tar.gz，手写递归遍历恢复文件。
 
@@ -19,7 +19,7 @@ pub fn import(
 ) -> Result<ImportResult> {
     let archive_path = Path::new(archive);
     if !archive_path.exists() {
-        return Err(CoreError::Migration(format!("文件不存在: {}", archive)));
+        return Err(CoreError::Migration(format!("file not found: {}", archive)));
     }
 
     // 1. 解压到临时目录
@@ -27,7 +27,7 @@ pub fn import(
     std::fs::create_dir_all(&extract_dir)?;
 
     formatter.output(
-        &format!("[IMPORT] 解压 {}...", archive),
+        &format!("[IMPORT] extracting {}...", archive),
         Some(serde_json::Value::Null),
     );
 
@@ -36,9 +36,9 @@ pub fn import(
     // 2. 读取 manifest.json
     let manifest_path = extract_dir.join("manifest.json");
     let manifest_content = std::fs::read_to_string(&manifest_path)
-        .map_err(|e| CoreError::Migration(format!("读取 manifest.json 失败: {}", e)))?;
+        .map_err(|e| CoreError::Migration(format!("read manifest.json failed: {}", e)))?;
     let manifest: MigrationManifest = serde_json::from_str(&manifest_content)
-        .map_err(|e| CoreError::Migration(format!("解析 manifest.json 失败: {}", e)))?;
+        .map_err(|e| CoreError::Migration(format!("parse manifest.json failed: {}", e)))?;
 
     formatter.output(
         &format!(
@@ -52,7 +52,7 @@ pub fn import(
         Some(serde_json::Value::Null),
     );
 
-    // 3. 可选：SHA256 校验缓存文件
+    // 3. 可选：SHA256 verify缓存文件
     if !skip_checksum && !manifest.cache_files.is_empty() {
         let envs_dir = extract_dir.join("envs");
         if envs_dir.exists() {
@@ -68,7 +68,7 @@ pub fn import(
                             } else {
                                 failed += 1;
                                 formatter.output(
-                                    &format!("[WARN] 校验失败: {}", entry.filename),
+                                    &format!("[WARN] verification failed: {}", entry.filename),
                                     Some(serde_json::Value::Null),
                                 );
                             }
@@ -80,19 +80,19 @@ pub fn import(
                 }
             }
             formatter.output(
-                &format!("[IMPORT] SHA256 校验: {} 通过, {} 失败", verified, failed),
+                &format!("[IMPORT] SHA256: {} passed, {} failed", verified, failed),
                 Some(serde_json::Value::Null),
             );
             if failed > 0 && !force {
                 return Err(CoreError::Migration(format!(
-                    "{} 个文件校验失败，使用 --force 跳过",
+                    "{}  filesverification failed，使用 --force 跳过",
                     failed
                 )));
             }
         }
     }
 
-    // 4. 恢复配方
+    // 4. 恢复recipe
     let recipe_src = extract_dir.join(&manifest.recipe);
     let recipe_dest = recipes_dir().join("imported.yaml");
     let recipe_path_str = recipe_dest.to_string_lossy().to_string();
@@ -100,13 +100,13 @@ pub fn import(
     if !dry_run && recipe_src.exists() {
         if recipe_dest.exists() && !force {
             formatter.output(
-                "[WARN] imported.yaml 已存在，使用 --force 覆盖",
+                "[WARN] imported.yaml 已exists，使用 --force 覆盖",
                 Some(serde_json::Value::Null),
             );
         } else {
             std::fs::copy(&recipe_src, &recipe_dest)?;
             formatter.output(
-                &format!("[OK] 配方恢复: {}", recipe_dest.display()),
+                &format!("[OK] recipe restored: {}", recipe_dest.display()),
                 Some(serde_json::Value::Null),
             );
         }
@@ -122,7 +122,7 @@ pub fn import(
             cache_restored = count_files_recursive(&envs_src);
             formatter.output(
                 &format!(
-                    "[PREVIEW] 将恢复 {} 个文件到 {}",
+                    "[PREVIEW] 将恢复 {}  files到 {}",
                     cache_restored,
                     envs_dest.display()
                 ),
@@ -132,7 +132,7 @@ pub fn import(
             std::fs::create_dir_all(&envs_dest)?;
             cache_restored = copy_dir_recursive(&envs_src, &envs_dest, force)?;
             formatter.output(
-                &format!("[OK] 恢复 {} 个文件到 envs/", cache_restored),
+                &format!("[OK] restored {} files to envs/", cache_restored),
                 Some(serde_json::Value::Null),
             );
         }
@@ -186,7 +186,7 @@ fn copy_dir_recursive(src: &Path, dest: &Path, force: bool) -> Result<usize> {
             count += copy_dir_recursive(&src_path, &dest_path, force)?;
         } else if src_path.is_file() {
             if dest_path.exists() && !force {
-                // 跳过已存在的文件
+                // 跳过已exists的文件
             } else {
                 std::fs::copy(&src_path, &dest_path)?;
                 count += 1;

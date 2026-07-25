@@ -32,7 +32,7 @@ pub fn draw(frame: &mut Frame, state: &mut AppState) {
 
 /// 标题栏
 fn draw_title(frame: &mut Frame, area: Rect) {
-    let title = Paragraph::new("OneInit — 一条命令，初始化整台电脑")
+    let title = Paragraph::new("OneInit — One command to init your dev machine")
         .style(
             Style::default()
                 .fg(Color::Cyan)
@@ -77,7 +77,7 @@ fn draw_installed_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
         Color::DarkGray
     };
 
-    let title = format!(" 📦 已安装 ({}) ", state.installed.len());
+    let title = format!(" Installed ({}) ", state.installed.len());
     let block = Block::default()
         .borders(Borders::ALL)
         .title(title)
@@ -126,7 +126,7 @@ fn draw_available_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
         Color::DarkGray
     };
 
-    let title = format!(" 🔍 可安装 ({}) ", state.available.len());
+    let title = format!(" Available ({}) ", state.available.len());
     let block = Block::default()
         .borders(Borders::ALL)
         .title(title)
@@ -184,14 +184,14 @@ fn draw_install_screen(frame: &mut Frame, area: Rect, state: &AppState) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!(" 正在安装: {} ", pkg)),
+                .title(format!(" Installing: {} ", pkg)),
         )
         .gauge_style(Style::default().fg(Color::Cyan))
         .percent(progress.into());
     frame.render_widget(gauge, chunks[0]);
 
     // 状态消息
-    let msg = state.message.as_deref().unwrap_or("正在下载和解压...");
+    let msg = state.message.as_deref().unwrap_or("正在download和解压...");
     let info = Paragraph::new(msg).block(Block::default().borders(Borders::ALL).title(" 状态 "));
     frame.render_widget(info, chunks[1]);
 }
@@ -200,7 +200,7 @@ fn draw_install_screen(frame: &mut Frame, area: Rect, state: &AppState) {
 fn draw_capture_screen(frame: &mut Frame, area: Rect, state: &AppState) {
     let mut lines: Vec<Line> = Vec::new();
     lines.push(Line::from(Span::styled(
-        "环境捕获结果",
+        "Capture Results",
         Style::default()
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD),
@@ -210,7 +210,7 @@ fn draw_capture_screen(frame: &mut Frame, area: Rect, state: &AppState) {
     if let Some(ref results) = state.capture_result {
         for (name, version, path) in results {
             let status_tag = if version.is_some() { "[OK]" } else { "[--]" };
-            let ver_str = version.as_deref().unwrap_or("未检测到");
+            let ver_str = version.as_deref().unwrap_or("not detected");
             lines.push(Line::from(vec![
                 Span::raw("  "),
                 Span::styled(
@@ -240,7 +240,7 @@ fn draw_capture_screen(frame: &mut Frame, area: Rect, state: &AppState) {
 
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        "[Esc]/[q] 返回主菜单",
+        "[Esc]/[q] Back to main",
         Style::default().fg(Color::DarkGray),
     )));
 

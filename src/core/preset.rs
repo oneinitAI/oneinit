@@ -9,7 +9,7 @@ pub struct Preset {
     pub display_name: String,
     /// 套装描述
     pub description: String,
-    /// 包含的配方名列表（如 ["python3.11"]）
+    /// 包含的recipe名列表（如 ["python3.11"]）
     pub packages: Vec<String>,
 }
 
@@ -63,7 +63,7 @@ fn frontend_preset() -> Preset {
     Preset {
         name: "frontend".to_string(),
         display_name: "前端开发套装".to_string(),
-        description: "（暂无可用配方，等待 Node.js 配方实现）".to_string(),
+        description: "（暂无可用recipe，等待 Node.js recipe实现）".to_string(),
         packages: vec![],
     }
 }
@@ -73,7 +73,7 @@ fn full_preset() -> Preset {
     Preset {
         name: "full".to_string(),
         display_name: "全栈开发套装".to_string(),
-        description: "安装所有可用配方".to_string(),
+        description: "安装所有可用recipe".to_string(),
         packages: vec!["python3.11".to_string()],
     }
 }

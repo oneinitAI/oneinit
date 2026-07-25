@@ -19,11 +19,11 @@ pub struct SyncConfig {
 pub fn load_config(yaml_path: &Path) -> crate::core::Result<SyncConfig> {
     let content = std::fs::read_to_string(yaml_path)?;
     let config: SyncConfig = serde_yaml::from_str(&content)
-        .map_err(|e| crate::core::CoreError::Other(format!("YAML 解析失败: {}", e)))?;
+        .map_err(|e| crate::core::CoreError::Other(format!("YAML parse failed: {}", e)))?;
     Ok(config)
 }
 
-/// 将 envs 中的键值对转换为配方名
+/// 将 envs 中的键值对转换为recipe名
 /// 例如: "python" + "3.11" → "python3.11"
 pub fn envs_to_recipe_names(config: &SyncConfig) -> Vec<String> {
     config
@@ -40,7 +40,7 @@ pub fn envs_to_recipe_names(config: &SyncConfig) -> Vec<String> {
         .collect()
 }
 
-/// 执行 post_install 命令列表
+/// execute post_install 命令列表
 pub fn run_post_install(
     commands: &[String],
     formatter: &crate::output::OutputFormatter,
@@ -51,7 +51,7 @@ pub fn run_post_install(
 
     for (i, cmd_str) in commands.iter().enumerate() {
         formatter.output(
-            &format!("[RUN] [{}] 执行: {}", i + 1, cmd_str),
+            &format!("[RUN] [{}] run: {}", i + 1, cmd_str),
             Some(serde_json::json!({
                 "step": i + 1,
                 "command": cmd_str,
@@ -76,7 +76,10 @@ pub fn run_post_install(
             }
         } else {
             formatter.output(
-                &format!("   [ERROR] 命令失败 (exit code {:?})", output.status.code()),
+                &format!(
+                    "   [ERROR] command failed (exit code {:?})",
+                    output.status.code()
+                ),
                 Some(serde_json::json!({
                     "status": "failed",
                     "exit_code": output.status.code(),

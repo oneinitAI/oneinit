@@ -8,7 +8,7 @@ use tokio::io::AsyncWriteExt;
 
 use super::{CoreError, Result};
 
-/// 下载结果
+/// download结果
 #[derive(Debug, Clone)]
 pub struct DownloadResult {
     pub file_path: PathBuf,
@@ -16,9 +16,9 @@ pub struct DownloadResult {
     pub sha256: String,
 }
 
-/// 异步下载文件到指定路径，带进度条
+/// 异步download文件到指定路径，带进度条
 pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
-    // 确保目标目录存在
+    // 确保目标目录exists
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -38,7 +38,7 @@ pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
     let pb = ProgressBar::new(total_size);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("{spinner:.green} 下载 {msg} {bytes}/{total_bytes} {eta:>3}")
+            .template("{spinner:.green} download {msg} {bytes}/{total_bytes} {eta:>3}")
             .unwrap()
             .progress_chars("█▓░"),
     );
@@ -58,7 +58,7 @@ pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
     }
 
     file.flush().await.map_err(CoreError::Io)?;
-    pb.finish_with_message("下载完成");
+    pb.finish_with_message("download完成");
 
     let sha256 = compute_sha256(dest)?;
     let file_size = std::fs::metadata(dest)?.len();
@@ -78,7 +78,7 @@ pub fn compute_sha256(path: &Path) -> Result<String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-/// 校验文件 SHA256 是否匹配
+/// verify文件 SHA256 是否匹配
 pub fn verify_sha256(path: &Path, expected: &str) -> Result<bool> {
     let actual = compute_sha256(path)?;
     let actual_lower = actual.to_lowercase();

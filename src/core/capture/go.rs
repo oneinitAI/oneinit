@@ -18,7 +18,7 @@ impl EnvDetector for GoDetector {
     }
 
     fn detect(&self) -> Result<Option<RuntimeEnv>> {
-        // 1. 查找 go 命令
+        // 1. find go command
         let go_path = match find_command("go") {
             Some(p) => p,
             None => return Ok(None),
@@ -26,14 +26,14 @@ impl EnvDetector for GoDetector {
 
         let go_str = go_path.to_string_lossy().to_string();
 
-        // 2. 获取版本 (输出如 "go version go1.21.5 windows/amd64")
+        // 2. get version (输出如 "go version go1.21.5 windows/amd64")
         let version_str = run_command(&go_str, &["version"]);
         let version = version_str
             .as_deref()
             .and_then(|s| extract_version(s, "go version go"))
             .unwrap_or_else(|| "unknown".to_string());
 
-        // 3. 获取 GOPATH 和 GOROOT
+        // 3. get GOPATH and GOROOT
         let mut mirrors = BTreeMap::new();
         if let Some(gopath) = run_command(&go_str, &["env", "GOPATH"])
             && !gopath.is_empty()

@@ -8,7 +8,7 @@ use crate::core::{
 };
 use crate::output::OutputFormatter;
 
-/// oneinit init — 一键初始化开发环境
+/// oneinit init — initialize dev environment with presets
 pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
@@ -17,12 +17,12 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
 
     match preset_name {
         Some(name) => {
-            // 指定了套装名，执行批量安装
+            // specified preset name, batch install
             let preset = match preset::resolve(name) {
                 Some(p) => p,
                 None => {
                     formatter.output(
-                        &format!("[ERROR] 未找到套装 '{}'。可用套装：", name),
+                        &format!("[ERROR] Preset not found: '{}'。Available presets:", name),
                         Some(serde_json::json!({
                             "status": "error",
                             "action": "init",
@@ -39,7 +39,7 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
             if preset.packages.is_empty() {
                 formatter.output(
                     &format!(
-                        "[WARN] 套装 '{}' 暂无可用的配方。({})",
+                        "[WARN] Preset '{}' has no available packages。({})",
                         preset.display_name, preset.description
                     ),
                     Some(serde_json::json!({
@@ -55,7 +55,7 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
 
             formatter.output(
                 &format!(
-                    "🚀 开始初始化 '{}' ({})...",
+                    "Initializing preset '{}' ({})...",
                     preset.display_name, preset.description
                 ),
                 Some(serde_json::json!({
@@ -67,13 +67,13 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
                 })),
             );
 
-            // 批量安装
+            // batch install
             batch_install(&preset.packages, formatter).await;
         }
         None => {
-            // 未指定套装，列出可用套装
+            // no preset specified, listing available presets
             formatter.output(
-                "📋 未指定套装。可用的预置套装：",
+                "No preset specified. Available presets:",
                 Some(serde_json::json!({
                     "status": "success",
                     "action": "init",
@@ -85,12 +85,12 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
     }
 }
 
-/// 列出所有可用套装
+/// list all available presets
 fn list_available_presets(formatter: &OutputFormatter) {
     let presets = preset::list_presets();
     for p in &presets {
         formatter.output(
-            &format!("  📦 {} — {} ({})", p.name, p.display_name, p.description),
+            &format!("   {} — {} ({})", p.name, p.display_name, p.description),
             Some(serde_json::json!({
                 "name": p.name,
                 "display_name": p.display_name,
@@ -100,26 +100,26 @@ fn list_available_presets(formatter: &OutputFormatter) {
         );
     }
     formatter.output(
-        "\n使用 oneinit init --preset <名称> 开始初始化。",
+        "\nUse oneinit init --preset <name> to start.",
         Some(serde_json::json!({
             "usage": "oneinit init --preset <name>"
         })),
     );
 }
 
-/// 批量安装配方列表
+/// batch install recipe list
 async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
     let mut succeeded: Vec<&str> = Vec::new();
     let mut skipped: Vec<&str> = Vec::new();
     let mut failed: Vec<(&str, String)> = Vec::new();
 
     for pkg_name in packages {
-        // 检查是否已安装
+        // check if already installed
         if let Ok(manifest) = Manifest::open()
             && let Ok(Some(_)) = manifest.get(pkg_name)
         {
             formatter.output(
-                &format!("  [SKIP] '{}' 已安装，跳过", pkg_name),
+                &format!("  [SKIP] '{}' already installed, skipped", pkg_name),
                 Some(serde_json::json!({
                     "package": pkg_name,
                     "status": "skipped",
@@ -130,12 +130,12 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
             continue;
         }
 
-        // 查找配方
+        // find recipe
         let recipe = match resolve(pkg_name) {
             Some(r) => r,
             None => {
                 formatter.output(
-                    &format!("  [ERROR] '{}' 未找到配方，跳过", pkg_name),
+                    &format!("  [ERROR] '{}' recipe not found, skipped", pkg_name),
                     Some(serde_json::json!({
                         "package": pkg_name,
                         "status": "failed",
@@ -152,7 +152,7 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
             Ok(()) => succeeded.push(pkg_name),
             Err(e) => {
                 formatter.output(
-                    &format!("  [ERROR] '{}' 安装失败: {}", pkg_name, e),
+                    &format!("  [ERROR] '{}' install failed: {}", pkg_name, e),
                     Some(serde_json::json!({
                         "package": pkg_name,
                         "status": "failed",
@@ -181,27 +181,27 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
     );
 }
 
-/// oneinit install <package[@version]> — 安装指定工具
+/// oneinit install <package[@version]> — Install a tool
 ///
-/// 支持版本语法：
-///   oneinit install python          # 安装默认/最新版
-///   oneinit install python@3.11.9   # 安装精确版本
-///   oneinit install node@latest     # 安装最新版
+/// supports version syntax:
+///   oneinit install python          # install default/latest
+///   oneinit install python@3.11.9   # install specific version
+///   oneinit install node@latest     # install latest
 pub async fn run_install(formatter: &OutputFormatter, package: &str) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
     }
 
-    // 解析 name@version 语法
+    // parse name@version syntax
     let (name, version_spec) = parse_package_spec(package);
 
-    // 递归安装（处理依赖）
+    // recursive install (handle dependencies)
     install_recursive(&name, version_spec.as_deref(), formatter, &mut Vec::new()).await;
 }
 
-/// 解析 name@version 语法
-/// 返回 (name, Option<version>)
+/// parse name@version syntax
+/// returns (name, Option<version>)
 /// "python@3.11.9" -> ("python", Some("3.11.9"))
 /// "python@latest" -> ("python", Some("latest"))
 /// "python" -> ("python", None)
@@ -215,10 +215,10 @@ fn parse_package_spec(spec: &str) -> (String, Option<String>) {
     }
 }
 
-/// 递归安装（处理依赖）
+/// recursive install (handle dependencies)
 ///
-/// installing_stack 防止循环依赖。
-/// 使用 BoxFuture 支持 async 递归。
+/// installing_stack prevents circular dependencies.
+/// uses BoxFuture for async recursion.
 fn install_recursive<'a>(
     name: &'a str,
     version_spec: Option<&'a str>,
@@ -229,14 +229,14 @@ fn install_recursive<'a>(
         // 防止循环依赖
         if installing_stack.iter().any(|n| n == name) {
             formatter.output(
-                &format!("[WARN] 跳过循环依赖: {}", name),
+                &format!("[WARN] Skipping circular dependency: {}", name),
                 Some(serde_json::Value::Null),
             );
             return;
         }
         installing_stack.push(name.to_string());
 
-        // 检查是否已安装
+        // check if already installed
         if let Ok(manifest) = Manifest::open()
             && let Ok(Some(record)) = manifest.get(name)
         {
@@ -255,7 +255,7 @@ fn install_recursive<'a>(
             return;
         }
 
-        // 查找配方（内置 -> 本地社区 -> 远程），同时获取依赖信息
+        // find recipe（内置 -> 本地社区 -> 远程），同时获取依赖信息
         let recipe_info = resolve_recipe_with_deps(name, version_spec, formatter).await;
 
         match recipe_info {
@@ -273,7 +273,7 @@ fn install_recursive<'a>(
             }
             RecipeResolution::NotFound(hint) => {
                 formatter.output(
-                    &format!("[ERROR] 未找到 '{}' 的安装配方。{}", name, hint),
+                    &format!("[ERROR] Not found: '{}'  recipe.{}", name, hint),
                     Some(serde_json::json!({
                         "status": "error", "action": "install",
                         "package": name, "message": "Recipe not found",
@@ -286,27 +286,27 @@ fn install_recursive<'a>(
     })
 }
 
-/// 配方解析结果
+/// Recipe resolution result
 enum RecipeResolution {
     Builtin(crate::core::recipe::Recipe),
     Community(Box<crate::core::community_recipe::CommunityRecipe>),
     NotFound(String),
 }
 
-/// 三层查找配方（内置 -> 本地 -> 远程），返回配方和依赖信息
+/// 3-tier recipe lookup (builtin -> local -> remote)
 async fn resolve_recipe_with_deps(
     name: &str,
     version_spec: Option<&str>,
     formatter: &OutputFormatter,
 ) -> RecipeResolution {
-    // 1. 内置配方（@latest 或无版本时尝试）
+    // 1. 内置recipe（@latest 或无版本时尝试）
     if (version_spec.is_none() || version_spec == Some("latest"))
         && let Some(rec) = resolve(name)
     {
         return RecipeResolution::Builtin(rec);
     }
 
-    // 2. 本地社区配方
+    // 2. 本地社区recipe
     if let Some(rec) = community_recipe::resolve(name) {
         // 如果指定了版本且不匹配，跳过
         if let Some(ver) = version_spec {
@@ -329,7 +329,10 @@ async fn resolve_recipe_with_deps(
                     v.to_string()
                 } else {
                     formatter.output(
-                        &format!("[WARN] 版本 {} 不可用，可用: {:?}", v, entry.versions),
+                        &format!(
+                            "[WARN] Version {} not available. Available: {:?}",
+                            v, entry.versions
+                        ),
                         Some(serde_json::Value::Null),
                     );
                     entry.latest.clone()
@@ -338,7 +341,7 @@ async fn resolve_recipe_with_deps(
         };
 
         formatter.output(
-            &format!("[REMOTE] 获取 {} v{}...", name, target_version),
+            &format!("[REMOTE] Fetching {} v{}...", name, target_version),
             Some(serde_json::json!({
                 "status": "fetching", "source": "remote",
                 "package": name, "version": target_version,
@@ -349,7 +352,7 @@ async fn resolve_recipe_with_deps(
             Ok(recipe) => return RecipeResolution::Community(Box::new(recipe)),
             Err(e) => {
                 formatter.output(
-                    &format!("[ERROR] 远程获取失败: {}", e),
+                    &format!("[ERROR] Remote fetch failed: {}", e),
                     Some(serde_json::Value::Null),
                 );
             }
@@ -358,14 +361,14 @@ async fn resolve_recipe_with_deps(
 
     // 未找到
     let hint = if registry::load_cached_index().is_none() {
-        " 提示: 运行 'oneinit update' 获取远程配方索引。".to_string()
+        " Hint: run 'oneinit update' to fetch remote recipe index.".to_string()
     } else {
         String::new()
     };
     RecipeResolution::NotFound(hint)
 }
 
-/// 递归安装配方的依赖
+/// recursively install recipe dependencies
 async fn install_dependencies(
     recipe: &crate::core::community_recipe::CommunityRecipe,
     formatter: &OutputFormatter,
@@ -376,7 +379,7 @@ async fn install_dependencies(
             return;
         }
         formatter.output(
-            &format!("[DEPS] 检查依赖: {:?}", deps),
+            &format!("[DEPS] Checking dependencies: {:?}", deps),
             Some(serde_json::Value::Null),
         );
         for dep in deps {
@@ -385,16 +388,16 @@ async fn install_dependencies(
     }
 }
 
-/// oneinit uninstall <package> -- 卸载指定工具
+/// oneinit uninstall <package> — uninstall a tool
 pub async fn run_uninstall(formatter: &OutputFormatter, package: &str) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
     }
 
-    // 先尝试内置配方卸载
+    // trying builtin recipe uninstall first
     if recipe::uninstall(package, formatter).await.is_err() {
-        // 内置卸载失败，尝试社区配方卸载
+        // builtin uninstall failed, trying community recipe
         use crate::core::community_recipe;
         if let Err(e2) = community_recipe::uninstall(package, formatter).await {
             formatter.error(&e2);
@@ -402,7 +405,7 @@ pub async fn run_uninstall(formatter: &OutputFormatter, package: &str) {
     }
 }
 
-/// oneinit list — 列出已安装的工具
+/// oneinit list — list installed tools
 pub async fn run_list(formatter: &OutputFormatter) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
@@ -417,10 +420,11 @@ pub async fn run_list(formatter: &OutputFormatter) {
                 let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();
                 formatter.output(
                     &if names.is_empty() {
-                        "📋 尚未安装任何工具。使用 oneinit install <package> 开始。".to_string()
+                        "No tools installed yet. Use oneinit install <package> to start."
+                            .to_string()
                     } else {
                         format!(
-                            "📋 已安装 {} 个工具:\n{}",
+                            "Installed {} 个工具:\n{}",
                             names.len(),
                             names
                                 .iter()
@@ -447,9 +451,9 @@ pub async fn run_list(formatter: &OutputFormatter) {
     }
 }
 
-/// oneinit search <keyword> -- 搜索可用工具
+/// oneinit search <keyword> — search available tools
 pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
-    // 内置配方
+    // 内置recipe
     let builtin: Vec<serde_json::Value> = recipe::list_recipes()
         .iter()
         .filter(|r| {
@@ -467,7 +471,7 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
         })
         .collect();
 
-    // 社区配方
+    // 社区recipe
     let community: Vec<serde_json::Value> = crate::core::community_recipe::load_all()
         .iter()
         .filter(|r| {
@@ -485,7 +489,7 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
         })
         .collect();
 
-    // 远程配方（从缓存 INDEX）
+    // 远程recipe（从缓存 INDEX）
     let remote: Vec<serde_json::Value> = crate::core::registry::list_available()
         .iter()
         .filter(|(name, _, desc)| {
@@ -508,11 +512,11 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
     let mut human = String::new();
     if total == 0 {
         human.push_str(&match keyword {
-            Some(kw) => format!("[SEARCH] 未找到与 '{}' 相关的工具。", kw),
-            None => "[SEARCH] 暂无可用工具。".to_string(),
+            Some(kw) => format!("[SEARCH] No tools matching '{}' ", kw),
+            None => "[SEARCH] No tools available.".to_string(),
         });
     } else {
-        human.push_str(&format!("[SEARCH] 找到 {} 个可用工具:\n", total));
+        human.push_str(&format!("[SEARCH] Found {}  available tools:\n", total));
         for r in &builtin {
             human.push_str(&format!("  - {} v{} [builtin]\n", r["name"], r["version"]));
         }
@@ -543,7 +547,7 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
     );
 }
 
-/// oneinit sync — 从 oneinit.yaml 同步环境
+/// oneinit sync — sync environment from oneinit.yaml
 pub async fn run_sync(formatter: &OutputFormatter) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
@@ -554,7 +558,7 @@ pub async fn run_sync(formatter: &OutputFormatter) {
     let yaml_path = std::path::PathBuf::from("oneinit.yaml");
     if !yaml_path.exists() {
         formatter.output(
-            "[ERROR] 当前目录未找到 oneinit.yaml 文件。",
+            "[ERROR] oneinit.yaml not found in current directory.",
             Some(serde_json::json!({
                 "status": "error",
                 "action": "sync",
@@ -575,7 +579,7 @@ pub async fn run_sync(formatter: &OutputFormatter) {
 
     formatter.output(
         &format!(
-            "📦 读取 oneinit.yaml: {} 个工具, {} 个镜像, {} 条后置命令",
+            " 读取 oneinit.yaml: {} 个工具, {} 个镜像, {} 条后置命令",
             config.envs.len(),
             config.mirrors.as_ref().map_or(0, |m| m.len()),
             config.post_install.as_ref().map_or(0, |c| c.len()),
@@ -596,19 +600,19 @@ pub async fn run_sync(formatter: &OutputFormatter) {
     // 4. 应用镜像配置（记录日志，未来扩展覆盖默认镜像）
     if let Some(ref mirrors) = config.mirrors {
         formatter.output(
-            &format!("[CONF] 镜像配置: {:?}", mirrors),
+            &format!("[CONF] Mirror config: {:?}", mirrors),
             Some(serde_json::json!({
                 "mirrors_applied": mirrors,
             })),
         );
     }
 
-    // 5. 执行 post_install 命令
+    // 5. execute post_install 命令
     if let Some(ref commands) = config.post_install
         && !commands.is_empty()
     {
         formatter.output(
-            "[RUN] 开始执行安装后命令...",
+            "[RUN] Running post-install commands...",
             Some(serde_json::json!({
                 "phase": "post_install",
                 "command_count": commands.len(),
@@ -622,7 +626,7 @@ pub async fn run_sync(formatter: &OutputFormatter) {
 
     // 6. 同步完成
     formatter.output(
-        "[SUCCESS] 环境同步完成!",
+        "[SUCCESS] Environment synchronized!",
         Some(serde_json::json!({
             "status": "complete",
             "action": "sync",
@@ -631,14 +635,14 @@ pub async fn run_sync(formatter: &OutputFormatter) {
     );
 }
 
-/// oneinit verify <file> -- 验证社区配方文件
+/// oneinit verify <file> -- Validate community recipe YAML
 pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
     use crate::core::community_recipe;
 
     let path = std::path::PathBuf::from(file);
     if !path.exists() {
         formatter.output(
-            &format!("[ERROR] 文件不存在: {}", file),
+            &format!("[ERROR] File not found: {}", file),
             Some(serde_json::json!({
                 "status": "error",
                 "action": "verify",
@@ -674,7 +678,7 @@ pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
 
             formatter.output(
                 &format!(
-                    "\n[{}] 验证完成: {}/{} 项通过",
+                    "\n[{}] Verification complete: {}/{} 项通过",
                     if result.valid { "OK" } else { "FAIL" },
                     passed,
                     total
@@ -695,7 +699,7 @@ pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
     }
 }
 
-/// oneinit capture [--output <file>] -- 捕获当前开发环境
+/// oneinit capture [--output <file>] — capture current dev environment
 pub async fn run_capture(formatter: &OutputFormatter, output: &str) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
@@ -707,7 +711,7 @@ pub async fn run_capture(formatter: &OutputFormatter, output: &str) {
     }
 }
 
-/// oneinit export [--output <file>] [--include-envs] -- 导出环境为 tar.gz
+/// oneinit export [--output <file>] [--include-envs] -- export environment as tar.gz
 pub async fn run_export(formatter: &OutputFormatter, output: &str, include_envs: bool) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
@@ -719,7 +723,7 @@ pub async fn run_export(formatter: &OutputFormatter, output: &str, include_envs:
     }
 }
 
-/// oneinit import <file> [--dry-run] [--force] -- 从 tar.gz 导入环境
+/// oneinit import <file> [--dry-run] [--force] — import environment from tar.gz
 pub async fn run_import(formatter: &OutputFormatter, file: &str, dry_run: bool, force: bool) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
@@ -734,7 +738,7 @@ pub async fn run_import(formatter: &OutputFormatter, file: &str, dry_run: bool, 
     }
 }
 
-/// oneinit update -- 更新远程配方索引
+/// oneinit update — update remote recipe index
 pub async fn run_update(formatter: &OutputFormatter) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
@@ -745,7 +749,10 @@ pub async fn run_update(formatter: &OutputFormatter) {
 
     let config = registry::load_config();
     formatter.output(
-        &format!("[UPDATE] 正在从 {} 获取配方索引...", config.registry_url),
+        &format!(
+            "[UPDATE] Fetching recipe index from {}...",
+            config.registry_url
+        ),
         Some(serde_json::json!({
             "status": "fetching",
             "action": "update",
@@ -758,7 +765,7 @@ pub async fn run_update(formatter: &OutputFormatter) {
             let count = index.packages.len();
             formatter.output(
                 &format!(
-                    "[OK] 索引更新完成: {} 个可用包 (更新于 {})",
+                    "[OK] Index updated: {} packages available (updated {})",
                     count, index.last_updated
                 ),
                 Some(serde_json::json!({
@@ -772,7 +779,7 @@ pub async fn run_update(formatter: &OutputFormatter) {
         }
         Err(e) => {
             formatter.output(
-                &format!("[ERROR] 索引更新失败: {}", e),
+                &format!("[ERROR] Index update failed: {}", e),
                 Some(serde_json::json!({
                     "status": "error",
                     "action": "update",
@@ -784,7 +791,7 @@ pub async fn run_update(formatter: &OutputFormatter) {
     }
 }
 
-/// oneinit publish <file> -- 发布配方到远程仓库
+/// oneinit publish <file> — publish recipe to remote registry
 pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
     use crate::core::community_recipe;
     use crate::core::registry;
@@ -792,7 +799,7 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
     let path = std::path::PathBuf::from(file);
     if !path.exists() {
         formatter.output(
-            &format!("[ERROR] 文件不存在: {}", file),
+            &format!("[ERROR] File not found: {}", file),
             Some(serde_json::json!({
                 "status": "error", "action": "publish", "file": file,
                 "message": "File not found"
@@ -801,8 +808,11 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
         return;
     }
 
-    // 1. 验证配方
-    formatter.output("[PUBLISH] 正在验证配方...", Some(serde_json::Value::Null));
+    // 1. 验证recipe
+    formatter.output(
+        "[PUBLISH] Validating recipe...",
+        Some(serde_json::Value::Null),
+    );
     let verify_result = match community_recipe::verify(&path) {
         Ok(r) => r,
         Err(e) => {
@@ -812,7 +822,7 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
     };
     if !verify_result.valid {
         formatter.output(
-            "[ERROR] 配方验证未通过",
+            "[ERROR] Recipe validation failed.",
             Some(serde_json::json!({
                 "status": "error", "action": "publish", "message": "Validation failed"
             })),
@@ -820,7 +830,7 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
         return;
     }
 
-    // 2. 解析配方
+    // 2. 解析recipe
     let content = match std::fs::read_to_string(&path) {
         Ok(c) => c,
         Err(e) => {
@@ -832,7 +842,7 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
         Ok(r) => r,
         Err(e) => {
             formatter.output(
-                &format!("[ERROR] YAML 解析失败: {}", e),
+                &format!("[ERROR] YAML parse failed: {}", e),
                 Some(serde_json::Value::Null),
             );
             return;
@@ -842,11 +852,11 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
     // 3. 安全提醒
     formatter.output("", Some(serde_json::Value::Null));
     formatter.output(
-        "========== [SECURITY] 发布确认 ==========",
+        "========== [SECURITY] PUBLISH CONFIRMATION ==========",
         Some(serde_json::Value::Null),
     );
     formatter.output(
-        &format!("[SECURITY] 配方名称: {} v{}", recipe.name, recipe.version),
+        &format!("[SECURITY] Recipe: {} v{}", recipe.name, recipe.version),
         Some(serde_json::Value::Null),
     );
 
@@ -861,7 +871,7 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
 
     // 4. 生成发布步骤
     formatter.output("", Some(serde_json::Value::Null));
-    formatter.output("[INFO] 完成发布的步骤:", Some(serde_json::Value::Null));
+    formatter.output("[INFO] Publish steps:", Some(serde_json::Value::Null));
     formatter.output(
         "  1. git clone https://github.com/BG4JTS/oneinit-recipes.git",
         Some(serde_json::Value::Null),
@@ -874,15 +884,15 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
         &format!("  3. cp {} {}/{}", file, recipe_dir, recipe_filename),
         Some(serde_json::Value::Null),
     );
-    formatter.output("  4. 更新 INDEX.json", Some(serde_json::Value::Null));
+    formatter.output("  4. Update INDEX.json", Some(serde_json::Value::Null));
     formatter.output(
         "  5. git add . && git commit && git push",
         Some(serde_json::Value::Null),
     );
-    formatter.output("  6. 创建 Pull Request", Some(serde_json::Value::Null));
+    formatter.output("  6. Create Pull Request", Some(serde_json::Value::Null));
 
     formatter.output(
-        &format!("\n[PUBLISH] {} v{} 已准备就绪", recipe.name, recipe.version),
+        &format!("\n[PUBLISH] {} v{} is ready", recipe.name, recipe.version),
         Some(serde_json::json!({
             "status": "ready", "action": "publish",
             "recipe_name": recipe.name, "recipe_version": recipe.version,
@@ -892,7 +902,7 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
     );
 }
 
-/// oneinit doctor -- 环境健康检查
+/// oneinit doctor — environment health check
 pub async fn run_doctor(formatter: &OutputFormatter) {
     use crate::core::manifest::Manifest;
     use std::path::Path;
@@ -913,19 +923,19 @@ pub async fn run_doctor(formatter: &OutputFormatter) {
         if ok {
             data_dir.display().to_string()
         } else {
-            "不存在".to_string()
+            "不exists".to_string()
         },
     ));
 
-    // 2. SQLite manifest 可读
+    // 2. SQLite manifest readable
     let manifest_ok = Manifest::open().is_ok();
     checks.push((
         "manifest_db".to_string(),
         manifest_ok,
         if manifest_ok {
-            "可读".to_string()
+            "readable".to_string()
         } else {
-            "无法打开".to_string()
+            "cannot open".to_string()
         },
     ));
 
@@ -949,10 +959,10 @@ pub async fn run_doctor(formatter: &OutputFormatter) {
         }
         let ok = orphan_paths == 0 && orphan_path_entries == 0;
         let detail = if ok {
-            format!("{} 个记录全部一致", records.len())
+            format!("{} records all consistent", records.len())
         } else {
             format!(
-                "{} 个安装目录缺失, {} 个 PATH 条目指向不存在的路径",
+                "{} install directories missing, {} PATH entries point to non-existent paths",
                 orphan_paths, orphan_path_entries
             )
         };
@@ -966,9 +976,9 @@ pub async fn run_doctor(formatter: &OutputFormatter) {
         "path_entries".to_string(),
         true, // 信息性检查，不算错误
         if has_oneinit {
-            "PATH 中包含 oneinit 管理的条目".to_string()
+            "PATH contains oneinit-managed entries".to_string()
         } else {
-            "PATH 中无 oneinit 条目（正常，如果未安装工具）".to_string()
+            "No oneinit entries in PATH (normal if no tools installed)".to_string()
         },
     ));
 
@@ -985,9 +995,9 @@ pub async fn run_doctor(formatter: &OutputFormatter) {
     let cache_index = crate::core::registry::load_cached_index();
     let index_ok = cache_index.is_some();
     let index_detail = if index_ok {
-        format!("已缓存 ({} 个包)", cache_index.unwrap().packages.len())
+        format!("cached ({} packages)", cache_index.unwrap().packages.len())
     } else {
-        "未缓存（运行 oneinit update 获取）".to_string()
+        "not cached (run oneinit update to fetch)".to_string()
     };
     checks.push(("registry_cache".to_string(), true, index_detail));
 
@@ -1028,7 +1038,7 @@ pub async fn run_doctor(formatter: &OutputFormatter) {
     );
 }
 
-/// oneinit freeze [-o file] -- 从 manifest 导出已安装工具为 oneinit.yaml
+/// oneinit freeze [-o file] — export installed tools as oneinit.yaml
 pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
     use crate::core::manifest::Manifest;
     use std::collections::BTreeMap;
@@ -1056,7 +1066,7 @@ pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
 
     if records.is_empty() {
         formatter.output(
-            "[INFO] 尚未安装任何工具，无可导出内容",
+            "[INFO] No tools installed, nothing to export.",
             Some(serde_json::json!({
                 "status": "empty", "action": "freeze", "count": 0,
             })),
@@ -1075,8 +1085,8 @@ pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
 
     // 生成 YAML
     let mut yaml = String::new();
-    yaml.push_str("# 由 oneinit freeze 生成\n");
-    yaml.push_str("# 在新机器上运行 oneinit sync 即可恢复\n\n");
+    yaml.push_str("# Generated by oneinit freeze\n");
+    yaml.push_str("# Run oneinit sync on new machine to restore\n\n");
 
     yaml.push_str("envs:\n");
     for (tool, version) in &envs {
@@ -1086,14 +1096,14 @@ pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
     // 写入文件
     std::fs::write(output, &yaml).unwrap_or_else(|e| {
         formatter.output(
-            &format!("[ERROR] 写入失败: {}", e),
+            &format!("[ERROR] write failed: {}", e),
             Some(serde_json::Value::Null),
         );
     });
 
     formatter.output(
         &format!(
-            "[OK] 已导出 {} 个工具到 {}（在新机器上运行 oneinit sync 恢复）",
+            "[OK] Exported {} tools to {} (run oneinit sync on new machine to restore)",
             records.len(),
             output
         ),
@@ -1105,7 +1115,7 @@ pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
     );
 }
 
-/// 从包名提取工具类型名
+/// extract tool type from package name
 /// python3.11 -> python, node20 -> node, rust-stable -> rust
 fn extract_tool_name(name: &str) -> String {
     // 找到第一个数字的位置
@@ -1115,7 +1125,7 @@ fn extract_tool_name(name: &str) -> String {
     name[..pos].trim_end_matches('-').to_string()
 }
 
-/// oneinit skill install [--target <agent>] -- 安装 AI Skill
+/// oneinit skill install [--target <agent>] -- install AI Skill
 pub async fn run_skill_install(formatter: &OutputFormatter, target: &str) {
     if target == "all" {
         crate::skill_mgr::install_all(formatter);

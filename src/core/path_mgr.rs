@@ -15,7 +15,7 @@ pub fn add(directory: &Path) -> Result<()> {
     // 检查是否已在 PATH 中
     let parts: Vec<&str> = split_path(&current);
     if parts.iter().any(|p| paths_equal(p, &dir_str)) {
-        return Ok(()); // 已存在，跳过
+        return Ok(()); // 已exists，跳过
     }
 
     let new_path = if current.ends_with(';') || current.ends_with(':') {
@@ -101,10 +101,10 @@ fn set_path_windows(new_path: &str) -> Result<()> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let env = hkcu
         .open_subkey_with_flags("Environment", KEY_WRITE)
-        .map_err(|e| CoreError::PathOp(format!("无法打开注册表: {}", e)))?;
+        .map_err(|e| CoreError::PathOp(format!("cannot open registry: {}", e)))?;
 
     env.set_value("PATH", &new_path)
-        .map_err(|e| CoreError::PathOp(format!("无法写入 PATH 注册表: {}", e)))?;
+        .map_err(|e| CoreError::PathOp(format!("cannot write PATH registry: {}", e)))?;
 
     // 广播 WM_SETTINGCHANGE 通知其他进程
     broadcast_setting_change();
@@ -139,8 +139,8 @@ fn broadcast_setting_change() {
 /// Unix: 写入 shell 配置文件
 #[cfg(not(target_os = "windows"))]
 fn set_path_unix(new_path: &str) -> Result<()> {
-    let home =
-        dirs::home_dir().ok_or_else(|| CoreError::PathOp("无法获取用户主目录".to_string()))?;
+    let home = dirs::home_dir()
+        .ok_or_else(|| CoreError::PathOp("Cannot determine home directory".to_string()))?;
 
     // 检测可用的 shell 并写入对应配置文件
     let mut written = false;

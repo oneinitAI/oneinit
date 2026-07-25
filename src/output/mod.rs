@@ -72,7 +72,7 @@ impl OutputFormatter {
                 .unwrap_or_default()
             );
         } else {
-            eprintln!("[ERROR] 错误: {}", err);
+            eprintln!("[ERROR] {}", err);
         }
     }
 }

@@ -52,7 +52,7 @@ pub fn export(
 
     let env_count = snapshot.envs.len();
     formatter.output(
-        &format!("[EXPORT] 检测到 {} 个环境", env_count),
+        &format!("[EXPORT] {} environments detected", env_count),
         Some(serde_json::Value::Null),
     );
 
@@ -65,7 +65,7 @@ pub fn export(
     std::fs::create_dir_all(&recipe_dir)?;
     let recipe_path = recipe_dir.join("oneinit.yaml");
     let yaml = serde_yaml::to_string(&snapshot)
-        .map_err(|e| CoreError::Migration(format!("YAML 序列化失败: {}", e)))?;
+        .map_err(|e| CoreError::Migration(format!("YAML serialize failed: {}", e)))?;
     std::fs::write(&recipe_path, &yaml)?;
 
     // 4. 可选：打包 envs/ 目录
@@ -85,7 +85,7 @@ pub fn export(
                 &mut total_size,
             )?;
             formatter.output(
-                &format!("[EXPORT] 打包 {} 个缓存文件", cache_files.len()),
+                &format!("[EXPORT] packing {} cache files", cache_files.len()),
                 Some(serde_json::Value::Null),
             );
         }
@@ -129,7 +129,7 @@ pub fn export(
     };
 
     let manifest_json = serde_json::to_string_pretty(&manifest)
-        .map_err(|e| CoreError::Migration(format!("JSON 序列化失败: {}", e)))?;
+        .map_err(|e| CoreError::Migration(format!("JSON serialize failed: {}", e)))?;
     std::fs::write(work_dir.join("manifest.json"), manifest_json)?;
 
     // 7. 打包为 tar.gz
@@ -213,7 +213,7 @@ fn create_archive(source_dir: &Path, output_path: &Path) -> Result<()> {
 
     tar_builder
         .finish()
-        .map_err(|e| CoreError::Migration(format!("tar 打包失败: {}", e)))?;
+        .map_err(|e| CoreError::Migration(format!("tar pack failed: {}", e)))?;
 
     Ok(())
 }
@@ -225,16 +225,16 @@ fn add_dir_to_tar(builder: &mut Builder<GzEncoder<File>>, dir: &Path, base: &Pat
         let path = entry.path();
         let relative = path
             .strip_prefix(base)
-            .map_err(|e| CoreError::Migration(format!("路径解析失败: {}", e)))?;
+            .map_err(|e| CoreError::Migration(format!("path resolve failed: {}", e)))?;
 
         if path.is_dir() {
             builder
                 .append_dir_all(relative, &path)
-                .map_err(|e| CoreError::Migration(format!("tar 添加目录失败: {}", e)))?;
+                .map_err(|e| CoreError::Migration(format!("tar add dir failed: {}", e)))?;
         } else {
             builder
                 .append_path_with_name(&path, relative)
-                .map_err(|e| CoreError::Migration(format!("tar 添加文件失败: {}", e)))?;
+                .map_err(|e| CoreError::Migration(format!("tar add file failed: {}", e)))?;
         }
     }
 

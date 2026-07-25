@@ -81,7 +81,7 @@ async fn event_loop(tx: UnboundedSender<AppEvent>) {
     }
 }
 
-/// 处理单个 crossterm 事件
+/// handle single crossterm event
 fn handle_crossterm_event(
     event: CrosstermEvent,
     tx: &UnboundedSender<AppEvent>,
@@ -89,9 +89,9 @@ fn handle_crossterm_event(
 ) {
     match event {
         CrosstermEvent::Key(key) => {
-            // Windows 控制台发送 Press+Release 成对事件。
-            // 只处理 Press（保留 Repeat 用于长按），丢弃 Release。
-            // 某些终端首次按下只发 Release，因此对 Release 也做去重而非直接丢弃。
+            // Windows console sends Press+Release pairs。
+            // only handle Press（keep Repeat for long press），discard Release。
+            // some terminals send Release first，因此对 Release 也做去重而非直接丢弃。
             match key.kind {
                 KeyEventKind::Press | KeyEventKind::Repeat => {}
                 KeyEventKind::Release => {
@@ -129,7 +129,7 @@ fn is_repeated(last_key: &mut Option<(KeyCode, Instant)>, code: KeyCode) -> bool
     is_dup
 }
 
-/// 记录按键时间（不判断是否重复）
+/// record key time without duplicate check
 fn record_key(last_key: &mut Option<(KeyCode, Instant)>, code: KeyCode) {
     *last_key = Some((code, Instant::now()));
 }

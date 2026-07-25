@@ -1,9 +1,9 @@
-// 社区配方注册表 — npm 式远程仓库
+// 社区recipe注册表 — npm 式远程仓库
 //
 // 架构：
 //   远程 GitHub 仓库 (oneinit-recipes) 存放 INDEX.json + recipes/<name>/<ver>.yaml
 //   raw.githubusercontent.com 作为 CDN
-//   本地 ~/.oneinit/cache/ 缓存 INDEX.json 和已下载的配方
+//   本地 ~/.oneinit/cache/ 缓存 INDEX.json 和已download的recipe
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -20,7 +20,7 @@ const DEFAULT_REGISTRY_URL: &str = "https://raw.githubusercontent.com/BG4JTS/one
 // 数据结构
 // ============================================================
 
-/// INDEX.json — 全局配方索引
+/// INDEX.json — 全局recipe索引
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Index {
     /// 索引格式版本
@@ -74,7 +74,7 @@ fn config_path() -> PathBuf {
     data_dir().join("registry.json")
 }
 
-/// 读取本地注册表配置（不存在则返回默认值）
+/// 读取本地注册表配置（不exists则返回默认值）
 pub fn load_config() -> RegistryConfig {
     let path = config_path();
     if let Ok(content) = std::fs::read_to_string(&path) {
@@ -91,7 +91,7 @@ pub fn save_config(config: &RegistryConfig) -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
     let json = serde_json::to_string_pretty(config)
-        .map_err(|e| CoreError::Registry(format!("序列化配置失败: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("config serialize failed: {}", e)))?;
     std::fs::write(&path, json)?;
     Ok(())
 }
@@ -105,14 +105,14 @@ fn cached_index_path() -> PathBuf {
     cache_dir().join("INDEX.json")
 }
 
-/// 读取本地缓存的 INDEX（不存在返回 None）
+/// 读取本地缓存的 INDEX（不exists返回 None）
 pub fn load_cached_index() -> Option<Index> {
     let path = cached_index_path();
     let content = std::fs::read_to_string(&path).ok()?;
     serde_json::from_str(&content).ok()
 }
 
-/// 从远程下载 INDEX.json 并缓存
+/// 从远程download INDEX.json 并缓存
 pub async fn fetch_index() -> Result<Index> {
     let config = load_config();
     let url = format!("{}/INDEX.json", config.registry_url);
@@ -120,17 +120,17 @@ pub async fn fetch_index() -> Result<Index> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
-        .map_err(|e| CoreError::Registry(format!("HTTP 客户端创建失败: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("HTTP client creation failed: {}", e)))?;
 
     let response = client
         .get(&url)
         .send()
         .await
-        .map_err(|e| CoreError::Registry(format!("获取 INDEX.json 失败: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("fetch INDEX.json failed: {}", e)))?;
 
     if !response.status().is_success() {
         return Err(CoreError::Registry(format!(
-            "INDEX.json HTTP {} — 仓库可能不存在或为空。先用 oneinit publish 添加配方。",
+            "INDEX.json HTTP {} — 仓库可能不exists或empty。先用 oneinit publish 添加recipe。",
             response.status()
         )));
     }
@@ -138,10 +138,10 @@ pub async fn fetch_index() -> Result<Index> {
     let body = response
         .text()
         .await
-        .map_err(|e| CoreError::Registry(format!("读取 INDEX.json 响应失败: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("read INDEX.json response failed: {}", e)))?;
 
     let index: Index = serde_json::from_str(&body)
-        .map_err(|e| CoreError::Registry(format!("INDEX.json 解析失败: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("INDEX.json parse failed: {}", e)))?;
 
     // 写入缓存
     let cache_path = cached_index_path();
@@ -159,10 +159,10 @@ pub async fn fetch_index() -> Result<Index> {
 }
 
 // ============================================================
-// 配方下载
+// recipedownload
 // ============================================================
 
-/// 从远程下载单个配方 YAML
+/// 从远程download单个recipe YAML
 ///
 /// 路径: {registry_url}/recipes/{name}/{version}.yaml
 pub async fn fetch_recipe(
@@ -175,17 +175,17 @@ pub async fn fetch_recipe(
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
-        .map_err(|e| CoreError::Registry(format!("HTTP 客户端创建失败: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("HTTP client creation failed: {}", e)))?;
 
     let response = client
         .get(&url)
         .send()
         .await
-        .map_err(|e| CoreError::Registry(format!("获取配方失败: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("fetch recipe failed: {}", e)))?;
 
     if !response.status().is_success() {
         return Err(CoreError::Registry(format!(
-            "配方 {}={} HTTP {}",
+            "recipe {}={} HTTP {}",
             name,
             version,
             response.status()
@@ -195,14 +195,14 @@ pub async fn fetch_recipe(
     let body = response
         .text()
         .await
-        .map_err(|e| CoreError::Registry(format!("读取配方响应失败: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("read recipe response failed: {}", e)))?;
 
     // 缓存到本地 recipes/
     let cache_recipe_path = super::recipes_dir().join(format!("{}.yaml", name));
     let _ = std::fs::write(&cache_recipe_path, &body);
 
     let recipe: super::community_recipe::CommunityRecipe = serde_yaml::from_str(&body)
-        .map_err(|e| CoreError::Registry(format!("配方 YAML 解析失败: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("recipe YAML parse failed: {}", e)))?;
 
     Ok(recipe)
 }
@@ -256,7 +256,7 @@ pub fn is_index_stale(max_age_hours: u64) -> bool {
 // INDEX 生成（用于 publish）
 // ============================================================
 
-/// 从配方列表生成 INDEX.json
+/// 从recipe列表生成 INDEX.json
 pub fn generate_index(recipes: &[super::community_recipe::CommunityRecipe]) -> Index {
     let mut packages = BTreeMap::new();
 
@@ -276,7 +276,7 @@ pub fn generate_index(recipes: &[super::community_recipe::CommunityRecipe]) -> I
             entry.versions.push(recipe.version.clone());
         }
 
-        // 更新 latest（简单字符串比较，取最大）
+        // 更新 latest（简单 chars串比较，取最大）
         if recipe.version > entry.latest {
             entry.latest = recipe.version.clone();
         }

@@ -1,6 +1,6 @@
 // 迁移清单结构 — 写入 tar.gz 根目录的 manifest.json
 //
-// 记录导出包的元信息、包含的文件列表、SHA256 校验值。
+// 记录导出包的元信息、包含的文件列表、SHA256 verify值。
 
 use std::collections::BTreeMap;
 
@@ -19,7 +19,7 @@ pub struct MigrationManifest {
     /// 全局包列表（按包管理器分组）
     #[serde(default)]
     pub global_packages: Vec<PackageListEntry>,
-    /// 文件路径 -> SHA256 校验值
+    /// 文件路径 -> SHA256 verify值
     #[serde(default)]
     pub checksums: BTreeMap<String, String>,
 }
@@ -54,7 +54,7 @@ pub struct CacheEntry {
     pub filename: String,
     /// 文件大小（字节）
     pub size: u64,
-    /// SHA256 校验值
+    /// SHA256 verify值
     pub sha256: String,
 }
 

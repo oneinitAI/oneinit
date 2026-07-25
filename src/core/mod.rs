@@ -14,12 +14,12 @@ use std::path::PathBuf;
 
 /// 获取 OneInit 数据根目录 ~/.oneinit/
 ///
-/// 如果无法获取用户主目录（$HOME 未设置），返回当前目录下的 .oneinit 作为回退。
+/// 如果Cannot determine home directory（$HOME 未设置），返回当前目录下的 .oneinit 作为回退。
 #[allow(dead_code)]
 pub fn data_dir() -> PathBuf {
     let home = dirs::home_dir().unwrap_or_else(|| {
         // 回退：使用当前工作目录
-        eprintln!("[WARN] 无法获取用户主目录，使用当前目录作为回退");
+        eprintln!("[WARN] Cannot determine home directory，falling back to current dir");
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
     });
     home.join(".oneinit")
@@ -37,13 +37,13 @@ pub fn db_dir() -> PathBuf {
     data_dir().join("db")
 }
 
-/// 获取临时下载目录 ~/.oneinit/temp/
+/// 获取临时download目录 ~/.oneinit/temp/
 #[allow(dead_code)]
 pub fn temp_dir() -> PathBuf {
     data_dir().join("temp")
 }
 
-/// 获取社区配方目录 ~/.oneinit/recipes/
+/// 获取社区recipe目录 ~/.oneinit/recipes/
 #[allow(dead_code)]
 pub fn recipes_dir() -> PathBuf {
     data_dir().join("recipes")
@@ -55,7 +55,7 @@ pub fn cache_dir() -> PathBuf {
     data_dir().join("cache")
 }
 
-/// 确保所有必要目录存在
+/// 确保所有必要目录exists
 #[allow(dead_code)]
 pub fn ensure_dirs() -> Result<()> {
     std::fs::create_dir_all(envs_dir())?;
@@ -70,34 +70,34 @@ pub fn ensure_dirs() -> Result<()> {
 #[derive(Debug, thiserror::Error)]
 #[allow(dead_code)]
 pub enum CoreError {
-    #[error("下载失败: {0}")]
+    #[error("Download error: {0}")]
     Download(String),
 
-    #[error("校验失败: 文件 {file} 的 SHA256 不匹配 (期望: {expected})")]
+    #[error("Checksum error: file {file}  SHA256 mismatch (expected: {expected})")]
     Checksum { file: String, expected: String },
 
-    #[error("解压失败: {0}")]
+    #[error("Extract error: {0}")]
     Extract(String),
 
-    #[error("数据库错误: {0}")]
+    #[error("Database error: {0}")]
     Database(String),
 
-    #[error("PATH 操作失败: {0}")]
+    #[error("PATH operation error: {0}")]
     PathOp(String),
 
-    #[error("配置生成失败: {0}")]
+    #[error("Config generation error: {0}")]
     ConfigGen(String),
 
-    #[error("环境捕获失败: {0}")]
+    #[error("Capture error: {0}")]
     Capture(String),
 
-    #[error("注册表错误: {0}")]
+    #[error("Registry error: {0}")]
     Registry(String),
 
     #[error("数据迁移失败: {0}")]
     Migration(String),
 
-    #[error("IO 错误: {0}")]
+    #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
     #[error("{0}")]

@@ -1,4 +1,4 @@
-// 检测器 trait + 调度器 + 跨平台命令查找工具
+// Detector trait + scheduler + cross-platform command helpers
 //
 // find_command 采用多策略查找：where/which -> PATH 手动遍历 -> exe 扩展名补全
 
@@ -12,18 +12,18 @@ use super::{Result, RuntimeEnv};
 // 检测器 trait（同步，无 async-trait）
 // ============================================================
 
-/// 环境检测器 Trait
+/// Environment detector trait
 ///
-/// 设计决策：使用同步方法而非 async，因为 Command::output() 本身是阻塞调用，
-/// async 包装无意义且会增加复杂度（需要 async-trait crate 做 dyn dispatch）。
+/// Design: synchronous trait, Command::output() is blocking,
+/// async wrapping adds complexity unnecessarily（需要 async-trait crate 做 dyn dispatch）。
 pub trait EnvDetector: Send + Sync {
-    /// 检测目标环境是否已安装，返回 None 表示未检测到
+    /// 检测目标环境是否已安装，返回 None 表示not detected
     fn detect(&self) -> Result<Option<RuntimeEnv>>;
 
-    /// 检测器名称（用于日志和 envs map key）
+    /// detector name (for logging and envs map key)
     fn name(&self) -> &str;
 
-    /// 检测优先级（数字越小越优先，默认 50）
+    /// priority (lower = higher priority, default 50)
     fn priority(&self) -> u8 {
         50
     }
@@ -33,7 +33,7 @@ pub trait EnvDetector: Send + Sync {
 // 检测器调度器
 // ============================================================
 
-/// 检测器调度器 — 注册并运行所有检测器
+/// Detector scheduler — register and run all detectors
 pub struct DetectorScheduler {
     detectors: Vec<Box<dyn EnvDetector>>,
 }
@@ -85,7 +85,7 @@ impl DetectorScheduler {
                     results.insert(name.to_string(), None);
                 }
                 Err(_e) => {
-                    // 检测出错不中断，记录为未检测到
+                    // 检测出错不中断，记录为not detected
                     results.insert(name.to_string(), None);
                 }
             }
@@ -144,7 +144,7 @@ impl EnvDetector for CustomDetector {
         let program = parts[0];
         let args = &parts[1..];
 
-        // 先检查命令是否存在
+        // 先检查命令是否exists
         if find_command(program).is_none() {
             return Ok(None);
         }
@@ -188,7 +188,7 @@ impl EnvDetector for CustomDetector {
 
 /// 查找命令的完整路径（多策略查找）
 ///
-/// 策略1: Windows 用 `where`，Unix 用 `which`
+/// 策略1: Windows uses `where`，Unix uses `which`
 /// 策略2: PATH 手动遍历回退（where/which 失败或不可用时）
 /// 策略3: Windows 额外尝试 .exe/.bat/.cmd 扩展名
 pub fn find_command(name: &str) -> Option<PathBuf> {
@@ -278,7 +278,7 @@ fn exe_extensions() -> &'static [&'static str] {
     }
 }
 
-/// 运行命令并返回 stdout（去除首尾空白）
+/// run command and return stdout (trimmed)
 pub fn run_command(program: &str, args: &[&str]) -> Option<String> {
     let output = Command::new(program).args(args).output().ok()?;
     if output.status.success() {
@@ -310,9 +310,9 @@ pub fn run_command_combined(program: &str, args: &[&str]) -> Option<String> {
     run_command(program, args).or_else(|| run_command_with_stderr(program, args))
 }
 
-/// 从输出中提取版本号
+/// extract version from output
 ///
-/// 简单字符串解析，不使用 regex。
+/// 简单 chars串解析，不使用 regex。
 /// 例: extract_version("Python 3.11.9", "Python ") -> "3.11.9"
 pub fn extract_version(output: &str, prefix: &str) -> Option<String> {
     output

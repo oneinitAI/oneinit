@@ -2,7 +2,7 @@
 //
 // 按 数据的采集与迁移.md 第四章实现。
 // 导出：扫描环境 -> 生成 oneinit.yaml -> 可选打包 envs/ -> tar.gz
-// 导入：解压 tar.gz -> 校验 SHA256 -> 恢复配方/环境 -> 安装全局包
+// 导入：解压 tar.gz -> verify SHA256 -> 恢复recipe/环境 -> 安装全局包
 
 pub mod manifest;
 pub mod packer;
@@ -29,7 +29,7 @@ pub struct ExportResult {
 /// 导入结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportResult {
-    /// 恢复的配方路径
+    /// 恢复的recipe路径
     pub recipe_path: String,
     /// 恢复的缓存文件数
     pub cache_restored: usize,
@@ -82,7 +82,7 @@ pub fn run_export(
 
 /// 执行导入
 ///
-/// 流程：解压 -> 解析 manifest -> 校验 SHA256 -> 恢复配方/环境
+/// 流程：解压 -> 解析 manifest -> verify SHA256 -> 恢复recipe/环境
 pub fn run_import(
     formatter: &OutputFormatter,
     archive: &str,
@@ -98,18 +98,18 @@ pub fn run_import(
             Some(serde_json::Value::Null),
         );
         formatter.output(
-            &format!("[SECURITY]   文件: {}", archive),
+            &format!("[SECURITY]   file: {}", archive),
             Some(serde_json::Value::Null),
         );
         formatter.output(
-            "[SECURITY]   操作: 恢复配方文件、恢复工具目录、恢复全局包列表",
+            "[SECURITY]   操作: 恢复recipe文件、恢复工具目录、恢复全局包列表",
             Some(serde_json::Value::Null),
         );
         formatter.output(
             if force {
                 "[SECURITY]   模式: --force 已启用，将覆盖现有文件"
             } else {
-                "[SECURITY]   模式: 已存在文件将被跳过（使用 --force 覆盖）"
+                "[SECURITY]   模式: 已exists文件将被跳过（使用 --force 覆盖）"
             },
             Some(serde_json::Value::Null),
         );
@@ -120,7 +120,7 @@ pub fn run_import(
     }
 
     formatter.output(
-        &format!("[IMPORT] 开始导入: {} (dry_run={})", archive, dry_run),
+        &format!("[IMPORT] importing: {} (dry_run={})", archive, dry_run),
         Some(serde_json::json!({
             "status": "importing",
             "action": "import",

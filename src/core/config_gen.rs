@@ -20,7 +20,7 @@ pub fn apply_configs(install_dir: &Path, configs: &[AppConfig]) -> Result<Vec<Pa
     for config in configs {
         let full_path = install_dir.join(&config.rel_path);
 
-        // 确保父目录存在
+        // 确保父目录exists
         if let Some(parent) = full_path.parent() {
             fs::create_dir_all(parent)?;
         }

@@ -1,7 +1,7 @@
 // 应用状态 — 全局状态 + 屏幕路由
 //
 // AppState 持有所有数据：当前屏幕、包列表、选中项、搜索词、安装进度。
-// 屏幕切换通过 current_screen 字段驱动渲染。
+// 屏幕切换通过 current_screen field驱动渲染。
 
 use std::collections::HashMap;
 
@@ -19,7 +19,7 @@ pub enum Screen {
     PackageInfo,
     /// 帮助弹窗
     Help,
-    /// 环境捕获结果
+    /// Capture Results
     Capture,
 }
 
@@ -38,7 +38,7 @@ pub struct AppState {
     pub current_screen: Screen,
     /// 当前面板（主屏幕）
     pub active_pane: Pane,
-    /// 可用配方列表
+    /// 可用recipe列表
     pub available: Vec<Recipe>,
     /// 已安装记录列表
     pub installed: Vec<InstallRecord>,
@@ -54,7 +54,7 @@ pub struct AppState {
     pub installing: Option<String>,
     /// 状态消息（操作结果 / 错误）
     pub message: Option<String>,
-    /// 环境捕获结果（Capture 屏幕用）
+    /// Capture Results（Capture 屏幕用）
     pub capture_result: Option<Vec<(String, Option<String>, String)>>, // (name, version, path)
     /// 是否应退出
     pub should_quit: bool,
@@ -167,7 +167,7 @@ impl Default for AppState {
 /// 操作目标（从 TUI 触发）
 #[derive(Debug, Clone)]
 pub enum Target {
-    /// 安装指定配方
+    /// 安装指定recipe
     Install(String),
     /// 卸载指定包
     Uninstall(String),

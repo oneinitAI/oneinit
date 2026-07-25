@@ -18,7 +18,7 @@ impl EnvDetector for DockerDetector {
     }
 
     fn detect(&self) -> Result<Option<RuntimeEnv>> {
-        // 1. 查找 docker 命令
+        // 1. find docker command
         let docker_path = match find_command("docker") {
             Some(p) => p,
             None => return Ok(None),
@@ -26,7 +26,7 @@ impl EnvDetector for DockerDetector {
 
         let docker_str = docker_path.to_string_lossy().to_string();
 
-        // 2. 获取版本 (输出如 "Docker version 24.0.7, build afdd53b")
+        // 2. get version (输出如 "Docker version 24.0.7, build afdd53b")
         let version_str = run_command(&docker_str, &["--version"]);
         let version = version_str
             .as_deref()
@@ -37,7 +37,7 @@ impl EnvDetector for DockerDetector {
             })
             .unwrap_or_else(|| "unknown".to_string());
 
-        // 3. 检测 compose 版本
+        // 3. detect compose version
         let mut mirrors = BTreeMap::new();
 
         if let Some(compose_version) = run_command(&docker_str, &["compose", "version"]) {
@@ -54,7 +54,7 @@ impl EnvDetector for DockerDetector {
             mirrors.insert("compose".to_string(), cv);
         }
 
-        // 4. 获取容器数和镜像数
+        // 4. get container and image counts
         if let Some(containers) = run_command(&docker_str, &["ps", "-q"]) {
             let count = containers.lines().count();
             mirrors.insert("containers".to_string(), count.to_string());

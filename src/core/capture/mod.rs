@@ -1,7 +1,7 @@
-// 环境捕获模块 — 非侵入式扫描当前机器已安装的开发环境
+// 环境捕获模块 — non-invasive scan of current dev environment
 //
-// 按 数据的采集与迁移.md 第三章实现。
-// 检测器为同步 trait（Command::output 是阻塞调用，无需 async）。
+// per data collection & migration doc section 3.
+// detectors use sync trait (Command::output is blocking, no async needed).
 
 pub mod detector;
 pub mod docker;
@@ -113,7 +113,7 @@ pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()>
             }
             if !env.global_packages.is_empty() {
                 formatter.output(
-                    &format!("       全局包: {} 个", env.global_packages.len()),
+                    &format!("       global packages: {}", env.global_packages.len()),
                     Some(serde_json::Value::Null),
                 );
             }
@@ -121,7 +121,7 @@ pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()>
             envs.insert(name.clone(), env.clone());
         } else {
             formatter.output(
-                &format!("  [--] {} 未检测到", name),
+                &format!("  [--] {} not detected", name),
                 Some(serde_json::json!({
                     "detector": name,
                     "found": false,
@@ -148,7 +148,7 @@ pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()>
 
     // 5. 序列化为 YAML
     let yaml = serde_yaml::to_string(&snapshot)
-        .map_err(|e| CoreError::Capture(format!("YAML 序列化失败: {}", e)))?;
+        .map_err(|e| CoreError::Capture(format!("YAML serialize failed: {}", e)))?;
 
     // 6. 写入文件
     let path = Path::new(output_path);

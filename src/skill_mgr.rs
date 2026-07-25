@@ -72,7 +72,7 @@ pub fn install_to(agent: &str, formatter: &OutputFormatter) -> bool {
     // 创建目录
     if let Err(e) = std::fs::create_dir_all(&target_dir) {
         formatter.output(
-            &format!("[ERROR] 创建目录失败: {}", e),
+            &format!("[ERROR] create dir failed: {}", e),
             Some(serde_json::Value::Null),
         );
         return false;
@@ -82,7 +82,7 @@ pub fn install_to(agent: &str, formatter: &OutputFormatter) -> bool {
     let was_update = skill_file.exists();
     if let Err(e) = std::fs::write(&skill_file, SKILL_CONTENT) {
         formatter.output(
-            &format!("[ERROR] 写入失败: {}", e),
+            &format!("[ERROR] write failed: {}", e),
             Some(serde_json::Value::Null),
         );
         return false;
@@ -108,7 +108,7 @@ pub fn install_all(formatter: &OutputFormatter) -> usize {
     let agents = detect_agents();
     if agents.is_empty() {
         formatter.output(
-            "[WARN] 未检测到任何 AI 助手目录。手动安装：将 .agents/skills/oneinit/SKILL.md 复制到你的 AI 助手 skills 目录。",
+            "[WARN] not detected任何 AI 助手目录。手动安装：将 .agents/skills/oneinit/SKILL.md 复制到你的 AI 助手 skills 目录。",
             Some(serde_json::json!({
                 "status": "warning", "action": "skill_install",
                 "message": "No AI agent directories detected",
@@ -125,7 +125,7 @@ pub fn install_all(formatter: &OutputFormatter) -> usize {
     }
 
     formatter.output(
-        &format!("[OK] Skill 已安装到 {} 个 AI 助手", count),
+        &format!("[OK] Skill installed to {} AI agents", count),
         Some(serde_json::json!({
             "status": "success", "action": "skill_install",
             "installed_count": count,
@@ -140,7 +140,7 @@ pub fn status(formatter: &OutputFormatter) {
     let agents = detect_agents();
     if agents.is_empty() {
         formatter.output(
-            "[INFO] 未检测到 AI 助手目录",
+            "[INFO] not detected AI 助手目录",
             Some(serde_json::json!({
                 "status": "empty", "action": "skill_status",
             })),
@@ -189,7 +189,7 @@ pub fn uninstall(formatter: &OutputFormatter) {
         if skill_dir.exists() {
             if std::fs::remove_dir_all(&skill_dir).is_ok() {
                 formatter.output(
-                    &format!("[OK] 已从 {} 卸载", name),
+                    &format!("[OK] uninstalled from {}", name),
                     Some(serde_json::json!({
                         "status": "success", "action": "skill_uninstall",
                         "agent": name,
@@ -209,7 +209,7 @@ pub fn uninstall(formatter: &OutputFormatter) {
         );
     } else {
         formatter.output(
-            &format!("[OK] 已从 {} 个助手卸载 Skill", count),
+            &format!("[OK] Skill uninstalled from {} agents", count),
             Some(serde_json::json!({
                 "status": "success", "action": "skill_uninstall",
                 "uninstalled_count": count,

@@ -63,7 +63,7 @@ async fn main_loop(
 
                         // 执行操作（恢复终端 → 安装/卸载 → 按任意键 → 重新进入 TUI）
                         if let Err(e) = app::execute_action(terminal, app_state, target).await {
-                            app_state.message = Some(format!("[ERROR] 操作失败: {}", e));
+                            app_state.message = Some(format!("[ERROR] operation failed: {}", e));
                             *terminal = backend::init()?;
                         }
                         // 跳出内层循环，重新启动事件循环
@@ -113,9 +113,9 @@ fn handle_event(state: &mut state::AppState, ev: event::AppEvent) -> Option<stat
         }
         AppEvent::InstallComplete(pkg, success) => {
             if success {
-                state.message = Some(format!("[OK] {} 安装成功", pkg));
+                state.message = Some(format!("[OK] {} installation complete", pkg));
             } else {
-                state.message = Some(format!("[ERROR] {} 安装失败", pkg));
+                state.message = Some(format!("[ERROR] {} installation failed", pkg));
             }
             state.installing = None;
             state.refresh();
@@ -162,7 +162,7 @@ fn handle_key(
         }
         KeyCode::Char('c') => {
             // 执行环境捕获
-            state.message = Some("[SCAN] 正在扫描...".to_string());
+            state.message = Some("[SCAN] Scanning...".to_string());
             run_capture_to_state(state);
         }
         KeyCode::Char('r') => {
@@ -193,7 +193,7 @@ fn run_capture_to_state(state: &mut state::AppState) {
                 env.install_path.clone(),
             ));
         } else {
-            detected.push((name.clone(), None, "未检测到".to_string()));
+            detected.push((name.clone(), None, "not detected".to_string()));
         }
     }
 
