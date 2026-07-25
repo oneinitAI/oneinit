@@ -1,61 +1,45 @@
 "use client";
 
-import { useCallback } from "react";
-import Particles from "@tsparticles/react";
-import { loadSlim } from "@tsparticles/slim";
-import type { Engine } from "@tsparticles/engine";
+import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 
 export function InteractiveBg() {
+  const vantaRef = useRef<HTMLDivElement>(null);
+  const [effect, setEffect] = useState<any>(null);
   const reduce = useReducedMotion();
-  const init = useCallback(async (engine: Engine) => { await loadSlim(engine); }, []);
 
-  if (reduce) return null;
+  useEffect(() => {
+    if (reduce || !vantaRef.current) return;
+    let instance: any = null;
+    import("vanta/dist/vanta.net.min").then((NET) => {
+      instance = NET.default?.({
+        el: vantaRef.current!,
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.00,
+        minWidth: 200.00,
+        scale: 1.0,
+        scaleMobile: 1.0,
+        color: 0x059669,
+        backgroundColor: 0x0a0a0f,
+        points: 12.0,
+        maxDistance: 20.0,
+        spacing: 18.0,
+        showDots: false,
+      });
+      setEffect(instance);
+    });
+
+    return () => { if (instance) instance.destroy(); };
+  }, [reduce]);
 
   return (
-    <Particles
-      id="tsparticles"
-      init={init}
+    <div
+      ref={vantaRef}
       className="fixed inset-0 z-0 pointer-events-none"
-      options={{
-        fullScreen: false,
-        fpsLimit: 60,
-        particles: {
-          number: { value: 80, density: { enable: true } },
-          color: { value: ["#059669", "#10b981", "#34d399", "#6ee7b7"] },
-          links: {
-            enable: true,
-            distance: 150,
-            color: "#059669",
-            opacity: 0.15,
-            width: 1,
-          },
-          move: {
-            enable: true,
-            speed: 0.6,
-            direction: "none" as const,
-            random: true,
-            straight: false,
-            outModes: { default: "bounce" as const },
-            attract: { enable: true, rotateX: 600, rotateY: 1200 },
-          },
-          size: { value: { min: 1, max: 3 } },
-          opacity: { value: { min: 0.1, max: 0.5 }, animation: { enable: true, speed: 0.5, sync: false } },
-        },
-        interactivity: {
-          events: {
-            onHover: { enable: true, mode: "grab" },
-          },
-          modes: {
-            grab: {
-              distance: 200,
-              links: { opacity: 0.4, color: "#34d399" },
-            },
-          },
-        },
-        detectRetina: true,
-        smooth: true,
-      }}
+      style={{ width: "100vw", height: "100vh" }}
+      aria-hidden="true"
     />
   );
 }
