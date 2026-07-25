@@ -1,115 +1,114 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useReducedMotion } from "motion/react";
-import anime from "animejs";
+import { motion, useReducedMotion } from "motion/react";
 
 const CAPS = [
   {
-    num: "01",
-    title: "Auto Mirror Config",
-    body: "pip automatically uses Tsinghua. npm uses npmmirror. No config files. No searching for registry URLs.",
+    title: "Auto mirror configuration",
+    body: "pip automatically uses Tsinghua mirror. npm uses npmmirror. No manual setup, no config files to write.",
     code: `[global]
 index-url = https://pypi.tuna.tsinghua.edu.cn/simple
 trusted-host = pypi.tuna.tsinghua.edu.cn`,
-    color: "emerald",
+    lang: "ini",
   },
   {
-    num: "02",
-    title: "7 Language Detectors",
-    body: "Python, Node.js, Git, Rust, Go, Java, Docker. Plus custom detectors. Scan any machine, export the blueprint.",
+    title: "7 language detectors",
+    body: "Scan your current machine for Python, Node.js, Git, Rust, Go, Java, Docker. Plus custom detectors via scan_config.yaml.",
     code: `$ oneinit capture
-[OK] python 3.13.2 (120 packages)
-[OK] node 24.13.0 · git 2.46.0
-[OK] rust 1.94.0 · go 1.25.0
-[OK] java 21.0.11`,
-    color: "amber",
+[OK] python 3.13.2 (120 global packages)
+[OK] node 24.13.0 (9 global packages)
+[OK] git 2.46.0
+[OK] rust 1.94.0
+[OK] go 1.25.0
+[OK] java 21.0.11
+[--] docker not detected`,
+    lang: "bash",
   },
   {
-    num: "03",
-    title: "Community Registry",
-    body: "Publish YAML recipes. Others install with one command. Like npm, but for dev tools. Versioned, reviewed, secure.",
+    title: "Community recipe registry",
+    body: "Write a YAML recipe, publish it. Others install with one command. Like npm, but for dev tools.",
     code: `name: node20
 version: "20.18.1"
 platforms:
   windows:
-    url: "https://nodejs.org/..."
+    url: "https://nodejs.org/dist/..."
     sha256: "56e5aacd..."
     install_type: "zip_extract"
-post_install: ...`,
-    color: "crimson",
+post_install:
+  config_files:
+    - path: ".npmrc"
+      template: "registry={{mirror_npm}}"`,
+    lang: "yaml",
   },
   {
-    num: "04",
-    title: "Full Environment Migration",
-    body: "Export your entire setup as tar.gz. Import on a new machine. Tools, configs, packages — everything restored.",
-    code: `$ oneinit export -o backup.tar.gz
-  --include-envs
-$ oneinit import backup.tar.gz`,
-    color: "emerald",
+    title: "Full environment migration",
+    body: "Export your entire dev setup as a portable tar.gz. Import on a new machine. Tools, configs, package lists, all restored.",
+    code: `# Old machine
+oneinit export -o backup.tar.gz --include-envs
+
+# New machine
+oneinit import backup.tar.gz --dry-run
+oneinit import backup.tar.gz`,
+    lang: "bash",
   },
 ];
 
 export function Capabilities() {
   const reduce = useReducedMotion();
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (reduce || !ref.current) return;
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) {
-        anime({
-          targets: ".cap-section",
-          translateY: [80, 0],
-          opacity: [0, 1],
-          delay: anime.stagger(200),
-          duration: 800,
-          easing: "easeOutExpo",
-        });
-        obs.disconnect();
-      }
-    }, { threshold: 0.1 });
-    obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [reduce]);
-
-  const colorMap: Record<string, string> = {
-    emerald: "border-emerald-500/20",
-    amber: "border-amber-500/20",
-    crimson: "border-crimson/20",
-  };
 
   return (
-    <section className="relative border-t border-zinc-800 py-32 md:py-40 overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(255,170,0,0.05)_0%,_transparent_60%)]" />
-      <div ref={ref} className="relative z-10 mx-auto max-w-[1200px] px-6">
-        {CAPS.map((cap) => (
-          <div
-            key={cap.num}
-            className={`cap-section mb-20 border-l-2 ${colorMap[cap.color] || "border-zinc-800"} pl-6 md:pl-10`}
-            style={reduce ? {} : { opacity: 0 }}
-          >
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1.2fr] lg:gap-12">
-              <div>
-                <div className="mb-3 font-mono text-6xl font-black tracking-tighter text-zinc-800">
-                  {cap.num}
+    <section className="border-t border-zinc-900 py-24 md:py-32">
+      <div className="mx-auto max-w-[1200px] px-6">
+        {CAPS.map((cap, i) => {
+          const isEven = i % 2 === 0;
+          return (
+            <div
+              key={i}
+              className={`grid grid-cols-1 items-center gap-12 py-16 md:grid-cols-2 ${
+                i < CAPS.length - 1 ? "border-b border-zinc-900" : ""
+              }`}
+            >
+              {/* Text */}
+              <motion.div
+                initial={reduce ? undefined : { opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                className={isEven ? "md:order-1" : "md:order-2"}
+              >
+                <h3 className="mb-3 text-2xl font-bold tracking-tight">
+                  {cap.title}
+                </h3>
+                <p className="max-w-[420px] leading-relaxed text-zinc-400">
+                  {cap.body}
+                </p>
+              </motion.div>
+
+              {/* Code block */}
+              <motion.div
+                initial={reduce ? undefined : { opacity: 0, scale: 0.96 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+                className={isEven ? "md:order-2" : "md:order-1"}
+              >
+                <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50">
+                  <div className="flex items-center gap-1.5 border-b border-zinc-800 px-4 py-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+                    <span className="ml-2 font-mono text-xs text-zinc-600">
+                      {cap.lang}
+                    </span>
+                  </div>
+                  <pre className="terminal-scroll overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-zinc-300">
+                    <code>{cap.code}</code>
+                  </pre>
                 </div>
-                <h3 className="mb-3 text-2xl font-bold tracking-tight md:text-3xl">{cap.title}</h3>
-                <p className="max-w-[400px] leading-relaxed text-zinc-400">{cap.body}</p>
-              </div>
-              <div className="overflow-hidden rounded-xl border border-zinc-800/60 bg-zinc-950/80">
-                <div className="flex items-center gap-1.5 border-b border-zinc-800/60 px-4 py-2.5">
-                  <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
-                </div>
-                <pre className="terminal-scroll overflow-x-auto p-5 font-mono text-[13px] leading-relaxed text-zinc-300">
-                  <code>{cap.code}</code>
-                </pre>
-              </div>
+              </motion.div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

@@ -1,20 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { useReducedMotion } from "motion/react";
+import { motion, useReducedMotion, AnimatePresence } from "motion/react";
 
 const TABS = [
   {
     id: "shell",
-    label: "Shell (zero deps)",
+    label: "Shell script",
     code: "curl -fsSL https://raw.githubusercontent.com/BG4JTS/oneinit/main/install.sh | sh",
-    note: "No prerequisites. Auto-detects your OS and architecture.",
+    note: "No prerequisites. Auto-detects OS and architecture.",
   },
   {
     id: "npm",
     label: "npm",
     code: "npm install -g oneinit",
-    note: "Requires Node.js 14+. npm handles PATH auto.",
+    note: "Requires Node.js 14+. npm handles PATH automatically.",
   },
   {
     id: "source",
@@ -25,69 +25,95 @@ const TABS = [
 ];
 
 export function Installation() {
-  const [active, setActive] = useState(0);
+  const [activeTab, setActiveTab] = useState(0);
   const [copied, setCopied] = useState(false);
   const reduce = useReducedMotion();
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(TABS[active].code);
+    navigator.clipboard.writeText(TABS[activeTab].code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <section id="install" className="relative border-t border-zinc-800 py-32 md:py-40">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(16,185,129,0.08)_0%,_transparent_70%)]" />
-      <div className="relative z-10 mx-auto max-w-[800px] px-6">
-        <h2 className="mb-2 text-center font-mono text-xs uppercase tracking-[0.3em] text-emerald-500">
-          Install
-        </h2>
-        <h3 className="mb-12 text-center text-3xl font-black tracking-tight md:text-5xl">
-          One line.{" "}
-          <span className="bg-gradient-to-r from-neon to-emerald-400 bg-clip-text text-transparent">
-            Done.
-          </span>
-        </h3>
+    <section
+      id="install"
+      className="border-t border-zinc-900 py-24 md:py-32"
+    >
+      <div className="mx-auto max-w-[800px] px-6">
+        <motion.h2
+          initial={reduce ? undefined : { opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-3 text-center text-3xl font-bold tracking-tight md:text-4xl"
+        >
+          Install in seconds
+        </motion.h2>
+        <p className="mb-10 text-center text-zinc-400">
+          Pick whichever works for you. All methods install the same binary.
+        </p>
 
-        <div className="overflow-hidden rounded-2xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-md">
-          {/* Tabs */}
-          <div className="flex border-b border-zinc-800/60">
-            {TABS.map((tab, i) => (
-              <button
-                key={tab.id}
-                onClick={() => setActive(i)}
-                className={`flex-1 px-4 py-4 font-mono text-sm font-medium transition-all ${
-                  active === i
-                    ? "bg-zinc-900 text-neon border-b-2 border-neon"
-                    : "text-zinc-600 hover:text-zinc-300"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        {/* Tab switcher */}
+        <div className="mb-4 flex justify-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900/50 p-1">
+          {TABS.map((tab, i) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(i)}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-all active:scale-[0.97] ${
+                activeTab === i
+                  ? "bg-emerald-500 text-zinc-950"
+                  : "text-zinc-400 hover:text-zinc-100"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Code */}
-          <div className="relative p-6 md:p-8">
+        {/* Code block */}
+        <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/80">
+          <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2.5">
+            <span className="font-mono text-xs text-zinc-600">
+              {TABS[activeTab].label}
+            </span>
             <button
               onClick={handleCopy}
-              className="absolute right-6 top-6 rounded-md border border-zinc-700 px-3 py-1.5 font-mono text-xs text-zinc-500 transition-all hover:border-emerald-500/50 hover:text-neon active:scale-95"
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 font-mono text-xs text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 active:scale-95"
             >
-              {copied ? "copied" : "copy"}
+              {copied ? (
+                <>
+                  <span className="text-emerald-500">copied</span>
+                </>
+              ) : (
+                "copy"
+              )}
             </button>
-            <pre className="font-mono text-sm leading-relaxed text-zinc-300 md:text-base">
+          </div>
+          <AnimatePresence mode="wait">
+            <motion.pre
+              key={activeTab}
+              initial={reduce ? undefined : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={reduce ? undefined : { opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="terminal-scroll overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-zinc-300"
+            >
               <code>
-                {TABS[active].code.split("\n").map((line, i) => (
+                {TABS[activeTab].code.split("\n").map((line, i) => (
                   <div key={i}>
-                    <span className="select-none text-neon">$ </span>
+                    <span className="text-emerald-500">$ </span>
                     {line}
                   </div>
                 ))}
               </code>
-            </pre>
-            <p className="mt-4 text-xs text-zinc-600">{TABS[active].note}</p>
-          </div>
+            </motion.pre>
+          </AnimatePresence>
         </div>
+
+        <p className="mt-4 text-center text-sm text-zinc-500">
+          {TABS[activeTab].note}
+        </p>
       </div>
     </section>
   );

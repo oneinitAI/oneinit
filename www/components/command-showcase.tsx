@@ -1,83 +1,85 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
-import { useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import anime from "animejs";
 
 const TILES = [
-  { cmd: "install", sub: "python3.11, node20", tag: "package" },
-  { cmd: "capture", sub: "7 language detectors", tag: "scan" },
-  { cmd: "export", sub: "portable tar.gz", tag: "migrate" },
-  { cmd: "search", sub: "builtin + community + remote", tag: "discover" },
-  { cmd: "publish", sub: "YAML to registry", tag: "share" },
-  { cmd: "doctor", sub: "health check", tag: "maintain" },
-  { cmd: "uninstall", sub: "full rollback", tag: "clean" },
-  { cmd: "tui", sub: "interactive menu", tag: "ui" },
+  { cmd: "install", desc: "python3.11, node20", detail: "Download, verify, extract, mirror, PATH", span: "md:col-span-2" },
+  { cmd: "uninstall", desc: "full rollback", detail: "PATH, configs, files, manifest", span: "" },
+  { cmd: "capture", desc: "7 detectors", detail: "Python, Node, Git, Rust, Go, Java, Docker", span: "" },
+  { cmd: "export", desc: "tar.gz backup", detail: "Full environment, portable", span: "" },
+  { cmd: "tui", desc: "interactive", detail: "Dual-pane menu, keyboard-driven", span: "md:col-span-2" },
+  { cmd: "search", desc: "builtin + remote", detail: "3-tier: compiled, local, registry CDN", span: "" },
+  { cmd: "publish", desc: "npm-like", detail: "YAML recipe to community registry", span: "" },
+  { cmd: "doctor", desc: "health check", detail: "PATH, manifest, disk, cache", span: "md:col-span-2" },
 ];
 
 export function CommandShowcase() {
   const reduce = useReducedMotion();
   const gridRef = useRef<HTMLDivElement>(null);
+  const [triggered, setTriggered] = useState(false);
 
   useEffect(() => {
-    if (reduce || !gridRef.current) return;
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) {
-        anime({ targets: ".cmd-tile", scale: [0.6, 1], opacity: [0, 1], delay: anime.stagger(50), duration: 500, easing: "easeOutBack" });
-        obs.disconnect();
-      }
-    }, { threshold: 0.1 });
-    obs.observe(gridRef.current);
-    return () => obs.disconnect();
-  }, [reduce]);
-
-  const handleTilt = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (reduce) return;
-    const el = e.currentTarget;
-    const rect = el.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width - 0.5;
-    const y = (e.clientY - rect.top) / rect.height - 0.5;
-    el.style.transform = `perspective(1000px) rotateY(${x * 8}deg) rotateX(${-y * 8}deg) translateZ(10px)`;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setTriggered(true); observer.disconnect(); } },
+      { threshold: 0.15 }
+    );
+    if (gridRef.current) observer.observe(gridRef.current);
+    return () => observer.disconnect();
   }, [reduce]);
 
-  const handleTiltLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    e.currentTarget.style.transform = "perspective(1000px) rotateY(0) rotateX(0) translateZ(0)";
-  }, []);
+  useEffect(() => {
+    if (!triggered || reduce || !gridRef.current) return;
+    const tiles = gridRef.current.querySelectorAll(".command-tile");
+    anime({
+      targets: tiles,
+      translateY: [40, 0],
+      opacity: [0, 1],
+      scale: [0.92, 1],
+      delay: anime.stagger(60, { easing: "easeOutExpo" }),
+      duration: 600,
+      easing: "easeOutExpo",
+    });
+  }, [triggered, reduce]);
 
   return (
-    <section className="relative border-t border-zinc-800 py-32 md:py-40 overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(16,185,129,0.06)_0%,_transparent_60%)]" />
-      <div className="relative z-10 mx-auto max-w-[1200px] px-6">
-        <h2 className="mb-2 text-center font-mono text-xs uppercase tracking-[0.3em] text-amber-500">
-          Commands
-        </h2>
-        <h3 className="mb-4 text-center text-3xl font-black tracking-tight md:text-5xl">
-          17 commands.{" "}
-          <span className="chromatic">One binary.</span>
-        </h3>
-        <p className="mb-16 text-center text-zinc-500">
-          Install, scan, migrate, publish, maintain. Everything a dev needs.
+    <section id="commands" className="border-t border-zinc-900 py-24 md:py-32">
+      <div className="mx-auto max-w-[1200px] px-6">
+        <motion.h2
+          initial={reduce ? undefined : { opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="mb-3 text-3xl font-bold tracking-tight md:text-4xl"
+        >
+          17 commands. One binary.
+        </motion.h2>
+        <p className="mb-12 max-w-[480px] text-zinc-400">
+          Everything you need to bootstrap, configure, and migrate a development environment.
         </p>
 
-        <div ref={gridRef} className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-          {TILES.map((tile) => (
+        <div ref={gridRef} className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {TILES.map((tile, i) => (
             <div
               key={tile.cmd}
-              className="cmd-tile tilt-card group relative cursor-default rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm transition-colors duration-300 hover:border-emerald-500/20"
-              data-clickable
-              onMouseMove={handleTilt}
-              onMouseLeave={handleTiltLeave}
-              style={reduce ? {} : { opacity: 0 }}
+              className={`command-tile group relative cursor-default rounded-xl border border-zinc-800/80 bg-zinc-900/30 p-5 backdrop-blur-sm transition-all duration-300 hover:border-emerald-500/30 hover:bg-zinc-900/50 hover:shadow-lg hover:shadow-emerald-500/5 ${tile.span}`}
+              style={triggered && !reduce ? { opacity: 0 } : {}}
             >
-              <div className="relative z-10 p-5 md:p-6">
-                <div className="mb-2 font-mono text-[10px] uppercase tracking-wider text-zinc-600">{tile.tag}</div>
-                <div className="mb-1 font-mono text-lg font-bold text-zinc-100 transition-colors group-hover:text-neon md:text-xl">
-                  oneinit {tile.cmd}
+              {/* Hover glow */}
+              <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br from-emerald-500/0 via-transparent to-emerald-500/0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-hover:from-emerald-500/5 group-hover:to-emerald-500/5" />
+
+              <div className="relative z-10">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-sm text-emerald-500">$</span>
+                  <span className="font-mono text-base font-medium text-zinc-100 transition-colors group-hover:text-emerald-400">
+                    oneinit {tile.cmd}
+                  </span>
                 </div>
-                <div className="text-xs text-zinc-500">{tile.sub}</div>
+                <div className="mt-2 text-sm text-zinc-400">{tile.desc}</div>
+                <div className="mt-1 text-xs text-zinc-600">{tile.detail}</div>
               </div>
-              {/* Hover gradient */}
-              <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br from-emerald-500/0 via-transparent to-emerald-500/0 opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-hover:from-emerald-500/5 group-hover:to-amber-500/5" />
             </div>
           ))}
         </div>
