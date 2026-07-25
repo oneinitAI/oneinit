@@ -8,4 +8,4 @@
 </div>
 <div className="mt-12 flex items-center justify-center gap-6 text-sm text-zinc-600">
 <a href="https://github.com/BG4JTS/oneinit" className="hover:text-zinc-400">GitHub</a><a href="https://www.npmjs.com/package/oneinit" className="hover:text-zinc-400">npm</a><span>GPL-3.0</span>
-</div><p className="mt-4 font-mono text-xs text-zinc-700">Built with Rust · No runtime · Single binary</p></div></footer>)}
+</div><p className="mt-4 font-mono text-xs text-zinc-700">Built with Rust · No runtime · Single binary</p><p className="mt-1 font-mono text-xs text-zinc-800">&copy; {new Date().getFullYear()} BG4JTS. All rights reserved.</p></div></footer>)}
