@@ -4,17 +4,23 @@ import AOS from "aos";
 import { Nav } from "../components/nav";
 import { Hero } from "../components/hero";
 import { Stats } from "../components/stats";
+import { Comparison } from "../components/comparison";
+import { HowItWorks } from "../components/how-it-works";
+import { CommunityRecipe } from "../components/community-recipe";
 import { Features } from "../components/features";
 import { InstallBar } from "../components/install-bar";
 import { Footer } from "../components/footer";
 
 export default function Home() {
-  useEffect(() => { AOS.init({ duration: 800, once: true }); }, []);
+  useEffect(() => { AOS.init({ duration: 700, once: true, easing: "ease-out" }); }, []);
   return (
-    <main className="relative min-h-screen">
+    <main className="relative min-h-screen bg-[#0a0a0f] text-zinc-200">
       <Nav />
       <Hero />
       <Stats />
+      <Comparison />
+      <HowItWorks />
+      <CommunityRecipe />
       <Features />
       <InstallBar />
       <Footer />
