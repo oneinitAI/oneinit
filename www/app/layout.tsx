@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { InteractiveBg } from "../components/interactive-bg";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,8 +10,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body className="font-sans antialiased text-zinc-200 bg-[#0a0a0f]">
-        <InteractiveBg />
+      <body className="font-sans antialiased text-zinc-200">
+        {/* Pure CSS background — always visible, zero JS */}
+        <div className="bg-grid" />
+        <div className="bg-orb bg-orb-1" />
+        <div className="bg-orb bg-orb-2" />
+        <div className="bg-orb bg-orb-3" />
+        <div className="bg-scanline" />
         <div className="relative z-10">{children}</div>
       </body>
     </html>
