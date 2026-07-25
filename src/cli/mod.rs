@@ -1114,3 +1114,22 @@ fn extract_tool_name(name: &str) -> String {
         .unwrap_or(name.len());
     name[..pos].trim_end_matches('-').to_string()
 }
+
+/// oneinit skill install [--target <agent>] -- 安装 AI Skill
+pub async fn run_skill_install(formatter: &OutputFormatter, target: &str) {
+    if target == "all" {
+        crate::skill_mgr::install_all(formatter);
+    } else {
+        crate::skill_mgr::install_to(target, formatter);
+    }
+}
+
+/// oneinit skill status -- 查看 Skill 安装状态
+pub async fn run_skill_status(formatter: &OutputFormatter) {
+    crate::skill_mgr::status(formatter);
+}
+
+/// oneinit skill uninstall -- 卸载 AI Skill
+pub async fn run_skill_uninstall(formatter: &OutputFormatter) {
+    crate::skill_mgr::uninstall(formatter);
+}

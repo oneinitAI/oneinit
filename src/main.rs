@@ -4,6 +4,7 @@ mod cli;
 mod core;
 mod output;
 mod security;
+mod skill_mgr;
 mod tui2;
 
 use clap::{Parser, Subcommand};
@@ -123,6 +124,26 @@ enum Commands {
         /// Shell 类型（bash, zsh, powershell, fish, elvish）
         shell: String,
     },
+
+    /// 安装/管理 AI Skill（让 AI 助手能调用 oneinit）
+    Skill {
+        #[command(subcommand)]
+        action: SkillAction,
+    },
+}
+
+#[derive(clap::Subcommand)]
+enum SkillAction {
+    /// 安装 oneinit Skill 到已检测到的 AI 助手
+    Install {
+        /// 指定 AI 助手（zcode, codex, claude, agents, all）。默认 all
+        #[arg(short, long, default_value = "all")]
+        target: String,
+    },
+    /// 查看已安装的 Skill 状态
+    Status,
+    /// 卸载 oneinit Skill
+    Uninstall,
 }
 
 #[tokio::main]
@@ -189,5 +210,10 @@ async fn main() {
             };
             clap_complete::generate(shell, &mut cmd, "oneinit", &mut std::io::stdout());
         }
+        Commands::Skill { action } => match action {
+            SkillAction::Install { target } => cli::run_skill_install(&formatter, &target).await,
+            SkillAction::Status => cli::run_skill_status(&formatter).await,
+            SkillAction::Uninstall => cli::run_skill_uninstall(&formatter).await,
+        },
     }
 }
