@@ -6,10 +6,12 @@ import { Capabilities } from "../components/capabilities";
 import { Installation } from "../components/installation";
 import { Stats } from "../components/stats";
 import { Footer } from "../components/footer";
+import { ParticleBackground } from "../components/particle-background";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100">
+    <main className="relative min-h-screen bg-zinc-950 text-zinc-100">
+      <ParticleBackground />
       <Nav />
       <Hero />
       <Problem />
