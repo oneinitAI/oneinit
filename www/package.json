@@ -17,6 +17,8 @@
     "@fontsource/space-grotesk": "^5.1.0",
     "class-variance-authority": "^0.7.1",
     "lucide-react": "^0.460.0",
+    "@tsparticles/react": "^3.0.0",
+    "@tsparticles/slim": "^3.0.0",
     "typescript": "^5.7.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
