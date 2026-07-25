@@ -1,39 +1,55 @@
 @import "tailwindcss";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/700.css";
+@import "@fontsource/space-grotesk/400.css";
+@import "@fontsource/space-grotesk/700.css";
+@import "aos/dist/aos.css";
 
 @theme {
-  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
-  --color-accent: #10b981;
+  --font-sans: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --color-glass: rgba(255,255,255,0.05);
+  --color-glass-border: rgba(255,255,255,0.08);
+  --color-cyan: #00f0ff;
+  --color-neon: #00ff41;
+  --color-purple: #8b5cf6;
 }
 
-html {
-  scroll-behavior: smooth;
+html { scroll-behavior: smooth; background: #050510; }
+
+.glass {
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.06);
 }
 
-/* Terminal scrollbar */
-.terminal-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-.terminal-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.terminal-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
+.glass-hover:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(0,240,255,0.2);
+  box-shadow: 0 0 30px rgba(0,240,255,0.05);
 }
 
-/* Blinking cursor */
-@keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
-}
-.cursor-blink {
-  animation: blink 1s step-end infinite;
+.aurora-bg {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,240,255,0.08), transparent),
+    radial-gradient(ellipse 60% 50% at 90% 30%, rgba(139,92,246,0.06), transparent),
+    radial-gradient(ellipse 50% 50% at 10% 80%, rgba(0,255,65,0.04), transparent),
+    #050510;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+.text-gradient {
+  background: linear-gradient(135deg, #00f0ff 0%, #8b5cf6 50%, #00ff41 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
+
+.terminal-scroll::-webkit-scrollbar { width: 4px; }
+.terminal-scroll::-webkit-scrollbar-track { background: transparent; }
+.terminal-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+
+@keyframes pulse-glow { 0%,100%{opacity:.4}50%{opacity:.8} }
+.pulse-glow { animation: pulse-glow 3s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important} }

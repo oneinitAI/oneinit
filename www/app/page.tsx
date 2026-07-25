@@ -1,24 +1,22 @@
+"use client";
+import { useEffect } from "react";
+import AOS from "aos";
 import { Nav } from "../components/nav";
 import { Hero } from "../components/hero";
-import { Problem } from "../components/problem";
-import { CommandShowcase } from "../components/command-showcase";
-import { Capabilities } from "../components/capabilities";
-import { Installation } from "../components/installation";
 import { Stats } from "../components/stats";
+import { Features } from "../components/features";
+import { InstallBar } from "../components/install-bar";
 import { Footer } from "../components/footer";
-import { ParticleBackground } from "../components/particle-background";
 
 export default function Home() {
+  useEffect(() => { AOS.init({ duration: 800, once: true }); }, []);
   return (
-    <main className="relative min-h-screen bg-zinc-950 text-zinc-100">
-      <ParticleBackground />
+    <main className="relative min-h-screen">
       <Nav />
       <Hero />
-      <Problem />
-      <CommandShowcase />
-      <Capabilities />
-      <Installation />
       <Stats />
+      <Features />
+      <InstallBar />
       <Footer />
     </main>
   );
