@@ -1,14 +1,14 @@
-// 应用状态 — 全局状态 + 屏幕路由
+// App state — global state + screen routing
 //
-// AppState 持有所有数据：当前屏幕、包列表、选中项、搜索词、安装进度。
-// 屏幕切换通过 current_screen field驱动渲染。
+// AppState holds: current screen, packages, selection, search, progress.
+// Screen switching via current_screen field drives rendering.
 
 use std::collections::HashMap;
 
 use crate::core::manifest::InstallRecord;
 use crate::core::recipe::Recipe;
 
-/// 所有屏幕类型
+/// All screen types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
     /// 主屏幕：包列表
@@ -36,32 +36,32 @@ pub enum Pane {
 pub struct AppState {
     /// 当前屏幕
     pub current_screen: Screen,
-    /// 当前面板（主屏幕）
+    /// Current pane (main screen)
     pub active_pane: Pane,
-    /// 可用recipe列表
+    /// Available recipe list
     pub available: Vec<Recipe>,
-    /// 已安装记录列表
+    /// Installed records list
     pub installed: Vec<InstallRecord>,
     /// 已安装面板选中索引
     pub selected_installed: usize,
     /// 可安装面板选中索引
     pub selected_available: usize,
-    /// 搜索关键词（预留）
+    /// Search query (reserved)
     pub search_query: String,
     /// 安装进度（包名 → 百分比）
     pub install_progress: HashMap<String, u8>,
-    /// 当前安装中的包名
+    /// Currently installing package
     pub installing: Option<String>,
-    /// 状态消息（操作结果 / 错误）
+    /// Status message（操作结果 / 错误）
     pub message: Option<String>,
-    /// Capture Results（Capture 屏幕用）
+    /// Capture Results (for Capture screen)
     pub capture_result: Option<Vec<(String, Option<String>, String)>>, // (name, version, path)
-    /// 是否应退出
+    /// 是否应Quit
     pub should_quit: bool,
 }
 
 impl AppState {
-    /// 创建新状态并加载数据
+    /// Create new state and load data
     pub fn new() -> Self {
         let mut state = Self {
             current_screen: Screen::PackageList,
@@ -81,7 +81,7 @@ impl AppState {
         state
     }
 
-    /// 刷新数据（从 Manifest + recipe 注册表重新读取）
+    /// Refresh data (reload from Manifest + recipe registry)
     pub fn refresh(&mut self) {
         self.installed = crate::core::manifest::Manifest::open()
             .ok()
@@ -91,7 +91,7 @@ impl AppState {
         self.clamp_selections();
     }
 
-    /// 切换面板
+    /// Toggle pane
     pub fn toggle_pane(&mut self) {
         self.active_pane = match self.active_pane {
             Pane::Installed => Pane::Available,
@@ -99,7 +99,7 @@ impl AppState {
         };
     }
 
-    /// 移动光标（-1 上移，+1 下移）
+    /// Move cursor (-1 up, +1 down)
     pub fn move_cursor(&mut self, delta: i32) {
         match self.active_pane {
             Pane::Installed => {
@@ -129,7 +129,7 @@ impl AppState {
         }
     }
 
-    /// 获取当前选中的操作目标
+    /// Get current selection target
     pub fn current_target(&self) -> Option<Target> {
         match self.active_pane {
             Pane::Installed => self
@@ -143,7 +143,7 @@ impl AppState {
         }
     }
 
-    /// 约束选中索引
+    /// Clamp selection index
     fn clamp_selections(&mut self) {
         if !self.installed.is_empty() {
             self.selected_installed = self.selected_installed.min(self.installed.len() - 1);

@@ -1,7 +1,7 @@
-// 渲染层 — 根据 current_screen 渲染不同界面
+// Render layer — dispatch by current_screen
 //
-// 布局：标题栏 + 内容区 + 底部帮助栏
-// 主屏幕内容区分为左右两个面板（已安装 / 可安装）
+// 布局：Title bar + 内容区 + 底部帮助栏
+// Main screen split into two panes (installed / available)
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -11,11 +11,11 @@ use ratatui::widgets::{Block, Borders, Gauge, List, ListItem, ListState, Paragra
 
 use super::state::{AppState, Pane, Screen};
 
-/// 主渲染入口
+/// Main render entry
 pub fn draw(frame: &mut Frame, state: &mut AppState) {
     let area = frame.area();
 
-    // 垂直布局：标题栏(3) / 内容区(弹性) / 底部帮助栏(3)
+    // Vertical layout: title(3) / content(flex) / footer(3)
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -30,7 +30,7 @@ pub fn draw(frame: &mut Frame, state: &mut AppState) {
     draw_footer(frame, chunks[2], state);
 }
 
-/// 标题栏
+/// Title bar
 fn draw_title(frame: &mut Frame, area: Rect) {
     let title = Paragraph::new("OneInit — One command to init your dev machine")
         .style(
@@ -42,7 +42,7 @@ fn draw_title(frame: &mut Frame, area: Rect) {
     frame.render_widget(title, area);
 }
 
-/// 内容区（根据当前屏幕路由）
+/// Content area (routed by current screen)
 fn draw_content(frame: &mut Frame, area: Rect, state: &mut AppState) {
     match state.current_screen {
         Screen::PackageList => draw_main_screen(frame, area, state),
@@ -56,7 +56,7 @@ fn draw_content(frame: &mut Frame, area: Rect, state: &mut AppState) {
     }
 }
 
-/// 主屏幕：左右双面板
+/// Main screen: dual panes
 fn draw_main_screen(frame: &mut Frame, area: Rect, state: &mut AppState) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
@@ -169,16 +169,16 @@ fn draw_available_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
     frame.render_stateful_widget(list, area, &mut list_state);
 }
 
-/// 安装屏幕：显示进度条
+/// 安装屏幕：显示Progress bar
 fn draw_install_screen(frame: &mut Frame, area: Rect, state: &AppState) {
-    let pkg = state.installing.as_deref().unwrap_or("未知包");
+    let pkg = state.installing.as_deref().unwrap_or("Unknown");
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(3), Constraint::Min(1)])
         .split(area);
 
-    // 进度条
+    // Progress bar
     let progress = state.install_progress.get(pkg).copied().unwrap_or(0);
     let gauge = Gauge::default()
         .block(
@@ -190,9 +190,12 @@ fn draw_install_screen(frame: &mut Frame, area: Rect, state: &AppState) {
         .percent(progress.into());
     frame.render_widget(gauge, chunks[0]);
 
-    // 状态消息
-    let msg = state.message.as_deref().unwrap_or("正在download和解压...");
-    let info = Paragraph::new(msg).block(Block::default().borders(Borders::ALL).title(" 状态 "));
+    // Status message
+    let msg = state
+        .message
+        .as_deref()
+        .unwrap_or("Downloading and extracting...");
+    let info = Paragraph::new(msg).block(Block::default().borders(Borders::ALL).title(" Status "));
     frame.render_widget(info, chunks[1]);
 }
 
@@ -210,7 +213,7 @@ fn draw_capture_screen(frame: &mut Frame, area: Rect, state: &AppState) {
     if let Some(ref results) = state.capture_result {
         for (name, version, path) in results {
             let status_tag = if version.is_some() { "[OK]" } else { "[--]" };
-            let ver_str = version.as_deref().unwrap_or("not detected");
+            let ver_str = version.as_deref().unwrap_or("Not detected");
             lines.push(Line::from(vec![
                 Span::raw("  "),
                 Span::styled(
@@ -233,7 +236,7 @@ fn draw_capture_screen(frame: &mut Frame, area: Rect, state: &AppState) {
         }
     } else {
         lines.push(Line::from(Span::styled(
-            "正在扫描...",
+            "Scanning...",
             Style::default().fg(Color::DarkGray),
         )));
     }
@@ -249,15 +252,15 @@ fn draw_capture_screen(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(content, area);
 }
 
-/// 底部帮助栏 + 状态消息
+/// Footer + status message
 fn draw_footer(frame: &mut Frame, area: Rect, state: &AppState) {
-    let help_text = "[Tab]切换 [↑↓]移动 [Enter]安装/卸载 [c]捕获环境 [?]帮助 [q]退出";
+    let help_text = "[Tab]Pane [Arrows]Move [Enter]Action [c]Capture [?]Help [q]Quit";
     let message = state.message.as_deref().unwrap_or("");
 
     let content = format!("{}\n{}", help_text, message);
     let footer = Paragraph::new(content)
         .style(Style::default().fg(Color::Gray))
-        .block(Block::default().borders(Borders::ALL).title(" 帮助 "));
+        .block(Block::default().borders(Borders::ALL).title(" Help "));
     frame.render_widget(footer, area);
 }
 
@@ -267,17 +270,17 @@ fn draw_help_popup(frame: &mut Frame, area: Rect) {
 
     let help = Paragraph::new(vec![
         Line::from(Span::styled(
-            "OneInit 帮助",
+            "OneInit Help",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        Line::from("  Tab     切换面板（已安装 ↔ 可安装）"),
-        Line::from("  ↑ / ↓   上下移动选择"),
-        Line::from("  Enter   安装（可安装面板）或卸载（已安装面板）"),
-        Line::from("  ?       显示/隐藏帮助"),
-        Line::from("  q / Esc 退出"),
+        Line::from("  Tab     Switch pane (installed / available)"),
+        Line::from("  Arrow keys  Move selection"),
+        Line::from("  Enter   Install (available pane) or Uninstall (installed pane)"),
+        Line::from("  ?       Show/hide help"),
+        Line::from("  q / Esc Quit"),
         Line::from(""),
         Line::from(Span::styled(
             "按任意键关闭帮助",
@@ -287,14 +290,14 @@ fn draw_help_popup(frame: &mut Frame, area: Rect) {
     .block(
         Block::default()
             .borders(Borders::ALL)
-            .title(" 帮助 ")
+            .title(" Help ")
             .style(Style::default().fg(Color::White)),
     );
 
     frame.render_widget(help, popup_area);
 }
 
-/// 计算居中矩形（用于弹窗）
+/// 计算Centered rect (for popups)
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)

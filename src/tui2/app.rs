@@ -1,13 +1,13 @@
-// 操作执行 — 安装/卸载（在 TUI 外运行）
+// Action execution — install/uninstall (outside TUI)
 //
-// 退出TUI执行模式流程：
-//   1. 主循环检测到 Enter → 返回 Target
-//   2. 主循环 drop event_tx（停止事件循环任务，释放 EventStream 对 stdin 的占用）
-//   3. 调用 execute_action：恢复终端 → execute install/卸载 → 按任意键 → 重新进入 TUI
-//   4. 主循环重启事件循环
+// Exit-TUI execution flow:
+//   1. main loop detects Enter -> returns Target
+//   2. main loop drops event_tx (stops event loop, frees stdin)
+//   3. call execute_action: restore terminal -> install/uninstall -> press any key -> re-enter TUI
+//   4. main loop restarts event loop
 //
-// 关键：execute_action 必须在事件循环停止后调用，否则 EventStream 会
-// 和 stdin 读取竞争，导致"按回车无反应"。
+// CRITICAL: execute_action must be called after event loop stops, otherwise EventStream
+// races with stdin reads, causing unresponsive prompt.
 
 use std::io::{self, Read, Write};
 
@@ -16,16 +16,16 @@ use crate::output::OutputFormatter;
 use super::backend::{self, Tui};
 use super::state::{AppState, Target};
 
-/// 执行操作（在 TUI 外运行）
+/// Execute action (outside TUI)
 pub async fn execute_action(
     terminal: &mut Tui,
     state: &mut AppState,
     target: Target,
 ) -> io::Result<()> {
-    // 1. 恢复终端（退出 raw mode + 备用屏幕）
+    // 1. restore terminal (exit raw mode + alternate screen)
     backend::restore(terminal)?;
 
-    // 2. 执行操作（OutputFormatter 输出到普通终端）
+    // 2. execute (OutputFormatter writes to normal terminal)
     let formatter = OutputFormatter::new(false);
     let result_msg = match target {
         Target::Install(recipe_name) => match crate::core::recipe::resolve(&recipe_name) {
@@ -47,23 +47,23 @@ pub async fn execute_action(
     println!("\nPress any key to return to TUI...");
     io::stdout().flush()?;
 
-    // 3. 等待按键（此时 raw mode 已关闭，事件循环已停止）
-    //    逐字节读取，读到一个字节即返回
+    // 3. wait for keypress (raw mode off, event loop stopped)
+    //    read one byte and return
     wait_for_any_key();
 
-    // 4. 重新进入 TUI
+    // 4. re-enter TUI
     *terminal = backend::init()?;
 
-    // 5. 更新状态
+    // 5. update state
     state.message = Some(result_msg);
     state.refresh();
 
     Ok(())
 }
 
-/// 等待任意按键（恢复终端后使用）
+/// Wait for any key (after terminal restore)
 ///
-/// 此时 raw mode 已关闭，事件循环已停止，直接用 std::io 读取。
+/// raw mode disabled, event loop stopped, direct std::io read.
 fn wait_for_any_key() {
     let mut buf = [0u8; 1];
     let _ = io::stdin().read(&mut buf);

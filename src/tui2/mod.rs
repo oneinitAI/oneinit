@@ -1,11 +1,11 @@
-// TUI 模块入口 — 交互式终端界面
+// TUI module entry — interactive terminal UI
 //
 // 架构（参见 tui.md）：
 //   入口层 → 应用层(App+屏幕) → 组件层 → 状态层 → 基础设施层
 //
-// 异步事件驱动：EventStream + mpsc 通道，事件循环独立于渲染。
-// 退出TUI执行模式：Enter 触发安装/卸载时，停止事件循环 → 恢复终端 →
-// 执行操作 → 按任意键 → 重新进入 TUI → 重启事件循环。
+// Async event-driven: EventStream + mpsc, event loop decoupled from render.
+// QuitTUI执行模式：Enter 触发安装/卸载时，停止事件循环 → 恢复终端 →
+// 执行操作 → 按任意键 → re-enter TUI → 重启事件循环。
 
 pub mod app;
 pub mod backend;
@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use crate::output::OutputFormatter;
 
-/// 启动 TUI 主循环
+/// Start TUI main loop
 pub async fn run_tui(_formatter: &OutputFormatter) -> std::io::Result<()> {
     // 安装 panic hook（确保崩溃时恢复终端）
     backend::setup_panic_hook();
@@ -25,7 +25,7 @@ pub async fn run_tui(_formatter: &OutputFormatter) -> std::io::Result<()> {
     // 初始化终端
     let mut terminal = backend::init()?;
 
-    // 创建应用（不启动事件循环，稍后启动）
+    // Create app (event loop starts later)
     let mut app_state = state::AppState::new();
 
     // 主循环
@@ -43,7 +43,7 @@ async fn main_loop(
     app_state: &mut state::AppState,
 ) -> std::io::Result<()> {
     loop {
-        // 启动事件循环（每次渲染循环开始时确保有一个活跃的事件循环）
+        // Start event loop (ensure active on each render cycle start)
         let (event_tx, mut event_rx) = event::start();
 
         // 渲染并处理事件
@@ -51,22 +51,22 @@ async fn main_loop(
             // 渲染当前帧
             terminal.draw(|frame| screens::draw(frame, app_state))?;
 
-            // 等待事件（200ms 超时后继续渲染）
+            // Wait for event (200ms timeout, then re-render)
             match tokio::time::timeout(Duration::from_millis(200), event_rx.recv()).await {
                 Ok(Some(ev)) => {
                     // 处理事件，可能返回操作目标
                     if let Some(target) = handle_event(app_state, ev) {
-                        // 停止事件循环：drop sender 让事件循环任务退出
+                        // 停止事件循环：drop sender 让事件循环任务Quit
                         drop(event_tx);
                         // drain 剩余事件
                         while event_rx.try_recv().is_ok() {}
 
-                        // 执行操作（恢复终端 → 安装/卸载 → 按任意键 → 重新进入 TUI）
+                        // 执行操作（恢复终端 → 安装/卸载 → 按任意键 → re-enter TUI）
                         if let Err(e) = app::execute_action(terminal, app_state, target).await {
                             app_state.message = Some(format!("[ERROR] operation failed: {}", e));
                             *terminal = backend::init()?;
                         }
-                        // 跳出内层循环，重新启动事件循环
+                        // Break inner loop, restart event loop
                         break;
                     }
                 }
@@ -132,7 +132,7 @@ fn handle_key(
 ) -> Option<state::Target> {
     use crossterm::event::KeyCode;
 
-    // Capture 屏幕只响应 Esc 返回
+    // Capture screen: Esc to return
     if state.current_screen == state::Screen::Capture {
         if key == KeyCode::Esc || key == KeyCode::Enter || key == KeyCode::Char('q') {
             state.current_screen = state::Screen::PackageList;
@@ -161,13 +161,13 @@ fn handle_key(
             state.current_screen = state::Screen::Help;
         }
         KeyCode::Char('c') => {
-            // 执行环境捕获
+            // Run capture
             state.message = Some("[SCAN] Scanning...".to_string());
             run_capture_to_state(state);
         }
         KeyCode::Char('r') => {
             state.refresh();
-            state.message = Some("已刷新".to_string());
+            state.message = Some("Refreshed".to_string());
         }
         KeyCode::Enter => {
             return state.current_target();
@@ -178,7 +178,7 @@ fn handle_key(
     None
 }
 
-/// 执行环境捕获并写入 state
+/// Run capture并写入 state
 fn run_capture_to_state(state: &mut state::AppState) {
     let mut scheduler = crate::core::capture::detector::DetectorScheduler::new();
     scheduler.register_defaults();
@@ -193,7 +193,7 @@ fn run_capture_to_state(state: &mut state::AppState) {
                 env.install_path.clone(),
             ));
         } else {
-            detected.push((name.clone(), None, "not detected".to_string()));
+            detected.push((name.clone(), None, "Not detected".to_string()));
         }
     }
 

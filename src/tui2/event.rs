@@ -1,40 +1,40 @@
-// 事件系统 — 异步事件驱动架构
+// Event system — async event-driven architecture
 //
-// 使用 crossterm EventStream 异步读取终端事件，通过 mpsc 通道传递给主循环。
-// 事件循环运行在独立 tokio 任务中，与渲染分离。
+// Uses crossterm EventStream for async terminal events via mpsc channel.
+// Event loop runs in separate tokio task, decoupled from rendering.
 //
-// 关键：Windows 控制台对每个按键发送 Press+Release 成对事件，
-// 在事件循环层做 120ms 去重，避免 Tab 跳两次、Enter 重复触发。
+// CRITICAL: Windows console sends Press+Release pairs for each keypress,
+// 120ms dedup at event loop layer prevents Tab double-toggle, Enter double-fire.
 
 use std::time::{Duration, Instant};
 
 use crossterm::event::{Event as CrosstermEvent, EventStream, KeyCode, KeyEventKind};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
-/// 应用事件（封装 crossterm 事件 + 自定义事件）
+/// App event (wraps crossterm + custom events)
 #[derive(Debug, Clone)]
 pub enum AppEvent {
-    /// 定时刷新
+    /// Tick
     Tick,
-    /// 键盘按键
+    /// Key
     Key(KeyCode),
-    /// 窗口大小变化
+    /// Resize
     Resize(u16, u16),
-    /// 安装进度（包名, 百分比）
+    /// Install progress (package, %)
     InstallProgress(String, u8),
-    /// 安装完成（包名, 是否成功）
+    /// Install complete (package, success)
     InstallComplete(String, bool),
-    /// 退出
+    /// Quit
     Quit,
 }
 
-/// 启动事件循环（运行在独立 tokio 任务中）
+/// Start event loop (separate tokio task)
 ///
-/// 返回事件接收端，主循环从中消费事件。
+/// Returns event receiver for main loop consumption.
 pub fn start() -> (UnboundedSender<AppEvent>, UnboundedReceiver<AppEvent>) {
     let (tx, rx) = mpsc::unbounded_channel::<AppEvent>();
 
-    // 内部 clone 一份 sender 给事件循环任务
+    // internal clone of sender for event loop task
     let loop_tx = tx.clone();
     tokio::spawn(async move {
         event_loop(loop_tx).await;
@@ -43,35 +43,35 @@ pub fn start() -> (UnboundedSender<AppEvent>, UnboundedReceiver<AppEvent>) {
     (tx, rx)
 }
 
-/// 事件循环主体
+/// Event loop body
 async fn event_loop(tx: UnboundedSender<AppEvent>) {
     use tokio_stream::StreamExt;
 
     let mut reader = EventStream::new();
     let mut tick_interval = tokio::time::interval(Duration::from_millis(100));
 
-    // 去重状态：记录上一次按键的 code 和时间
+    // Dedup state: track last key code and timestamp
     let mut last_key: Option<(KeyCode, Instant)> = None;
 
     loop {
         tokio::select! {
-            // 定时 Tick（保证 UI 持续刷新）
+            // Tick timer (keeps UI refreshed)
             _ = tick_interval.tick() => {
                 let _ = tx.send(AppEvent::Tick);
             }
-            // 终端事件
+            // Terminal event
             maybe_event = reader.next() => {
                 match maybe_event {
                     Some(Ok(event)) => {
                         handle_crossterm_event(event, &tx, &mut last_key);
                     }
                     Some(Err(_)) => {
-                        // 读取错误，发送退出
+                        // 读取错误，发送Quit
                         let _ = tx.send(AppEvent::Quit);
                         break;
                     }
                     None => {
-                        // 流结束
+                        // Stream ended
                         let _ = tx.send(AppEvent::Quit);
                         break;
                     }
