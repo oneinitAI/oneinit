@@ -11,13 +11,20 @@ export function Hero() {
 
       <div className="relative z-10 mx-auto grid max-w-[1200px] grid-cols-1 gap-12 px-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8 w-full">
         <div className="flex flex-col justify-center">
-          <motion.div initial={{ opacity:0,y:20 }} animate={{ opacity:1,y:0 }} transition={{ duration:0.5,delay:0.1 }}
+          <motion.img
+            src="/logo.png" alt="OneInit"
+            className="mb-8 h-auto w-[220px] drop-shadow-[0_0_40px_rgba(5,150,105,0.2)]"
+            initial={{ opacity:0, y:24 }} animate={{ opacity:1, y:0 }}
+            transition={{ duration:0.6, delay:0 }}
+          />
+
+          <motion.div initial={{ opacity:0,y:20 }} animate={{ opacity:1,y:0 }} transition={{ duration:0.5,delay:0.15 }}
             className="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-600/20 bg-emerald-600/5 px-4 py-1.5">
-            <img src="/logo.png" alt="OneInit" className="h-5 w-auto" />
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="font-mono text-xs tracking-widest text-emerald-500">AI-FIRST ENVIRONMENT INITIALIZER</span>
           </motion.div>
 
-          <motion.h1 initial={{ opacity:0,y:30 }} animate={{ opacity:1,y:0 }} transition={{ duration:0.6,delay:0.2 }}
+          <motion.h1 initial={{ opacity:0,y:30 }} animate={{ opacity:1,y:0 }} transition={{ duration:0.6,delay:0.25 }}
             className="text-5xl font-bold leading-[1.04] tracking-tight text-white md:text-6xl lg:text-[78px]">
             One command<br />
             to init your<br />
