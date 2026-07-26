@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./LOGO.png" alt="OneInit Logo" width="320" />
+
 # OneInit
 
 **拿到一台新电脑后，第一个要装的工具。**

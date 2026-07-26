@@ -47,3 +47,6 @@ oneinit-recipes/
 www/.next/
 www/node_modules/
 www/tsconfig.tsbuildinfo
+
+# Next.js
+.next/

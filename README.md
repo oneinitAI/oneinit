@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./LOGO.png" alt="OneInit Logo" width="320" />
+
 # OneInit
 
 **One command to init your dev machine.**

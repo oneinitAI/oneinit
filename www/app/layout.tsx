@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://oneinit.vercel.app"),
   title: "OneInit — One Command to Init Your Dev Machine",
   description: "AI-first environment initializer. Python, Node, Rust, Go — installed, mirrored, PATH-configured in one line.",
-  openGraph: { title: "OneInit", description: "One command to init your dev machine.", type: "website" },
+  icons: { icon: "/logo.png", apple: "/logo.png" },
+  openGraph: { title: "OneInit", description: "One command to init your dev machine.", type: "website", images: ["/logo.png"] },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,8 +1,8 @@
 "use client"; export function Nav() { return (
 <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.04] bg-[#0a0a0f]/80 backdrop-blur-xl">
   <div className="mx-auto flex max-w-[1200px] items-center justify-between px-6 h-16">
-    <a href="#" className="flex items-center gap-2 font-sans font-bold text-lg tracking-tight text-white">
-      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 font-mono text-xs text-white">{"</>"}</span>
+    <a href="#" className="flex items-center gap-2.5 font-sans font-bold text-lg tracking-tight text-white">
+      <img src="/logo.png" alt="OneInit" className="h-7 w-auto" />
       oneinit
     </a>
     <a href="https://github.com/BG4JTS/oneinit" target="_blank" rel="noopener noreferrer"

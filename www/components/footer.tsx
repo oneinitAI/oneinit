@@ -1,5 +1,6 @@
 "use client";export function Footer(){return(
 <footer className="border-t border-white/[0.04] py-20 text-center"><div className="mx-auto max-w-[600px] px-6">
+<img src="/logo.png" alt="OneInit" className="mx-auto h-10 w-auto mb-6 opacity-80" />
 <h2 className="text-3xl font-bold tracking-tight text-white md:text-5xl">One command to <span className="text-emerald-500">init your dev machine</span>.</h2>
 <p className="mt-4 text-zinc-500">17 commands. 7 detectors. 26 tests. 7.3MB. Zero runtime.</p>
 <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
