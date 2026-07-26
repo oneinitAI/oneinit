@@ -13,7 +13,7 @@ export function Hero() {
         <div className="flex flex-col justify-center">
           <motion.div initial={{ opacity:0,y:20 }} animate={{ opacity:1,y:0 }} transition={{ duration:0.5,delay:0.1 }}
             className="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-600/20 bg-emerald-600/5 px-4 py-1.5">
-            <img src="/logo.png" alt="OneInit" className="h-4 w-auto" />
+            <img src="/logo.png" alt="OneInit" className="h-5 w-auto" />
             <span className="font-mono text-xs tracking-widest text-emerald-500">AI-FIRST ENVIRONMENT INITIALIZER</span>
           </motion.div>
 
