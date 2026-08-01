@@ -212,7 +212,7 @@ fn write_path_to_fish_file(path: &Path) -> Result<()> {
     let fish_path = format!(
         "\n{}\nset -gx PATH {}\n",
         marker,
-        path_val.replace(':', ' ')
+        path_val.replace(':', " ")
     );
 
     let mut file = std::fs::OpenOptions::new().append(true).open(path)?;
