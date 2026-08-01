@@ -1,0 +1,5 @@
+#!/bin/sh
+# Placeholder — the real binary is downloaded by postinstall.
+# If you see this message, run: npm i -g oneinit
+echo "oneinit: binary not yet installed. Please re-run: npm i -g oneinit"
+exit 1

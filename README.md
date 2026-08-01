@@ -159,8 +159,8 @@ GPL-3.0
 
 OneInit is a solo open-source project. If it saves you time, consider supporting:
 
-[![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/oneinitAI)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-☕-ffdd00)](https://buymeacoffee.com/BG4JTS)
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/BG4JTS)
+[![Open Collective](https://img.shields.io/badge/Open%20Collective-3385FF?logo=opencollective&logoColor=white)](https://opencollective.com/bg4jts)
 
 **Every star ⭐ helps more developers discover OneInit.** Star the repo to show your support!
 

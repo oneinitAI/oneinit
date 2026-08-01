@@ -1,0 +1,29 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project
+/www/
+/src/
+/tests/
+/temp/
+Cargo.toml
+Cargo.lock
+*.md
+*.exe
+*.dmg
+install.sh
+optimization.md
+tui.md
+plan.md
+Important.md
+LOGO.png
