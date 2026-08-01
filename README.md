@@ -155,12 +155,14 @@ OneInit downloads files from the internet, modifies your PATH, writes config fil
 
 GPL-3.0
 
-## star
-如果 OneInit 对你有帮助，欢迎 Star !
+## Support
 
-If OneInit is helpful to you, please feel free to STAR IT!
+OneInit is a solo open-source project. If it saves you time, consider supporting:
 
-star！star！star！star！star！
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/oneinitAI)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-☕-ffdd00)](https://buymeacoffee.com/BG4JTS)
+
+**Every star ⭐ helps more developers discover OneInit.** Star the repo to show your support!
 
 ---
 <div align="center">

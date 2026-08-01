@@ -253,10 +253,14 @@ OneInit 会从网络下载文件、修改 PATH 环境变量、写入配置文件
 
 GPL-3.0
 
----
-## star
-如果 OneInit 对你有帮助，欢迎 Star !
-star！star！star！star！star！
+## 支持项目
+
+OneInit 是个人独立开源项目。如果它帮你节省了时间，欢迎支持：
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/oneinitAI)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-☕-ffdd00)](https://buymeacoffee.com/BG4JTS)
+
+**每一个 Star ⭐ 都能让更多开发者发现 OneInit。** 给仓库点个 Star 就是最好的鼓励！
 
 ---
 
