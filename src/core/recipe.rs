@@ -657,6 +657,10 @@ mod tests {
     #[test]
     fn test_all_sha256_valid_length() {
         for r in list_recipes() {
+            if r.sha256.starts_with("NOT_AVAILABLE") {
+                // 平台占位符：该 recipe 在当前平台不可用（如非 Windows 的 python embed）
+                continue;
+            }
             assert_eq!(r.sha256.len(), 64, "{} sha256 must be 64 hex chars", r.name);
         }
     }
