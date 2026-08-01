@@ -283,8 +283,8 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
                 },
             ));
 
-            // sha256 长度
-            let sha_ok = cfg.sha256.len() == 64;
+            // sha256 长度（64 位 hex 为 SHA256，128 位 hex 为 SHA512）
+            let sha_ok = cfg.sha256.len() == 64 || cfg.sha256.len() == 128;
             checks.push((
                 format!("{}.sha256", os),
                 sha_ok,
