@@ -1,4 +1,6 @@
 "use client";
+import { useLang } from "./lang-provider";
+
 const RECIPE = `name: node20
 version: "20.18.1"
 description: "Node.js 20 LTS"
@@ -18,17 +20,18 @@ maintainer:
   github: "BG4JTS"`;
 
 export function CommunityRecipe() {
+  const { t } = useLang();
   return (
     <section className="border-t border-white/[0.04] py-24 md:py-32">
       <div className="mx-auto max-w-[1100px] px-6">
         <div className="grid grid-cols-1 gap-12 md:grid-cols-2 items-center">
           <div data-aos="fade-right">
-            <span className="font-mono text-xs uppercase tracking-[0.3em] text-emerald-500">Community Registry</span>
-            <h2 className="mt-3 mb-4 text-3xl font-bold text-white md:text-5xl">Publish YAML.<br /><span className="text-zinc-600">Anyone installs.</span></h2>
+            <span className="font-mono text-xs uppercase tracking-[0.3em] text-emerald-500">{t("cr.badge")}</span>
+            <h2 className="mt-3 mb-4 text-3xl font-bold text-white md:text-5xl">{t("cr.title1")}<br /><span className="text-zinc-600">{t("cr.title2")}</span></h2>
             <p className="mb-6 leading-relaxed text-zinc-400 max-w-[440px]">
-              Like npm, but for dev tools. Write a recipe. Push to GitHub. One command installs it anywhere.
+              {t("cr.desc")}
               <br /><br />
-              Built-in security: every recipe is SHA256-verified before installation. Users confirm before anything runs.
+              {t("cr.security")}
             </p>
             <div className="flex gap-4 text-sm text-zinc-600 font-mono">
               <span>zip_extract</span><span>·</span><span>tar_extract</span><span>·</span><span>exe_silent</span><span>·</span><span>msi_install</span><span>·</span><span>pkg_install</span>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { LangProvider } from "@/components/lang-provider";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://oneinit.vercel.app"),
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="bg-orb bg-orb-2" />
         <div className="bg-orb bg-orb-3" />
         <div className="bg-scanline" />
-        <div className="relative z-10">{children}</div>
+        <div className="relative z-10">
+          <LangProvider>{children}</LangProvider>
+        </div>
       </body>
     </html>
   );
