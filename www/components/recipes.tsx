@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useLang } from "./lang-provider";
 
 // 内置配方（无需联网，始终显示）
 const BUILTIN = [
@@ -21,6 +22,7 @@ type RecipeItem = {
 };
 
 export function Recipes() {
+  const { t } = useLang();
   const [remote, setRemote] = useState<RecipeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -57,15 +59,13 @@ export function Recipes() {
         <div className="mb-14 text-center" data-aos="fade-up">
           <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-4 py-1.5 font-mono text-xs tracking-widest text-emerald-500">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-            SUPPORTED RECIPES · LIVE
+            {t("rc.badge")}
           </span>
           <h2 className="text-3xl font-bold text-white md:text-5xl">
-            One command.<br />
-            <span className="text-zinc-600">{all.length} tools and counting.</span>
+            {t("rc.title1")}<br />
+            <span className="text-zinc-600">{t("rc.title2", { n: all.length })}</span>
           </h2>
-          <p className="mx-auto mt-4 max-w-[560px] text-zinc-400">
-            配方列表实时从注册表拉取。内置配方开箱即用，远程配方一条命令自动安装。
-          </p>
+          <p className="mx-auto mt-4 max-w-[560px] text-zinc-400">{t("rc.desc")}</p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -85,7 +85,7 @@ export function Recipes() {
                         : "bg-cyan-500/15 text-cyan-400"
                     }`}
                   >
-                    {r.source === "builtin" ? "BUILTIN" : "REMOTE"}
+                    {r.source === "builtin" ? t("rc.builtin") : t("rc.remote")}
                   </span>
                   <span className="font-mono text-sm font-bold text-white">{r.name}</span>
                 </div>
@@ -119,18 +119,18 @@ export function Recipes() {
           {loading && (
             <div className="glass flex items-center justify-center rounded-2xl p-6 font-mono text-sm text-zinc-500">
               <span className="mr-2 h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-              fetching registry...
+              {t("rc.fetching")}
             </div>
           )}
           {!loading && error && (
             <div className="glass flex items-center justify-center rounded-2xl p-6 font-mono text-xs text-zinc-600">
-              registry unreachable — showing builtin recipes
+              {t("rc.err")}
             </div>
           )}
         </div>
 
         <p className="mt-8 text-center font-mono text-xs text-zinc-600">
-          需要更多工具？提交 recipe request →
+          {t("rc.cta")}
           <a
             href="https://github.com/oneinitAI/oneinit-recipes/issues/new?assignees=&labels=recipe&projects=&template=recipe_request.yml"
             target="_blank"
