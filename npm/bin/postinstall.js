@@ -17,7 +17,7 @@ const binaryName = platformMap[key];
 
 if (!binaryName) {
   console.log(`[oneinit] Unsupported platform: ${key}`);
-  console.log(`[oneinit] Build from source: https://github.com/BG4JTS/oneinit`);
+  console.log(`[oneinit] Build from source: https://github.com/oneinitAI/oneinit`);
   process.exit(0);
 }
 
@@ -33,5 +33,5 @@ if (fs.existsSync(bundled)) {
   console.log(`[oneinit] Binary installed for ${key}.`);
 } else {
   console.log(`[oneinit] Binary for ${key} not bundled in this package.`);
-  console.log(`[oneinit] Build from source: https://github.com/BG4JTS/oneinit`);
+  console.log(`[oneinit] Build from source: https://github.com/oneinitAI/oneinit`);
 }
