@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://picui.ogmua.cn/s1/2026/07/26/6a657c3d097b1.webp" alt="OneInit Logo" width="320" />
+<img src="https://picui.ogmua.cn/s1/2026/08/01/6a6d8fa53e5ca.webp" alt="OneInit Logo" width="320" />
 
 # OneInit
 
