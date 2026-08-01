@@ -657,12 +657,7 @@ mod tests {
     #[test]
     fn test_all_sha256_valid_length() {
         for r in list_recipes() {
-            assert_eq!(
-                r.sha256.len(),
-                64,
-                "{} sha256 must be 64 hex chars",
-                r.name
-            );
+            assert_eq!(r.sha256.len(), 64, "{} sha256 must be 64 hex chars", r.name);
         }
     }
 
