@@ -63,8 +63,8 @@ fn frontend_preset() -> Preset {
     Preset {
         name: "frontend".to_string(),
         display_name: "前端开发套装".to_string(),
-        description: "（暂无可用recipe，等待 Node.js recipe实现）".to_string(),
-        packages: vec![],
+        description: "Node.js 20 LTS + npm 淘宝源".to_string(),
+        packages: vec!["node20".to_string()],
     }
 }
 
@@ -73,7 +73,12 @@ fn full_preset() -> Preset {
     Preset {
         name: "full".to_string(),
         display_name: "全栈开发套装".to_string(),
-        description: "安装所有可用recipe".to_string(),
-        packages: vec!["python3.11".to_string()],
+        description: "Python + Node.js + Go + Java 全套".to_string(),
+        packages: vec![
+            "python3.11".to_string(),
+            "node20".to_string(),
+            "go".to_string(),
+            "java17".to_string(),
+        ],
     }
 }
