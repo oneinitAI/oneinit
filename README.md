@@ -142,6 +142,20 @@ maintainer:
 
 Then: `oneinit install my-tool`
 
+## Terms of Service
+
+By using OneInit you agree to the following:
+
+- **Automation guidance only.** OneInit automates downloading and installing
+  software from the URLs declared in recipes. It does **not** host, store,
+  redistribute, or endorse any software copies.
+- **Your responsibility.** You are solely responsible for the software you
+  install and for complying with its license, copyright, and local laws.
+  OneInit is not a party to your relationship with the software publishers.
+- **Respect licenses.** Before installing, review the `license` /
+  `license_url` shown in the `[SECURITY]` confirmation prompt. If a tool's
+  license does not permit the intended use, do not install it.
+
 ## Security & Disclaimer
 
 OneInit downloads files from the internet, modifies your PATH, writes config files, and may execute install scripts. By using OneInit you acknowledge:

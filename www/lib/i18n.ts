@@ -217,4 +217,26 @@ export const dict: Dict = {
   "ft.github": { en: "View on GitHub", zh: "查看 GitHub" },
   "ft.built": { en: "Built with Rust · No runtime · Single binary", zh: "Rust 构建 · 零运行时 · 单二进制" },
   "ft.support": { en: "💚 Support OneInit — it's made by one person", zh: "💚 支持 OneInit —— 一个人的开源项目" },
+  "ft.terms": { en: "Terms of Service", zh: "用户协议" },
+
+  // ===== Terms of Service =====
+  "terms.title": { en: "Terms of Service", zh: "用户协议" },
+  "terms.updated": { en: "Last updated: August 2026", zh: "最后更新：2026 年 8 月" },
+  "terms.p1": { en: "By using OneInit you agree to the following terms.", zh: "使用 OneInit 即表示你同意以下条款。" },
+  "terms.s1t": { en: "Automation guidance only", zh: "仅提供自动化指引" },
+  "terms.s1d": {
+    en: "OneInit automates downloading and installing software from the URLs declared in recipes. It does not host, store, redistribute, or endorse any software copies.",
+    zh: "OneInit 仅按配方声明的下载地址自动下载和安装软件。它不托管、存储、分发或背书任何软件副本。",
+  },
+  "terms.s2t": { en: "Your responsibility", zh: "责任自负" },
+  "terms.s2d": {
+    en: "You are solely responsible for the software you install and for complying with its license, copyright, and local laws. OneInit is not a party to your relationship with the software publishers.",
+    zh: "你需对自己安装的软件负责，并遵守其许可证、版权及相关法律法规。OneInit 不是你和软件发布方之间的协议当事方。",
+  },
+  "terms.s3t": { en: "Respect licenses", zh: "尊重许可证" },
+  "terms.s3d": {
+    en: "Before installing, review the license / license_url shown in the [SECURITY] confirmation prompt. If a tool's license does not permit the intended use, do not install it.",
+    zh: "安装前请查看 [SECURITY] 确认提示中的 license / license_url。如果某个工具的许可证不允许你的预期用途，请勿安装。",
+  },
+  "terms.back": { en: "← Back to home", zh: "← 返回首页" },
 };
