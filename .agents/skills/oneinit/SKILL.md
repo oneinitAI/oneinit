@@ -3,13 +3,15 @@ name: oneinit
 description: >
   OneInit developer environment initializer — install, configure, and
   migrate dev tools with one command. Use when the user wants to: set up
-  a new dev machine, install Python/Node/Rust/Go/Java/Git/Docker, configure
-  pip/npm mirror sources (Tsinghua/npmmirror), capture current environment
-  snapshot, export/import dev setup as tar.gz, search available packages,
-  verify community recipes, or batch-sync from oneinit.yaml. Trigger on
-  phrases like "init dev environment", "install python", "set up new
-  machine", "mirror source", "capture environment", "export dev setup",
-  "migrate tools", "oneinit", "configure pip mirror", "bootstrap dev".
+  a new dev machine, install Python/Node/Rust/Go/Java/MySQL/.NET, configure
+  pip/npm/cargo/maven/nuget mirror sources, subscribe to custom recipe
+  registries, generate/verify/publish community recipes, capture current
+  environment snapshot, export/import dev setup as tar.gz, search available
+  packages, batch-sync from oneinit.yaml, or file issues/PRs against the
+  oneinit repositories. Trigger on phrases like "init dev environment",
+  "install python", "set up new machine", "mirror source", "capture
+  environment", "export dev setup", "migrate tools", "recipe registry",
+  "oneinit", "recipe generator", "write a recipe", "submit issue", "PR".
 ---
 
 # OneInit — AI-Driven Dev Environment Management
@@ -17,6 +19,8 @@ description: >
 OneInit is a CLI tool that initializes a complete development environment with one command. It downloads, extracts, configures mirrors, writes PATH, and records everything in a SQLite manifest for clean rollback.
 
 **Key principle**: Always pass `--json` to get structured, parseable output. Human-readable mode is for interactive use only.
+
+**Auto-update**: Every `oneinit` invocation silently refreshes the recipe index when the cache is missing or older than 24h — no manual `update` needed for normal use.
 
 ## Quick Reference
 
@@ -26,13 +30,32 @@ OneInit is a CLI tool that initializes a complete development environment with o
 | Uninstall a tool | `oneinit uninstall <package> --json` |
 | List installed tools | `oneinit list --json` |
 | Search available tools | `oneinit search [keyword] --json` |
+| Update recipe index (all registries) | `oneinit update --json` |
+| Add a registry subscription | `oneinit registry add <url>` |
+| List registry subscriptions | `oneinit registry list` |
+| Remove a registry subscription | `oneinit registry remove <url>` |
 | Capture current environment | `oneinit capture [-o file] --json` |
 | Export environment to tar.gz | `oneinit export [-o file] [--include-envs] --json` |
 | Import environment from tar.gz | `oneinit import <file> [--dry-run] [--force] --json` |
 | Init with preset suite | `oneinit init --preset <name>` |
 | Sync from oneinit.yaml | `oneinit sync --json` |
 | Verify a community recipe | `oneinit verify <file> --json` |
+| Health check | `oneinit doctor --json` |
+| Export installed tools (like pip freeze) | `oneinit freeze -o file.yaml` |
+| Generate shell completion | `oneinit completions bash` |
+| Install AI Skill to agents | `oneinit skill install` |
 | Launch interactive TUI | `oneinit tui` |
+
+## Built-in Recipes (no confirmation, always available)
+
+| Name | Version | Description |
+|------|---------|-------------|
+| `python3.11` | 3.11.9 | Python + pip + Tsinghua mirror (Windows) |
+| `node20` | 20.18.1 | Node.js 20 LTS + npm npmmirror (win/linux/mac) |
+| `go` | 1.23.4 | Go toolchain (win/linux/mac) |
+| `java17` | 17.0.20+8 | Temurin JDK 17 LTS (win/linux/mac) |
+
+Community registry (`oneinit-recipes`) also provides: `rust` (rustup + rsproxy.cn mirror), `dotnet8` (.NET SDK 8 / C# + NuGet cnblogs mirror), `mysql8` (MySQL 8.0), and more.
 
 ## Commands
 
@@ -44,13 +67,16 @@ OneInit is a CLI tool that initializes a complete development environment with o
 # Install Python 3.11 (includes pip + Tsinghua mirror auto-config)
 oneinit install python3.11 --json
 
+# Install a community/remote recipe (auto-fetched from registry)
+oneinit install dotnet8 --json
+
 # Check if already installed before installing
 oneinit list --json
 ```
 
-Install flow: download -> SHA256 verify -> extract -> post-install (get-pip etc.) -> apply mirror configs -> add to PATH -> record in manifest.
+Install flow: download -> checksum verify (SHA256 or SHA512) -> extract -> post-install -> apply mirror configs -> add to PATH -> record in manifest.
 
-**Security**: Community recipes display a `[SECURITY]` confirmation prompt before installing. The user must type `y` to proceed. For automated/AI workflows, prefer built-in recipes (like `python3.11`) which do not require confirmation.
+**Security**: Community recipes display a `[SECURITY]` confirmation prompt before installing. The user must type `y` to proceed. For automated/AI workflows, prefer built-in recipes (like `python3.11`).
 
 #### Uninstall a tool
 
@@ -65,16 +91,33 @@ Performs full rollback: removes PATH entries, deletes config files, removes inst
 ```bash
 # List all installed tools
 oneinit list --json
-# Returns: { "status": "success", "installed": [...], "count": N }
 
-# Search available recipes (built-in + community)
-oneinit search python --json
-# Returns results with "source": "builtin" or "community"
+# Search available recipes (builtin + community + remote)
+oneinit search java --json
+# Returns results with "source": "builtin" | "community" | "remote"
 ```
 
-### Environment Capture
+### Registry Subscriptions (multi-registry)
 
-Scans the current machine for installed dev tools and generates a reproducible YAML snapshot.
+OneInit can pull recipes from **multiple** registries. The default is `oneinitAI/oneinit-recipes`; custom registries are merged in (default wins on name conflicts).
+
+```bash
+# Add a custom registry (must provide INDEX.json at {url}/INDEX.json)
+oneinit registry add "https://raw.githubusercontent.com/yourname/recipes/main"
+
+# List subscriptions
+oneinit registry list
+
+# Remove a subscription
+oneinit registry remove "https://raw.githubusercontent.com/yourname/recipes/main"
+
+# Force-refresh all registries
+oneinit update
+```
+
+A registry repo must contain: `INDEX.json` (package index) + `recipes/<name>/<version>.yaml` (recipe files).
+
+### Environment Capture
 
 ```bash
 # Capture to default file
@@ -84,104 +127,51 @@ oneinit capture --json
 oneinit capture -o my-env.yaml --json
 ```
 
-Detected environments (7 built-in detectors):
-- **Python**: version, pip mirror, global packages (`pip list --format=freeze`)
-- **Node.js**: version, npm registry, global npm packages
-- **Git**: version, user.name, user.email
-- **Rust**: rustc/cargo version, rustup toolchain
-- **Go**: version, GOPATH, GOROOT
-- **Java**: version (from stderr), javac version, JAVA_HOME
-- **Docker**: version, compose version, container/image counts
-
-Custom detectors: Users can add entries to `~/.oneinit/scan_config.yaml`:
-
-```yaml
-custom_detectors:
-  - name: flutter
-    command: "flutter --version"
-    version_prefix: "Flutter "
-```
+Detected environments (7 built-in detectors): Python, Node.js, Git, Rust, Go, Java, Docker. Custom detectors via `~/.oneinit/scan_config.yaml`.
 
 ### Migration (Export / Import)
 
-#### Export
-
 ```bash
-# Lightweight export (environment metadata only, ~3 KB)
-oneinit export -o backup.tar.gz --json
-
-# Full export (includes installed tool binaries from ~/.oneinit/envs/)
-oneinit export -o backup.tar.gz --include-envs --json
+oneinit export -o backup.tar.gz --json                          # metadata only
+oneinit export -o backup.tar.gz --include-envs --json           # + binaries
+oneinit import backup.tar.gz --dry-run --json                   # preview
+oneinit import backup.tar.gz --json                             # restore
 ```
-
-The tar.gz contains:
-- `recipe/oneinit.yaml` — captured environment snapshot
-- `manifest.json` — migration manifest with checksums
-- `cache/` — tool binaries (only with `--include-envs`)
-
-#### Import
-
-```bash
-# Preview what would be restored (no changes made)
-oneinit import backup.tar.gz --dry-run --json
-
-# Actually import (restores recipe + package lists)
-oneinit import backup.tar.gz --json
-
-# Force overwrite existing files
-oneinit import backup.tar.gz --force --json
-```
-
-Import flow: extract tar.gz -> verify SHA256 checksums -> restore recipe to `~/.oneinit/recipes/imported.yaml` -> optionally restore envs cache -> record package lists for manual or `oneinit sync` installation.
 
 ### Presets and Sync
 
-#### Init with Preset
+```bash
+oneinit init                          # list presets
+oneinit init --preset python          # python suite
+oneinit init --preset frontend        # node20
+oneinit init --preset full            # python + node + go + java
+oneinit sync --json                   # batch-install from oneinit.yaml
+```
+
+### TUI
 
 ```bash
-# List available presets
-oneinit init
-
-# Install Python development suite
-oneinit init --preset python
-
-# Available presets: python, ai, frontend, full
+oneinit tui
 ```
 
-#### Sync from oneinit.yaml
+- Two panes: **Installed** / **Available** (Tab to switch)
+- Available pane shows source tags: `[B]` builtin (green), `[C]` community (yellow), `[R]` remote (cyan)
+- Enter to install/uninstall, `c` to capture, `r` to refresh, `?` for help
+- Starts with an automatic index refresh when stale
 
-```bash
-oneinit sync --json
-```
+## Community Recipes
 
-Reads `oneinit.yaml` from the current directory, installs all listed tools, applies mirror config, and runs post-install commands.
-
-`oneinit.yaml` format:
-
-```yaml
-envs:
-  python: 3.11
-
-mirrors:
-  pip: tsinghua
-
-post_install:
-  - pip install -r requirements.txt
-```
-
-### Community Recipes
-
-#### Verify a Recipe File
+### Verify a Recipe File
 
 ```bash
 oneinit verify my-recipe.yaml --json
 ```
 
-Checks: YAML syntax, required fields (name/version/description), platform coverage, SHA256 length (64 chars), install_type validity, maintainer warning.
+Checks: YAML syntax, required fields, platform coverage, checksum format (64-char SHA256 **or** 128-char SHA512), install_type validity, maintainer warning.
 
-#### Community Recipe Format
+### Recipe Format
 
-Recipe YAML files go in `~/.oneinit/recipes/`. Once placed there, they are automatically discoverable by `oneinit search` and installable by `oneinit install <name>`.
+Recipe YAML files in `~/.oneinit/recipes/` are auto-discovered by `search` and `install`.
 
 ```yaml
 name: my-tool
@@ -191,17 +181,15 @@ description: "A community recipe"
 platforms:
   windows:
     url: "https://example.com/tool-1.0.0.zip"
-    sha256: "64-char-hex-string-here..."
+    sha256: "64-char-hex-or-128-char-sha512..."
     install_type: "zip_extract"
     install_path: "my-tool"
     path_add: ["{{install_dir}}"]
 
 post_install:
   config_files:
-    - path: "config.ini"
-      template: |
-        [global]
-        mirror = {{mirror_pip}}
+    - path: "{{user_home}}/.config/my-tool.conf"
+      template: "mirror = {{mirror_pip}}"
   commands:
     - "echo setup complete"
 
@@ -213,14 +201,67 @@ maintainer:
   github: "username"
 ```
 
-**Template variables** (auto-replaced in path_add, config_files, commands):
-- `{{install_dir}}` — absolute install path
-- `{{user_home}}` — user home directory
-- `{{mirror_pip}}` — `https://pypi.tuna.tsinghua.edu.cn/simple`
-- `{{mirror_pip_host}}` — `pypi.tuna.tsinghua.edu.cn`
-- `{{mirror_npm}}` — `https://registry.npmmirror.com`
+**Template variables**: `{{install_dir}}`, `{{user_home}}`, `{{mirror_pip}}`, `{{mirror_pip_host}}`, `{{mirror_npm}}`
 
-**Supported install_type values**: `zip_extract`, `tar_extract`, `exe_silent`, `binary_copy`
+**Supported install_type**: `zip_extract`, `tar_extract`, `exe_silent`, `binary_copy`, `msi_install`, `pkg_install`
+
+**Platform keys**: `windows`, `linux`, `darwin` (at least one required). Note: archives extract WITHOUT stripping the top-level directory, so `path_add` must point at the real binary dir (e.g. `{{install_dir}}/node-v20.18.1-linux-x64`).
+
+## Generating Recipes (recipe authoring guide)
+
+When the user asks to create a recipe, follow this workflow:
+
+### 1. Gather facts (never guess checksums)
+
+- Official download URL per platform (windows/linux/darwin)
+- **Real checksum**: fetch from the official SHA256SUMS/sidecar file, or download + compute locally. A wrong checksum makes the recipe fail.
+- `install_type` (see supported list) and correct `install_path`/`path_add` (account for top-level dirs in archives)
+- Mirror source config for the package manager (pip→Tsinghua, npm→npmmirror, cargo→rsproxy.cn, maven→Aliyun, nuget→cnblogs)
+
+### 2. Write the recipe YAML
+
+Follow the format above. Use `{{mirror_*}}` template variables for mirror configs. Write config files to `{{user_home}}/...` so the tool reads them globally.
+
+### 3. Validate locally
+
+```bash
+oneinit verify my-recipe.yaml
+python scripts/validate.py    # in the oneinit-recipes repo (schema + INDEX consistency)
+```
+
+### 4. Publish
+
+```bash
+oneinit publish my-recipe.yaml
+```
+
+Then submit a PR to [oneinitAI/oneinit-recipes](https://github.com/oneinitAI/oneinit-recipes) following the contribution steps it prints. CI automatically validates the PR.
+
+## Contributing — Issues & PRs
+
+OneInit has **two** repos; file issues in the right one:
+
+| Repo | Purpose | Issue templates |
+|------|---------|-----------------|
+| [oneinitAI/oneinit](https://github.com/oneinitAI/oneinit) | Core CLI, TUI, bugs, features | Bug / Feature / Recipe request |
+| [oneinitAI/oneinit-recipes](https://github.com/oneinitAI/oneinit-recipes) | Recipe registry, recipe bugs | Recipe request / Recipe bug |
+
+### Guiding users to file issues
+
+When a user reports a bug or asks for a feature/recipe, guide them to:
+
+1. **Bug**: `oneinit --version` + OS + reproduction steps + full error output (use `--json` for structured errors). File at oneinit → "🐛 Bug Report" (auto-labels `bug`).
+2. **Feature**: describe the pain point, desired behavior, alternatives. oneinit → "✨ Feature Request" (`enhancement`).
+3. **Recipe**: package name, version, official download URL, target platforms, mirror suggestion. oneinit-recipes → "📦 Recipe Request" (`recipe`).
+
+Provide the user a ready-to-paste issue body so they don't have to fill forms from scratch.
+
+### Guiding users to submit PRs
+
+- **Code changes** (main repo): branch from `main` → make changes → open PR. CI runs tiered checks: `S` (≤10 files: fmt+clippy+test), `M` (11-30: +release build), `L` (>30: +cross-platform check). Labels: `docs` (link check only), `ci` (workflow YAML check), `breaking` (forces L).
+- **Recipe additions** (recipes repo): add `recipes/<name>/<version>.yaml` + update `INDEX.json` (alphabetical) → PR. CI validates schema + INDEX consistency automatically.
+- **Branch protection**: `main` requires CI to pass + 1 review. Direct pushes are rejected — always use a PR.
+- After the PR, tell the user to check the CI status and wait for review/merge.
 
 ## AI Best Practices
 
@@ -228,12 +269,18 @@ maintainer:
 
 2. **Check before installing**: Run `oneinit list --json` first to avoid duplicate installs. Already-installed packages return `already_installed: true`.
 
-3. **Search before assuming**: Run `oneinit search <keyword> --json` to verify a recipe exists before attempting `oneinit install`.
+3. **Search before assuming**: Run `oneinit search <keyword> --json` to verify a recipe exists before attempting `oneinit install`. Sources: `builtin` / `community` / `remote`.
 
-4. **Capture before migrating**: On the source machine, run `oneinit capture --json` and review the output. Then `oneinit export --include-envs --json` for a complete backup.
+4. **No manual update needed**: the index auto-refreshes on use. Run `oneinit update` explicitly only when you need the latest index immediately (e.g. after a new recipe is published).
 
-5. **Dry-run imports**: Always run `oneinit import <file> --dry-run --json` first to preview what will be restored.
+5. **Multi-registry**: if a package isn't found, suggest `oneinit registry add <url>` if the user has a private/custom registry.
 
-6. **Community recipe safety**: Community recipe installs require interactive `y` confirmation (displays download source, SHA256, commands to execute). For AI-driven workflows, prefer built-in recipes or pre-verified community recipes.
+6. **Capture before migrating**: On the source machine, run `oneinit capture --json` and review the output. Then `oneinit export --include-envs --json` for a complete backup.
 
-7. **Path refresh**: After `oneinit install`, the tool is added to PATH via Windows registry or Unix shell config. The user may need to open a new terminal for PATH changes to take effect.
+7. **Dry-run imports**: Always run `oneinit import <file> --dry-run --json` first to preview what will be restored.
+
+8. **Community recipe safety**: Community recipe installs require interactive `y` confirmation (displays download source, checksum, commands to execute). For AI-driven workflows, prefer built-in recipes or pre-verified community recipes.
+
+9. **Path refresh**: After `oneinit install`, the tool is added to PATH via Windows registry or Unix shell config. The user may need to open a new terminal for PATH changes to take effect.
+
+10. **Never fabricate checksums** in recipes: always fetch the real value from official sources or compute it from the downloaded artifact.
