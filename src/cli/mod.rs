@@ -747,16 +747,17 @@ pub async fn run_update(formatter: &OutputFormatter) {
 
     use crate::core::registry;
 
-    let config = registry::load_config();
+    let urls = registry::all_registry_urls();
     formatter.output(
         &format!(
-            "[UPDATE] Fetching recipe index from {}...",
-            config.registry_url
+            "[UPDATE] Fetching recipe index from {}  registry(s): {}",
+            urls.len(),
+            urls.join(", ")
         ),
         Some(serde_json::json!({
             "status": "fetching",
             "action": "update",
-            "registry_url": config.registry_url,
+            "registries": urls,
         })),
     );
 
@@ -765,12 +766,15 @@ pub async fn run_update(formatter: &OutputFormatter) {
             let count = index.packages.len();
             formatter.output(
                 &format!(
-                    "[OK] Index updated: {} packages available (updated {})",
-                    count, index.last_updated
+                    "[OK] Index updated: {} packages from {}  registries (updated {})",
+                    count,
+                    urls.len(),
+                    index.last_updated
                 ),
                 Some(serde_json::json!({
                     "status": "success",
                     "action": "update",
+                    "registry_count": urls.len(),
                     "package_count": count,
                     "last_updated": index.last_updated,
                     "packages": index.packages.keys().collect::<Vec<_>>(),
@@ -789,6 +793,103 @@ pub async fn run_update(formatter: &OutputFormatter) {
             );
         }
     }
+}
+
+/// oneinit registry add <url> — 添加自定义订阅
+pub fn run_registry_add(formatter: &OutputFormatter, url: &str) {
+    use crate::core::registry;
+
+    match registry::add_subscription(url) {
+        Ok(()) => {
+            let subs = registry::list_subscriptions();
+            formatter.output(
+                &format!(
+                    "[OK] Subscribed: {}\n当前订阅 ({}):\n  - 默认: {}\n{}",
+                    url,
+                    subs.len(),
+                    registry::load_config().registry_url,
+                    subs.iter()
+                        .enumerate()
+                        .map(|(i, s)| format!("  - {}: {}", i + 1, s))
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                ),
+                Some(serde_json::json!({
+                    "status": "success",
+                    "action": "registry_add",
+                    "url": url,
+                    "subscriptions": subs,
+                })),
+            );
+        }
+        Err(e) => formatter.error(&e),
+    }
+}
+
+/// oneinit registry remove <url> — 移除订阅
+pub fn run_registry_remove(formatter: &OutputFormatter, url: &str) {
+    use crate::core::registry;
+
+    match registry::remove_subscription(url) {
+        Ok(true) => {
+            let subs = registry::list_subscriptions();
+            formatter.output(
+                &format!(
+                    "[OK] Removed subscription: {}\n剩余订阅 ({}): {}",
+                    url,
+                    subs.len(),
+                    if subs.is_empty() {
+                        "(none)".to_string()
+                    } else {
+                        subs.join(", ")
+                    }
+                ),
+                Some(serde_json::json!({
+                    "status": "success",
+                    "action": "registry_remove",
+                    "url": url,
+                    "subscriptions": subs,
+                })),
+            );
+        }
+        Ok(false) => formatter.output(
+            &format!("[WARN] Subscription not found: {}", url),
+            Some(serde_json::json!({
+                "status": "not_found",
+                "action": "registry_remove",
+                "url": url,
+            })),
+        ),
+        Err(e) => formatter.error(&e),
+    }
+}
+
+/// oneinit registry list — 列出所有订阅
+pub fn run_registry_list(formatter: &OutputFormatter) {
+    use crate::core::registry;
+
+    let default = registry::load_config().registry_url;
+    let subs = registry::list_subscriptions();
+
+    let mut human = format!("[REGISTRY] 默认注册表: {}\n", default);
+    if subs.is_empty() {
+        human.push_str("  自定义订阅: (none)\n");
+    } else {
+        human.push_str(&format!("  自定义订阅 ({}):\n", subs.len()));
+        for (i, s) in subs.iter().enumerate() {
+            human.push_str(&format!("    {}. {}\n", i + 1, s));
+        }
+    }
+
+    formatter.output(
+        &human,
+        Some(serde_json::json!({
+            "status": "success",
+            "action": "registry_list",
+            "default_registry": default,
+            "subscriptions": subs,
+        })),
+    );
 }
 
 /// oneinit publish <file> — publish recipe to remote registry

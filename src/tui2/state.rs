@@ -6,7 +6,37 @@
 use std::collections::HashMap;
 
 use crate::core::manifest::InstallRecord;
-use crate::core::recipe::Recipe;
+
+/// 可安装包来源
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceKind {
+    /// 内置配方
+    Builtin,
+    /// 本地社区配方
+    Community,
+    /// 远程注册表
+    Remote,
+}
+
+impl SourceKind {
+    /// 显示标签（短）
+    pub fn tag(&self) -> &'static str {
+        match self {
+            SourceKind::Builtin => "B",
+            SourceKind::Community => "C",
+            SourceKind::Remote => "R",
+        }
+    }
+}
+
+/// 可安装包条目（统一内置/社区/远程三种来源）
+#[derive(Debug, Clone)]
+pub struct AvailableItem {
+    pub name: String,
+    pub display_name: String,
+    pub version: String,
+    pub source: SourceKind,
+}
 
 /// All screen types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,7 +69,7 @@ pub struct AppState {
     /// Current pane (main screen)
     pub active_pane: Pane,
     /// Available recipe list
-    pub available: Vec<Recipe>,
+    pub available: Vec<AvailableItem>,
     /// Installed records list
     pub installed: Vec<InstallRecord>,
     /// 已安装面板选中索引
@@ -81,13 +111,47 @@ impl AppState {
         state
     }
 
-    /// Refresh data (reload from Manifest + recipe registry)
+    /// Refresh data (reload from Manifest + builtin/community/remote recipes)
     pub fn refresh(&mut self) {
         self.installed = crate::core::manifest::Manifest::open()
             .ok()
             .and_then(|m| m.list().ok())
             .unwrap_or_default();
-        self.available = crate::core::recipe::list_recipes();
+
+        // 1. 内置配方
+        let mut available: Vec<AvailableItem> = crate::core::recipe::list_recipes()
+            .into_iter()
+            .map(|r| AvailableItem {
+                name: r.name,
+                display_name: r.display_name,
+                version: r.version,
+                source: SourceKind::Builtin,
+            })
+            .collect();
+
+        // 2. 本地社区配方
+        for r in crate::core::community_recipe::load_all() {
+            available.push(AvailableItem {
+                name: r.name.clone(),
+                display_name: r.name.clone(),
+                version: r.version.clone(),
+                source: SourceKind::Community,
+            });
+        }
+
+        // 3. 远程注册表（缓存 INDEX）
+        for (name, latest, desc, _source_url) in crate::core::registry::list_available_with_source()
+        {
+            let display = if desc.is_empty() { name.clone() } else { desc };
+            available.push(AvailableItem {
+                name,
+                display_name: display,
+                version: latest,
+                source: SourceKind::Remote,
+            });
+        }
+
+        self.available = available;
         self.clamp_selections();
     }
 

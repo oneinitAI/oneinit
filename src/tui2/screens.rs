@@ -138,8 +138,19 @@ fn draw_available_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
         .map(|r| {
             let is_installed = state.installed.iter().any(|i| i.name == r.name);
             let prefix = if is_installed { "v " } else { "  " };
+            // 来源标签颜色：B 绿 / C 黄 / R 蓝
+            let tag_style = match r.source {
+                super::state::SourceKind::Builtin => Color::Green,
+                super::state::SourceKind::Community => Color::Yellow,
+                super::state::SourceKind::Remote => Color::Cyan,
+            };
             ListItem::new(Line::from(vec![
                 Span::raw(prefix),
+                Span::styled(
+                    format!("[{}]", r.source.tag()),
+                    Style::default().fg(tag_style),
+                ),
+                Span::raw(" "),
                 Span::styled(
                     &r.display_name,
                     if is_installed {
@@ -147,6 +158,11 @@ fn draw_available_pane(frame: &mut Frame, area: Rect, state: &mut AppState) {
                     } else {
                         Style::default().fg(Color::White)
                     },
+                ),
+                Span::raw(" "),
+                Span::styled(
+                    format!("v{}", r.version),
+                    Style::default().fg(Color::DarkGray),
                 ),
             ]))
         })
