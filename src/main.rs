@@ -84,6 +84,13 @@ enum Commands {
         action: RegistryAction,
     },
 
+    /// 打开配方仓库 issue 表单（请求配方 / 报告 bug）
+    Issue {
+        /// 表单类型: recipe / bug / 空 → 打开选择页
+        #[arg(default_value = "choose")]
+        kind: String,
+    },
+
     /// Publish recipe to remote registry
     Publish {
         /// recipe文件路径
@@ -209,6 +216,7 @@ async fn main() {
             RegistryAction::Remove { url } => cli::run_registry_remove(&formatter, &url),
             RegistryAction::List => cli::run_registry_list(&formatter),
         },
+        Commands::Issue { kind } => cli::run_issue(&kind),
         Commands::Publish { file } => cli::run_publish(&formatter, &file).await,
         Commands::Export {
             output,

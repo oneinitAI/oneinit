@@ -795,6 +795,44 @@ pub async fn run_update(formatter: &OutputFormatter) {
     }
 }
 
+/// oneinit issue [recipe|bug] — 打开配方仓库 issue 表单
+pub fn run_issue(kind: &str) {
+    const RECIPES_REPO: &str = "https://github.com/oneinitAI/oneinit-recipes/issues";
+
+    let url = match kind {
+        "recipe" | "recipe-request" => format!(
+            "{}/new?assignees=&labels=recipe&projects=&template=recipe_request.yml",
+            RECIPES_REPO
+        ),
+        "bug" | "bug-report" => format!(
+            "{}/new?assignees=&labels=bug&projects=&template=bug_report.yml",
+            RECIPES_REPO
+        ),
+        _ => format!("{}/new/choose", RECIPES_REPO),
+    };
+
+    println!("[ISSUE] Opening: {}", url);
+
+    // 跨平台打开浏览器
+    #[cfg(target_os = "windows")]
+    let result = std::process::Command::new("cmd")
+        .args(["/C", "start", "", &url])
+        .spawn();
+
+    #[cfg(target_os = "macos")]
+    let result = std::process::Command::new("open").arg(&url).spawn();
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    let result = std::process::Command::new("xdg-open").arg(&url).spawn();
+
+    match result {
+        Ok(_) => println!("[OK] 已在浏览器打开表单。"),
+        Err(_) => {
+            println!("[INFO] 无法自动打开浏览器，请手动访问:\n      {}", url);
+        }
+    }
+}
+
 /// oneinit registry add <url> — 添加自定义订阅
 pub fn run_registry_add(formatter: &OutputFormatter, url: &str) {
     use crate::core::registry;
