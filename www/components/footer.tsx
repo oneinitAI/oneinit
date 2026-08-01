@@ -47,4 +47,3 @@ export function Footer() {
     </footer>
   );
 }
-// OneInit footer — no-review path test
