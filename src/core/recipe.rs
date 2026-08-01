@@ -74,13 +74,21 @@ pub enum ModifyAction {
 pub fn resolve(name: &str) -> Option<Recipe> {
     match name {
         "python3.11" => Some(python311_recipe()),
+        "node20" => Some(node20_recipe()),
+        "go" => Some(go_recipe()),
+        "java17" => Some(java17_recipe()),
         _ => None,
     }
 }
 
 /// 列出所有已知recipe
 pub fn list_recipes() -> Vec<Recipe> {
-    vec![python311_recipe()]
+    vec![
+        python311_recipe(),
+        node20_recipe(),
+        go_recipe(),
+        java17_recipe(),
+    ]
 }
 
 // ============================================================
@@ -434,6 +442,171 @@ fn python311_sha256() -> String {
     "NOT_AVAILABLE_FOR_NON_WINDOWS".to_string()
 }
 
+// ============================================================
+// Node.js 20.18.1 recipe（npm 淘宝源自动配置）
+// ============================================================
+
+/// Node.js 20 LTS 安装recipe
+///
+/// 官方二进制分发包，解压后自动写入 .npmrc 使用 npmmirror 镜像。
+fn node20_recipe() -> Recipe {
+    let (url, sha256, bin_dir) = node20_artifact();
+    Recipe {
+        name: "node20".to_string(),
+        version: "20.18.1".to_string(),
+        display_name: "Node.js 20.18.1".to_string(),
+        download_url: url.to_string(),
+        sha256: sha256.to_string(),
+        bin_dir: bin_dir.to_string(),
+        env_vars: vec![],
+        configs: vec![super::config_gen::npm_mirror_config()],
+        post_install: None,
+    }
+}
+
+/// 当前平台对应的 Node.js 20.18.1 下载信息 (url, sha256, bin_dir)
+fn node20_artifact() -> (&'static str, &'static str, &'static str) {
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    match (os, arch) {
+        ("windows", _) => (
+            "https://nodejs.org/dist/v20.18.1/node-v20.18.1-win-x64.zip",
+            "56e5aacdeee7168871721b75819ccacf2367de8761b78eaceacdecd41e04ca03",
+            "node-v20.18.1-win-x64",
+        ),
+        ("linux", _) => (
+            "https://nodejs.org/dist/v20.18.1/node-v20.18.1-linux-x64.tar.gz",
+            "259e5a8bf2e15ecece65bd2a47153262eda71c0b2c9700d5e703ce4951572784",
+            "node-v20.18.1-linux-x64",
+        ),
+        ("macos", "aarch64") => (
+            "https://nodejs.org/dist/v20.18.1/node-v20.18.1-darwin-arm64.tar.gz",
+            "9e92ce1032455a9cc419fe71e908b27ae477799371b45a0844eedb02279922a4",
+            "node-v20.18.1-darwin-arm64",
+        ),
+        ("macos", _) => (
+            "https://nodejs.org/dist/v20.18.1/node-v20.18.1-darwin-x64.tar.gz",
+            "c5497dd17c8875b53712edaf99052f961013cedc203964583fc0cfc0aaf93581",
+            "node-v20.18.1-darwin-x64",
+        ),
+        _ => (
+            "https://nodejs.org/dist/v20.18.1/node-v20.18.1-linux-x64.tar.gz",
+            "259e5a8bf2e15ecece65bd2a47153262eda71c0b2c9700d5e703ce4951572784",
+            "node-v20.18.1-linux-x64",
+        ),
+    }
+}
+
+// ============================================================
+// Go 1.23.4 recipe
+// ============================================================
+
+/// Go 1.23.4 安装recipe
+///
+/// 官方二进制分发包，二进制位于 go/bin（go 工具链标准布局）。
+fn go_recipe() -> Recipe {
+    let (url, sha256, _bin_dir) = go_artifact();
+    Recipe {
+        name: "go".to_string(),
+        version: "1.23.4".to_string(),
+        display_name: "Go 1.23.4".to_string(),
+        download_url: url.to_string(),
+        sha256: sha256.to_string(),
+        bin_dir: "go/bin".to_string(),
+        env_vars: vec![],
+        configs: vec![],
+        post_install: None,
+    }
+}
+
+/// 当前平台对应的 Go 1.23.4 下载信息 (url, sha256, bin_dir)
+fn go_artifact() -> (&'static str, &'static str, &'static str) {
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    match (os, arch) {
+        ("windows", _) => (
+            "https://dl.google.com/go/go1.23.4.windows-amd64.zip",
+            "16c59ac9196b63afb872ce9b47f945b9821a3e1542ec125f16f6085a1c0f3c39",
+            "go/bin",
+        ),
+        ("linux", _) => (
+            "https://dl.google.com/go/go1.23.4.linux-amd64.tar.gz",
+            "6924efde5de86fe277676e929dc9917d466efa02fb934197bc2eba35d5680971",
+            "go/bin",
+        ),
+        ("macos", "aarch64") => (
+            "https://dl.google.com/go/go1.23.4.darwin-arm64.tar.gz",
+            "87d2bb0ad4fe24d2a0685a55df321e0efe4296419a9b3de03369dbe60b8acd3a",
+            "go/bin",
+        ),
+        ("macos", _) => (
+            "https://dl.google.com/go/go1.23.4.darwin-amd64.tar.gz",
+            "6700067389a53a1607d30aa8d6e01d198230397029faa0b109e89bc871ab5a0e",
+            "go/bin",
+        ),
+        _ => (
+            "https://dl.google.com/go/go1.23.4.linux-amd64.tar.gz",
+            "6924efde5de86fe277676e929dc9917d466efa02fb934197bc2eba35d5680971",
+            "go/bin",
+        ),
+    }
+}
+
+// ============================================================
+// Java 17 (Temurin) recipe
+// ============================================================
+
+/// Temurin JDK 17 安装recipe
+///
+/// Eclipse Temurin 官方构建，macOS 使用 Contents/Home 布局。
+fn java17_recipe() -> Recipe {
+    let (url, sha256, bin_dir) = java17_artifact();
+    Recipe {
+        name: "java17".to_string(),
+        version: "17.0.20+8".to_string(),
+        display_name: "Temurin JDK 17.0.20".to_string(),
+        download_url: url.to_string(),
+        sha256: sha256.to_string(),
+        bin_dir: bin_dir.to_string(),
+        env_vars: vec![],
+        configs: vec![],
+        post_install: None,
+    }
+}
+
+/// 当前平台对应的 Temurin JDK 17.0.20+8 下载信息 (url, sha256, bin_dir)
+fn java17_artifact() -> (&'static str, &'static str, &'static str) {
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    match (os, arch) {
+        ("windows", _) => (
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20%2B8/OpenJDK17U-jdk_x64_windows_hotspot_17.0.20_8.zip",
+            "418497be5cf585bdd2203d6486a565d66d3f5e992d5630d45104cb873fab8122",
+            "jdk-17.0.20+8/bin",
+        ),
+        ("linux", _) => (
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20%2B8/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20_8.tar.gz",
+            "be7668bc030d578b83d6d5ef9221d6d6729bbbca8cf94a7d52e16ac68b5a5a35",
+            "jdk-17.0.20+8/bin",
+        ),
+        ("macos", "aarch64") => (
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20%2B8/OpenJDK17U-jdk_aarch64_mac_hotspot_17.0.20_8.tar.gz",
+            "524850138c742324fb21fca4ff6ef68ea25f25bf59366a864e45b4a0c45ed0df",
+            "jdk-17.0.20+8/Contents/Home/bin",
+        ),
+        ("macos", _) => (
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20%2B8/OpenJDK17U-jdk_x64_mac_hotspot_17.0.20_8.tar.gz",
+            "3710c3131c5d7c090582b357f1310133a90bf701183d065223f1a0b90b9ed5ae",
+            "jdk-17.0.20+8/Contents/Home/bin",
+        ),
+        _ => (
+            "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20%2B8/OpenJDK17U-jdk_x64_linux_hotspot_17.0.20_8.tar.gz",
+            "be7668bc030d578b83d6d5ef9221d6d6729bbbca8cf94a7d52e16ac68b5a5a35",
+            "jdk-17.0.20+8/bin",
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -450,6 +623,50 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_node20() {
+        let recipe = resolve("node20");
+        assert!(recipe.is_some());
+        let r = recipe.unwrap();
+        assert_eq!(r.version, "20.18.1");
+        assert!(r.download_url.contains("node-v20.18.1"));
+        assert_eq!(r.sha256.len(), 64);
+        assert!(!r.configs.is_empty()); // .npmrc 镜像配置
+    }
+
+    #[test]
+    fn test_resolve_go() {
+        let recipe = resolve("go");
+        assert!(recipe.is_some());
+        let r = recipe.unwrap();
+        assert_eq!(r.version, "1.23.4");
+        assert!(r.download_url.contains("go1.23.4"));
+        assert_eq!(r.sha256.len(), 64);
+        assert_eq!(r.bin_dir, "go/bin");
+    }
+
+    #[test]
+    fn test_resolve_java17() {
+        let recipe = resolve("java17");
+        assert!(recipe.is_some());
+        let r = recipe.unwrap();
+        assert_eq!(r.version, "17.0.20+8");
+        assert!(r.download_url.contains("temurin17"));
+        assert_eq!(r.sha256.len(), 64);
+    }
+
+    #[test]
+    fn test_all_sha256_valid_length() {
+        for r in list_recipes() {
+            assert_eq!(
+                r.sha256.len(),
+                64,
+                "{} sha256 must be 64 hex chars",
+                r.name
+            );
+        }
+    }
+
+    #[test]
     fn test_resolve_unknown() {
         assert!(resolve("nonexistent_package").is_none());
     }
@@ -458,7 +675,9 @@ mod tests {
     fn test_list_recipes_not_empty() {
         let recipes = list_recipes();
         assert!(!recipes.is_empty());
-        assert!(recipes.iter().any(|r| r.name == "python3.11"));
+        for name in ["python3.11", "node20", "go", "java17"] {
+            assert!(recipes.iter().any(|r| r.name == name), "missing {name}");
+        }
     }
 
     #[test]
