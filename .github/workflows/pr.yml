@@ -9,71 +9,182 @@ env:
 
 jobs:
   # ============================================================
-  # Lint + test on Linux only (Windows/macOS builds verified in release)
+  # 分类 job：计算体量分级 (S/M/L) 和 label 类型
   # ============================================================
-  check:
-    name: Check + Clippy + Test (ubuntu-latest)
+  meta:
+    name: Classify PR
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
+    outputs:
+      tier: ${{ steps.meta.outputs.tier }}
+      docs_only: ${{ steps.meta.outputs.docs_only }}
+      ci_only: ${{ steps.meta.outputs.ci_only }}
+    steps:
+      - id: meta
+        run: |
+          FILES=${{ github.event.pull_request.changed_files }}
 
+          # 体量分级：S ≤10 文件，M 11-30，L >30
+          TIER=S
+          if [ "$FILES" -gt 10 ] && [ "$FILES" -le 30 ]; then TIER=M; fi
+          if [ "$FILES" -gt 30 ]; then TIER=L; fi
+
+          # label 覆盖：breaking 强制全量检查
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+          case ",$LABELS," in
+            *,breaking,*) TIER=L ;;
+          esac
+
+          echo "tier=$TIER" >> "$GITHUB_OUTPUT"
+
+          # label: docs — 仅文档，跳过编译
+          case ",$LABELS," in
+            *,docs,*) echo "docs_only=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "docs_only=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+          # label: ci — 仅 workflow，校验 YAML 语法
+          case ",$LABELS," in
+            *,ci,*) echo "ci_only=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "ci_only=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+          echo "tier=$TIER docs_only=$docs_only ci_only=$ci_only"
+
+  # ============================================================
+  # 所有代码 PR 必跑：fmt + clippy + 单元测试（Linux，快）
+  # ============================================================
+  lint-test:
+    name: Lint + Test (Tier ${{ needs.meta.outputs.tier }})
+    needs: meta
+    if: needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-
-      # Format check — fail if code not formatted
+      - uses: Swatinem/rust-cache@v2
       - name: rustfmt
         run: cargo fmt --all -- --check
-
-      # Clippy lint — warnings as errors
       - name: clippy
         run: cargo clippy --all-targets -- -D warnings
-
-      # Compile check
-      - name: check
-        run: cargo check --all-targets
-
-      # Unit tests
       - name: test
         run: cargo test --verbose
 
   # ============================================================
-  # Community recipe validation (if recipe YAML files changed)
+  # Tier M/L 追加：完整 release 构建
   # ============================================================
-  recipe-check:
-    name: Recipe YAML Validation
+  build:
+    name: Release Build (Tier ${{ needs.meta.outputs.tier }})
+    needs: meta
+    if: needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false' && (needs.meta.outputs.tier == 'M' || needs.meta.outputs.tier == 'L')
     runs-on: ubuntu-latest
-    if: ${{ false }} # Disabled until oneinit binary is available in CI
     steps:
       - uses: actions/checkout@v4
-      - name: Check for recipe files
-        run: |
-          if find . -name "*.yaml" -path "*/recipes/*" | grep -q .; then
-            echo "Recipe files found, validation would run here"
-          else
-            echo "No recipe files to validate"
-          fi
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
 
   # ============================================================
-  # Summary gate — all checks must pass before merge
+  # Tier L 追加：跨平台交叉检查（win/mac 目标编译验证）
+  # ============================================================
+  cross-check:
+    name: Cross-Check ${{ matrix.target }}
+    needs: meta
+    if: needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false' && needs.meta.outputs.tier == 'L'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --target ${{ matrix.target }}
+
+  # ============================================================
+  # label: ci — 校验所有 workflow YAML 语法
+  # ============================================================
+  workflow-check:
+    name: Workflow YAML Check
+    needs: meta
+    if: needs.meta.outputs.ci_only == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - run: |
+          python - <<'EOF'
+          import glob, sys, yaml
+          files = glob.glob(".github/workflows/*.yml")
+          for f in files:
+              yaml.safe_load(open(f, encoding="utf-8"))
+          print(f"OK: {len(files)} workflow(s) parse")
+          EOF
+
+  # ============================================================
+  # label: docs — 校验 markdown 相对链接
+  # ============================================================
+  docs-check:
+    name: Docs Link Check
+    needs: meta
+    if: needs.meta.outputs.docs_only == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          python - <<'EOF'
+          import pathlib, re, sys
+          errors = []
+          for md in pathlib.Path(".").rglob("*.md"):
+              if ".git" in str(md): continue
+              text = md.read_text(encoding="utf-8", errors="replace")
+              for m in re.finditer(r"\[[^\]]*\]\(([^)#]+)(?:#[^)]*)?\)", text):
+                  link = m.group(1).strip()
+                  if link.startswith(("http", "mailto:", "#")): continue
+                  target = md.parent / link
+                  if not target.exists():
+                      errors.append(f"{md}: broken link {link}")
+          if errors:
+              print("\n".join(errors)); sys.exit(1)
+          print("docs links OK")
+          EOF
+
+  # ============================================================
+  # 总闸：所有 applicable 检查通过才合并（跳过视为通过）
   # ============================================================
   status:
     name: All Checks Passed
-    runs-on: ubuntu-latest
-    needs: [check]
+    needs: [meta, lint-test, build, cross-check, workflow-check, docs-check]
     if: always()
+    runs-on: ubuntu-latest
     steps:
-      - name: Gate
+      - name: Evaluate
+        env:
+          META: ${{ needs.meta.result }}
+          LINT: ${{ needs.lint-test.result }}
+          BUILD: ${{ needs.build.result }}
+          CROSS: ${{ needs.cross-check.result }}
+          WF: ${{ needs.workflow-check.result }}
+          DOCS: ${{ needs.docs-check.result }}
         run: |
-          if [ "${{ needs.check.result }}" != "success" ]; then
-            echo "::error::Check failed"
+          ok=1
+          for r in "$LINT" "$BUILD" "$CROSS" "$WF" "$DOCS"; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then ok=0; fi
+          done
+          if [ "$META" = "failure" ] || [ "$META" = "cancelled" ]; then ok=0; fi
+          if [ $ok -eq 1 ]; then
+            echo "All applicable checks passed"
+          else
+            echo "::error::A required check failed"
             exit 1
           fi
-          echo "All checks passed!"
