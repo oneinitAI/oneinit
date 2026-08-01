@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use indicatif::{ProgressBar, ProgressStyle};
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 use tokio::io::AsyncWriteExt;
 
 use super::{CoreError, Result};
@@ -78,11 +78,26 @@ pub fn compute_sha256(path: &Path) -> Result<String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
+/// 计算文件的 SHA512 哈希
+pub fn compute_sha512(path: &Path) -> Result<String> {
+    let data = std::fs::read(path)?;
+    let mut hasher = Sha512::new();
+    hasher.update(&data);
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
 /// verify文件 SHA256 是否匹配
+///
+/// 按期望值长度自动选择算法：64 位 hex 用 SHA256，128 位 hex 用 SHA512
+/// （.NET SDK 等官方发布使用 SHA512）。
 pub fn verify_sha256(path: &Path, expected: &str) -> Result<bool> {
-    let actual = compute_sha256(path)?;
+    let expected_trimmed = expected.trim();
+    let actual = match expected_trimmed.len() {
+        128 => compute_sha512(path)?,
+        _ => compute_sha256(path)?,
+    };
     let actual_lower = actual.to_lowercase();
-    let expected_lower = expected.to_lowercase();
+    let expected_lower = expected_trimmed.to_lowercase();
 
     if actual_lower != expected_lower {
         return Err(CoreError::Checksum {
