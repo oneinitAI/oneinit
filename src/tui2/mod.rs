@@ -25,6 +25,14 @@ pub async fn run_tui(_formatter: &OutputFormatter) -> std::io::Result<()> {
     // 初始化终端
     let mut terminal = backend::init()?;
 
+    // 启动时自动拉取配方索引（缓存缺失或过期时，失败静默）
+    {
+        use crate::core::registry;
+        if registry::load_cached_index().is_none() || registry::is_index_stale(24) {
+            let _ = registry::fetch_index().await;
+        }
+    }
+
     // Create app (event loop starts later)
     let mut app_state = state::AppState::new();
 

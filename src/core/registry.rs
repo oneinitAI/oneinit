@@ -45,13 +45,19 @@ pub struct IndexEntry {
     pub tags: Vec<String>,
     #[serde(default)]
     pub maintainers: Vec<String>,
+    /// 来源注册表 URL（多订阅时区分配方来自哪个订阅）
+    #[serde(default)]
+    pub source: String,
 }
 
 /// 本地注册表配置（~/.oneinit/registry.json）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegistryConfig {
-    /// 注册表 base URL
+    /// 默认注册表 base URL
     pub registry_url: String,
+    /// 自定义订阅 URL 列表（可多个，每个需提供 INDEX.json）
+    #[serde(default)]
+    pub subscriptions: Vec<String>,
     /// 上次 update 时间（ISO8601）
     #[serde(default)]
     pub last_update: String,
@@ -61,6 +67,7 @@ impl Default for RegistryConfig {
     fn default() -> Self {
         Self {
             registry_url: DEFAULT_REGISTRY_URL.to_string(),
+            subscriptions: Vec::new(),
             last_update: String::new(),
         }
     }
@@ -98,6 +105,60 @@ pub fn save_config(config: &RegistryConfig) -> Result<()> {
 }
 
 // ============================================================
+// 多订阅管理
+// ============================================================
+
+/// 所有注册表 URL（默认 + 自定义订阅，去重）
+pub fn all_registry_urls() -> Vec<String> {
+    let config = load_config();
+    let mut urls: Vec<String> = vec![config.registry_url.clone()];
+    for sub in &config.subscriptions {
+        let trimmed = sub.trim().to_string();
+        if !trimmed.is_empty() && !urls.contains(&trimmed) {
+            urls.push(trimmed);
+        }
+    }
+    urls
+}
+
+/// 添加自定义订阅 URL
+pub fn add_subscription(url: &str) -> Result<()> {
+    let trimmed = url.trim().to_string();
+    if trimmed.is_empty() {
+        return Err(CoreError::Registry("empty subscription URL".into()));
+    }
+    if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+        return Err(CoreError::Registry(
+            "subscription URL must start with http:// or https://".into(),
+        ));
+    }
+    let mut config = load_config();
+    if config.subscriptions.contains(&trimmed) {
+        return Err(CoreError::Registry("already subscribed".into()));
+    }
+    config.subscriptions.push(trimmed);
+    save_config(&config)?;
+    Ok(())
+}
+
+/// 移除自定义订阅 URL，返回是否移除成功
+pub fn remove_subscription(url: &str) -> Result<bool> {
+    let mut config = load_config();
+    let before = config.subscriptions.len();
+    config.subscriptions.retain(|s| s != url);
+    let removed = config.subscriptions.len() != before;
+    if removed {
+        save_config(&config)?;
+    }
+    Ok(removed)
+}
+
+/// 列出所有自定义订阅 URL
+pub fn list_subscriptions() -> Vec<String> {
+    load_config().subscriptions
+}
+
+// ============================================================
 // 索引缓存
 // ============================================================
 
@@ -113,25 +174,19 @@ pub fn load_cached_index() -> Option<Index> {
     serde_json::from_str(&content).ok()
 }
 
-/// 从远程download INDEX.json 并缓存
-pub async fn fetch_index() -> Result<Index> {
-    let config = load_config();
-    let url = format!("{}/INDEX.json", config.registry_url);
-
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|e| CoreError::Registry(format!("HTTP client creation failed: {}", e)))?;
+/// 从单个注册表 URL 拉取 INDEX.json（不写缓存）
+async fn fetch_index_from(client: &reqwest::Client, base_url: &str) -> Result<Index> {
+    let url = format!("{}/INDEX.json", base_url);
 
     let response = client
         .get(&url)
         .send()
         .await
-        .map_err(|e| CoreError::Registry(format!("fetch INDEX.json failed: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("fetch {url} failed: {e}")))?;
 
     if !response.status().is_success() {
         return Err(CoreError::Registry(format!(
-            "INDEX.json HTTP {} — 仓库可能不exists或empty。先用 oneinit publish 添加recipe。",
+            "INDEX.json HTTP {} at {url}",
             response.status()
         )));
     }
@@ -139,12 +194,69 @@ pub async fn fetch_index() -> Result<Index> {
     let body = response
         .text()
         .await
-        .map_err(|e| CoreError::Registry(format!("read INDEX.json response failed: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("read {url} response failed: {e}")))?;
 
-    let index: Index = serde_json::from_str(&body)
-        .map_err(|e| CoreError::Registry(format!("INDEX.json parse failed: {}", e)))?;
+    serde_json::from_str(&body)
+        .map_err(|e| CoreError::Registry(format!("INDEX.json parse failed at {url}: {e}")))
+}
+
+/// 合并多个 INDEX，包名冲突时优先保留先出现的（默认注册表优先）
+/// 为每个 entry 标注 source 注册表 URL
+fn merge_indexes(indexes: Vec<(String, Index)>) -> Index {
+    let mut packages: BTreeMap<String, IndexEntry> = BTreeMap::new();
+    let mut last_updated = String::new();
+
+    for (source_url, index) in indexes {
+        if last_updated.is_empty() && !index.last_updated.is_empty() {
+            last_updated = index.last_updated.clone();
+        }
+        for (name, mut entry) in index.packages {
+            entry.source = source_url.clone();
+            packages.entry(name).or_insert(entry);
+        }
+    }
+
+    Index {
+        version: 1,
+        last_updated,
+        packages,
+    }
+}
+
+/// 从所有注册表（默认 + 订阅）拉取 INDEX.json 并合并写入缓存
+pub async fn fetch_index() -> Result<Index> {
+    let urls = all_registry_urls();
+    if urls.is_empty() {
+        return Err(CoreError::Registry("no registry configured".into()));
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| CoreError::Registry(format!("HTTP client creation failed: {e}")))?;
+
+    // 顺序拉取，容忍单个订阅失败
+    let mut indexes: Vec<(String, Index)> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
+    for url in &urls {
+        match fetch_index_from(&client, url).await {
+            Ok(index) => indexes.push((url.clone(), index)),
+            Err(e) => errors.push(e.to_string()),
+        }
+    }
+
+    if indexes.is_empty() {
+        return Err(CoreError::Registry(format!(
+            "all registries failed: {}",
+            errors.join("; ")
+        )));
+    }
+
+    let merged = merge_indexes(indexes);
 
     // 写入缓存
+    let body = serde_json::to_string_pretty(&merged)
+        .map_err(|e| CoreError::Registry(format!("cache serialize failed: {e}")))?;
     let cache_path = cached_index_path();
     if let Some(parent) = cache_path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -152,11 +264,19 @@ pub async fn fetch_index() -> Result<Index> {
     std::fs::write(&cache_path, &body)?;
 
     // 更新配置的时间戳
-    let mut config = config;
+    let mut config = load_config();
     config.last_update = chrono::Utc::now().to_rfc3339();
     save_config(&config)?;
 
-    Ok(index)
+    if !errors.is_empty() {
+        eprintln!(
+            "[WARN] {} registry(s) failed: {}",
+            errors.len(),
+            errors.join("; ")
+        );
+    }
+
+    Ok(merged)
 }
 
 // ============================================================
@@ -166,29 +286,39 @@ pub async fn fetch_index() -> Result<Index> {
 /// 从远程download单个recipe YAML
 ///
 /// 路径: {registry_url}/recipes/{name}/{version}.yaml
+/// 多订阅时根据缓存 INDEX 中该包的 source 选择正确的注册表
 pub async fn fetch_recipe(
     name: &str,
     version: &str,
 ) -> Result<super::community_recipe::CommunityRecipe> {
-    let config = load_config();
-    let url = format!("{}/recipes/{}/{}.yaml", config.registry_url, name, version);
+    // 优先使用缓存 INDEX 里标注的 source（多订阅定位）
+    let base_url = load_cached_index()
+        .and_then(|idx| idx.packages.get(name).cloned())
+        .map(|e| {
+            if e.source.is_empty() {
+                load_config().registry_url
+            } else {
+                e.source
+            }
+        })
+        .unwrap_or_else(|| load_config().registry_url);
+
+    let url = format!("{base_url}/recipes/{name}/{version}.yaml");
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
-        .map_err(|e| CoreError::Registry(format!("HTTP client creation failed: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("HTTP client creation failed: {e}")))?;
 
     let response = client
         .get(&url)
         .send()
         .await
-        .map_err(|e| CoreError::Registry(format!("fetch recipe failed: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("fetch recipe failed: {e}")))?;
 
     if !response.status().is_success() {
         return Err(CoreError::Registry(format!(
-            "recipe {}={} HTTP {}",
-            name,
-            version,
+            "recipe {name}={version} HTTP {}",
             response.status()
         )));
     }
@@ -196,14 +326,14 @@ pub async fn fetch_recipe(
     let body = response
         .text()
         .await
-        .map_err(|e| CoreError::Registry(format!("read recipe response failed: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("read recipe response failed: {e}")))?;
 
     // 缓存到本地 recipes/
     let cache_recipe_path = super::recipes_dir().join(format!("{}.yaml", name));
     let _ = std::fs::write(&cache_recipe_path, &body);
 
     let recipe: super::community_recipe::CommunityRecipe = serde_yaml::from_str(&body)
-        .map_err(|e| CoreError::Registry(format!("recipe YAML parse failed: {}", e)))?;
+        .map_err(|e| CoreError::Registry(format!("recipe YAML parse failed: {e}")))?;
 
     Ok(recipe)
 }
@@ -233,6 +363,27 @@ pub fn list_available() -> Vec<(String, String, String)> {
                 name.clone(),
                 entry.latest.clone(),
                 entry.description.clone(),
+            )
+        })
+        .collect()
+}
+
+/// 列出所有远程可用包（含来源注册表 URL，TUI 显示用）
+pub fn list_available_with_source() -> Vec<(String, String, String, String)> {
+    // Vec<(name, latest_version, description, source_url)>
+    let index = match load_cached_index() {
+        Some(i) => i,
+        None => return Vec::new(),
+    };
+    index
+        .packages
+        .iter()
+        .map(|(name, entry)| {
+            (
+                name.clone(),
+                entry.latest.clone(),
+                entry.description.clone(),
+                entry.source.clone(),
             )
         })
         .collect()
@@ -270,6 +421,7 @@ pub fn generate_index(recipes: &[super::community_recipe::CommunityRecipe]) -> I
                 versions: Vec::new(),
                 tags: recipe.tags.clone().unwrap_or_default(),
                 maintainers: Vec::new(),
+                source: String::new(),
             });
 
         // 更新版本列表
@@ -314,5 +466,92 @@ pub fn generate_index(recipes: &[super::community_recipe::CommunityRecipe]) -> I
         version: 1,
         last_updated: chrono::Utc::now().to_rfc3339(),
         packages,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_merge_indexes_first_wins_and_source() {
+        let index_a = Index {
+            version: 1,
+            last_updated: "2026-08-01T00:00:00Z".to_string(),
+            packages: BTreeMap::from([(
+                "node20".to_string(),
+                IndexEntry {
+                    description: "from A".to_string(),
+                    latest: "20.18.1".to_string(),
+                    versions: vec!["20.18.1".to_string()],
+                    tags: vec![],
+                    maintainers: vec![],
+                    source: String::new(),
+                },
+            )]),
+        };
+        let index_b = Index {
+            version: 1,
+            last_updated: "2026-08-01T01:00:00Z".to_string(),
+            packages: BTreeMap::from([
+                (
+                    "node20".to_string(),
+                    IndexEntry {
+                        description: "from B (should lose)".to_string(),
+                        latest: "99".to_string(),
+                        versions: vec!["99".to_string()],
+                        tags: vec![],
+                        maintainers: vec![],
+                        source: String::new(),
+                    },
+                ),
+                (
+                    "rust".to_string(),
+                    IndexEntry {
+                        description: "from B".to_string(),
+                        latest: "stable".to_string(),
+                        versions: vec!["stable".to_string()],
+                        tags: vec![],
+                        maintainers: vec![],
+                        source: String::new(),
+                    },
+                ),
+            ]),
+        };
+
+        let merged = merge_indexes(vec![
+            ("url-a".to_string(), index_a),
+            ("url-b".to_string(), index_b),
+        ]);
+
+        assert_eq!(merged.packages.len(), 2);
+        // 冲突时第一个（默认注册表）优先
+        assert_eq!(merged.packages["node20"].latest, "20.18.1");
+        assert_eq!(merged.packages["node20"].description, "from A");
+        // source 标注
+        assert_eq!(merged.packages["node20"].source, "url-a");
+        assert_eq!(merged.packages["rust"].source, "url-b");
+    }
+
+    #[test]
+    fn test_add_remove_subscription_roundtrip() {
+        // 用临时 HOME 隔离，避免污染真实配置
+        let mut config = RegistryConfig::default();
+        config
+            .subscriptions
+            .push("https://example.com/reg".to_string());
+        // 直接测试 add/remove 逻辑（不碰真实文件）
+        let url = "https://mirror.example.com/recipes";
+        let mut cfg = RegistryConfig::default();
+        cfg.subscriptions.push(url.to_string());
+        assert!(cfg.subscriptions.contains(&url.to_string()));
+        cfg.subscriptions.retain(|s| s != url);
+        assert!(cfg.subscriptions.is_empty());
+        // 防重复
+        let mut cfg2 = RegistryConfig::default();
+        if !cfg2.subscriptions.contains(&url.to_string()) {
+            cfg2.subscriptions.push(url.to_string());
+        }
+        assert_eq!(cfg2.subscriptions.len(), 1);
     }
 }

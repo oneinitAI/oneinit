@@ -78,6 +78,12 @@ enum Commands {
     /// Update remote recipe index (like apt update)
     Update,
 
+    /// 管理配方订阅源（多注册表）
+    Registry {
+        #[command(subcommand)]
+        action: RegistryAction,
+    },
+
     /// Publish recipe to remote registry
     Publish {
         /// recipe文件路径
@@ -146,6 +152,22 @@ enum SkillAction {
     Uninstall,
 }
 
+#[derive(clap::Subcommand)]
+enum RegistryAction {
+    /// 添加自定义订阅 URL（可多个）
+    Add {
+        /// 注册表 base URL（需提供 INDEX.json）
+        url: String,
+    },
+    /// 移除订阅 URL
+    Remove {
+        /// 注册表 base URL
+        url: String,
+    },
+    /// 列出所有订阅
+    List,
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -161,6 +183,15 @@ async fn main() {
         security::print_disclaimer(&formatter);
     }
 
+    // 每次使用自动拉取配方索引（缓存缺失或过期 >24h 时静默更新）
+    let skip_auto_update = matches!(
+        cli.command,
+        Commands::Update | Commands::Registry { .. } | Commands::Completions { .. }
+    );
+    if !skip_auto_update {
+        maybe_auto_update(&formatter).await;
+    }
+
     match cli.command {
         Commands::Init { preset } => cli::run_init(&formatter, preset.as_deref()).await,
         Commands::Install { package } => cli::run_install(&formatter, &package).await,
@@ -173,6 +204,11 @@ async fn main() {
         }
         Commands::Verify { file } => cli::run_verify(&formatter, &file).await,
         Commands::Update => cli::run_update(&formatter).await,
+        Commands::Registry { action } => match action {
+            RegistryAction::Add { url } => cli::run_registry_add(&formatter, &url),
+            RegistryAction::Remove { url } => cli::run_registry_remove(&formatter, &url),
+            RegistryAction::List => cli::run_registry_list(&formatter),
+        },
         Commands::Publish { file } => cli::run_publish(&formatter, &file).await,
         Commands::Export {
             output,
@@ -215,5 +251,33 @@ async fn main() {
             SkillAction::Status => cli::run_skill_status(&formatter).await,
             SkillAction::Uninstall => cli::run_skill_uninstall(&formatter).await,
         },
+    }
+}
+
+/// 每次使用自动拉取配方索引
+///
+/// 仅当缓存缺失或过期（>24h）时拉取，失败静默（不阻塞主命令）。
+async fn maybe_auto_update(formatter: &output::OutputFormatter) {
+    use core::registry;
+
+    if registry::load_cached_index().is_some() && !registry::is_index_stale(24) {
+        return; // 缓存新鲜，跳过
+    }
+
+    formatter.output(
+        "[AUTO] Refreshing recipe index...",
+        Some(serde_json::json!({ "status": "auto_update", "action": "update" })),
+    );
+
+    if let Err(e) = registry::fetch_index().await {
+        // 静默失败，不阻塞主命令；JSON 模式下输出错误供 AI 参考
+        formatter.output(
+            &format!("[WARN] Recipe index refresh failed: {}", e),
+            Some(serde_json::json!({
+                "status": "warning",
+                "action": "auto_update",
+                "error": e.to_string(),
+            })),
+        );
     }
 }

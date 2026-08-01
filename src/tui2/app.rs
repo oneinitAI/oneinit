@@ -28,13 +28,7 @@ pub async fn execute_action(
     // 2. execute (OutputFormatter writes to normal terminal)
     let formatter = OutputFormatter::new(false);
     let result_msg = match target {
-        Target::Install(recipe_name) => match crate::core::recipe::resolve(&recipe_name) {
-            Some(recipe) => match crate::core::recipe::install(&recipe, &formatter).await {
-                Ok(()) => format!("[OK] {} installation complete", recipe.display_name),
-                Err(e) => format!("[ERROR] installation failed: {}", e),
-            },
-            None => format!("[ERROR] recipe not found: {}", recipe_name),
-        },
+        Target::Install(recipe_name) => install_from_tui(&recipe_name, &formatter).await,
         Target::Uninstall(package_name) => {
             match crate::core::recipe::uninstall(&package_name, &formatter).await {
                 Ok(()) => format!("[OK] {} uninstalled", package_name),
@@ -67,4 +61,53 @@ pub async fn execute_action(
 fn wait_for_any_key() {
     let mut buf = [0u8; 1];
     let _ = io::stdin().read(&mut buf);
+}
+
+/// TUI 安装：三级解析（内置 → 本地社区 → 远程注册表）
+async fn install_from_tui(name: &str, formatter: &OutputFormatter) -> String {
+    use crate::core::{community_recipe, recipe, registry};
+
+    // 1. 内置
+    if let Some(r) = recipe::resolve(name) {
+        return match recipe::install(&r, formatter).await {
+            Ok(()) => format!("[OK] {} installation complete", r.display_name),
+            Err(e) => format!("[ERROR] installation failed: {}", e),
+        };
+    }
+
+    // 2. 本地社区
+    if let Some(r) = community_recipe::resolve(name) {
+        return match community_recipe::install(&r, formatter).await {
+            Ok(()) => format!("[OK] {} installation complete", r.name),
+            Err(e) => format!("[ERROR] installation failed: {}", e),
+        };
+    }
+
+    // 3. 远程注册表（先确保有缓存索引，缺失则拉取）
+    if registry::load_cached_index().is_none() {
+        formatter.output(
+            "[REMOTE] Fetching recipe index...",
+            Some(serde_json::Value::Null),
+        );
+        if let Err(e) = registry::fetch_index().await {
+            return format!("[ERROR] index refresh failed: {}", e);
+        }
+    }
+
+    if let Some(entry) = registry::resolve(name) {
+        let target_version = entry.latest.clone();
+        formatter.output(
+            &format!("[REMOTE] Fetching {} v{}...", name, target_version),
+            Some(serde_json::Value::Null),
+        );
+        return match registry::fetch_recipe(name, &target_version).await {
+            Ok(r) => match community_recipe::install(&r, formatter).await {
+                Ok(()) => format!("[OK] {} installation complete", r.name),
+                Err(e) => format!("[ERROR] installation failed: {}", e),
+            },
+            Err(e) => format!("[ERROR] remote fetch failed: {}", e),
+        };
+    }
+
+    format!("[ERROR] recipe not found: {}", name)
 }
