@@ -1,0 +1,44 @@
+name: 📦 Recipe Request
+description: 请求添加新的安装配方（语言 / 工具 / 数据库）
+labels: [recipe]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先 `oneinit search` 确认配方不存在。
+        如果只想要内置配方，也请在此提出。
+  - type: input
+    id: package
+    attributes:
+      label: 工具名称
+      description: 例如 node20、python3.11
+      placeholder: my-tool
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 期望版本
+      placeholder: "20.18.1"
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: 官方下载地址
+      description: 提供官方发布页或直链
+      placeholder: https://...
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 用途
+      description: 这个工具用于什么场景？
+      placeholder: 前端开发 / 数据库 / ...
+  - type: checkboxes
+    id: platform
+    attributes:
+      label: 需要的平台
+      options:
+        - label: Windows
+        - label: Linux
+        - label: macOS

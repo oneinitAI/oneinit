@@ -1,0 +1,51 @@
+name: 🐛 Bug Report
+description: 报告 oneinit 的 bug（安装失败 / 校验失败 / 命令异常）
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量提供完整信息，方便快速定位问题。
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 发生了什么？期望结果是什么？
+      placeholder: 执行 oneinit install xxx 时...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 一步一步怎么触发
+      placeholder: |
+        1. oneinit install python3.11
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: oneinit --version 的输出
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - Windows
+        - Linux
+        - macOS
+      default: 0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 错误日志
+      description: 粘贴完整的错误输出（可加 --json 获取更多信息）
+      render: shell
