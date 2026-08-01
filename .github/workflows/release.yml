@@ -211,7 +211,14 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           cd npm
-          npm version "$VERSION" --no-git-tag-version --allow-scripts
+          # 版本号与 tag 一致即可；package.json 已是该版本时 npm 会报
+          # "Version not changed"，属于正常情况，跳过即可。
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "$VERSION" ]; then
+            npm version "$VERSION" --no-git-tag-version --allow-scripts
+          else
+            echo "package.json already at $VERSION"
+          fi
           echo "Publishing version: $VERSION"
 
       - name: Copy LICENSE and README
