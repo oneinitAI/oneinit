@@ -186,17 +186,15 @@ pub fn uninstall(formatter: &OutputFormatter) {
 
     for (name, skills_dir) in &agents {
         let skill_dir = skills_dir.join("oneinit");
-        if skill_dir.exists() {
-            if std::fs::remove_dir_all(&skill_dir).is_ok() {
-                formatter.output(
-                    &format!("[OK] uninstalled from {}", name),
-                    Some(serde_json::json!({
-                        "status": "success", "action": "skill_uninstall",
-                        "agent": name,
-                    })),
-                );
-                count += 1;
-            }
+        if skill_dir.exists() && std::fs::remove_dir_all(&skill_dir).is_ok() {
+            formatter.output(
+                &format!("[OK] uninstalled from {}", name),
+                Some(serde_json::json!({
+                    "status": "success", "action": "skill_uninstall",
+                    "agent": name,
+                })),
+            );
+            count += 1;
         }
     }
 
