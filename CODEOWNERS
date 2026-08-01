@@ -1,0 +1,17 @@
+# 代码所有者 — 决定哪些路径的 PR 需要审核
+#
+# 原理：开启「要求代码所有者审核」后，只有改动到**有所有者的路径**
+# 才需要 code owner 批准；www/、.agents/、docs 等未列出路径的改动
+# 自动免审（仅需 CI 通过）。
+#
+# 核心 Rust 代码 — 需要审核
+/src/ @oneinitAI
+Cargo.toml @oneinitAI
+Cargo.lock @oneinitAI
+install.sh @oneinitAI
+
+# 以下路径故意不设所有者 → 改动免审核：
+#   www/              官网（纯前端展示）
+#   .agents/skills/   AI Skill 文档
+#   README*.md        文档
+#   .github/          工作流 / issue 模板
