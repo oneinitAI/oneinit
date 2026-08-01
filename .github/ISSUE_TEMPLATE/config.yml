@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 README
+    url: https://github.com/oneinitAI/oneinit
+    about: 先阅读 README 快速开始
+  - name: 🖥 官网
+    url: https://oneinit.bg4jts.cn
+    about: 查看项目官网

@@ -1,0 +1,34 @@
+name: ✨ Feature Request
+description: 建议 oneinit 新功能 / 改进
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你遇到的问题
+      description: 这个功能解决什么痛点？
+      placeholder: 每次新电脑都要手动...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: 期望的解决方案
+      description: 你希望 oneinit 怎么实现？
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 备选方案
+      description: 你试过其他方式吗？
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 适用场景
+      options:
+        - label: CLI 命令
+        - label: TUI 界面
+        - label: 配方系统
+        - label: AI 集成
+        - label: 文档/网页
