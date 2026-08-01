@@ -1,0 +1,36 @@
+{
+  "name": "oneinit",
+  "version": "0.1.0",
+  "description": "One command to init your dev machine — AI-first environment initializer",
+  "homepage": "https://oneinit.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oneinitAI/oneinit.git"
+  },
+  "license": "GPL-3.0",
+  "author": "BG4JTS <zhaodachuan2@outlook.com>",
+  "keywords": [
+    "developer-tools",
+    "environment",
+    "setup",
+    "cli",
+    "devops",
+    "rust",
+    "oneinit"
+  ],
+  "bin": {
+    "oneinit": "bin/oneinit"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "files": [
+    "scripts/install.js",
+    "bin/oneinit"
+  ],
+  "os": ["darwin", "linux", "win32"],
+  "cpu": ["x64", "arm64"],
+  "engines": {
+    "node": ">=14"
+  }
+}

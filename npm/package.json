@@ -5,11 +5,11 @@
   "license": "GPL-3.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/BG4JTS/oneinit.git"
+    "url": "git+https://github.com/oneinitAI/oneinit.git"
   },
-  "homepage": "https://github.com/BG4JTS/oneinit",
+  "homepage": "https://github.com/oneinitAI/oneinit",
   "bugs": {
-    "url": "https://github.com/BG4JTS/oneinit/issues"
+    "url": "https://github.com/oneinitAI/oneinit/issues"
   },
   "funding": {
     "type": "opencollective",

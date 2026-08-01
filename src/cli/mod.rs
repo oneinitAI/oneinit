@@ -873,7 +873,7 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
     formatter.output("", Some(serde_json::Value::Null));
     formatter.output("[INFO] Publish steps:", Some(serde_json::Value::Null));
     formatter.output(
-        "  1. git clone https://github.com/BG4JTS/oneinit-recipes.git",
+        "  1. git clone https://github.com/oneinitAI/oneinit-recipes.git",
         Some(serde_json::Value::Null),
     );
     formatter.output(

@@ -6,4 +6,4 @@ Install: `npm install -g oneinit`
 
 Then: `oneinit install python3.11`
 
-Full docs: https://github.com/BG4JTS/oneinit
+Full docs: https://github.com/oneinitAI/oneinit

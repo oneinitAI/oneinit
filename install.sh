@@ -2,7 +2,7 @@
 # OneInit installer — download pre-built binary, no Rust toolchain needed.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/BG4JTS/oneinit/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/oneinitAI/oneinit/main/install.sh | sh
 #
 # Detects OS + architecture, downloads the matching binary from GitHub
 # Releases, installs to ~/.oneinit/bin, and adds to PATH.
@@ -42,7 +42,7 @@ fi
 # ============================================================
 
 INSTALL_DIR="$HOME/.oneinit/bin"
-REPO="BG4JTS/oneinit"
+REPO="oneinitAI/oneinit"
 VERSION="${ONEINIT_VERSION:-latest}"
 
 echo "[INSTALL] OneInit for $PLATFORM/$ARCHITECTURE"

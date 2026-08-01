@@ -68,7 +68,7 @@ oneinit import backup.tar.gz
 ### 方式一：一键安装（推荐）
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BG4JTS/oneinit/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/oneinitAI/oneinit/main/install.sh | sh
 ```
 
 无需任何前置依赖。脚本自动检测操作系统和架构，下载预编译二进制，安装到 `~/.oneinit/bin/`，并自动配置 PATH。
@@ -90,7 +90,7 @@ npm uninstall -g oneinit        # 卸载
 ### 方式三：从源码编译
 
 ```bash
-git clone https://github.com/BG4JTS/oneinit.git
+git clone https://github.com/oneinitAI/oneinit.git
 cd oneinit
 cargo build --release
 # 二进制文件: target/release/oneinit(.exe)
@@ -105,7 +105,7 @@ cargo build --release
 ```
 在这台机器上安装 OneInit 并配置开发环境。
 按照以下指南操作：
-https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
+https://raw.githubusercontent.com/oneinitAI/oneinit/main/INSTALL_AGENT.md
 ```
 
 **English prompt:**
@@ -113,7 +113,7 @@ https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
 ```
 Install OneInit on this machine and set up my dev environment.
 Follow the guide at:
-https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
+https://raw.githubusercontent.com/oneinitAI/oneinit/main/INSTALL_AGENT.md
 ```
 
 指南内容包括：npm 或编译安装、PATH 配置、工具安装（Python、Node.js）、AI Skill 配置、环境迁移。

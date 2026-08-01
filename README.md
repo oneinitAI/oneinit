@@ -48,7 +48,7 @@ oneinit capture -o my-env.yaml
 ### Option 1: One-line install (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BG4JTS/oneinit/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/oneinitAI/oneinit/main/install.sh | sh
 ```
 
 No prerequisites. The script detects your OS/architecture, downloads the pre-built binary, installs to `~/.oneinit/bin/`, and configures PATH automatically.
@@ -70,7 +70,7 @@ npm uninstall -g oneinit        # remove
 ### Option 3: Build from source
 
 ```bash
-git clone https://github.com/BG4JTS/oneinit.git
+git clone https://github.com/oneinitAI/oneinit.git
 cd oneinit
 cargo build --release
 # Binary: target/release/oneinit(.exe)
@@ -85,7 +85,7 @@ Copy this prompt to your AI assistant (ChatGPT, Claude, ZCode, etc.):
 ```
 Install OneInit on this machine and set up my dev environment.
 Follow the guide at:
-https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
+https://raw.githubusercontent.com/oneinitAI/oneinit/main/INSTALL_AGENT.md
 ```
 
 **中文提示词：**
@@ -93,7 +93,7 @@ https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
 ```
 在这台机器上安装 OneInit 并配置开发环境。
 按照以下指南操作：
-https://raw.githubusercontent.com/BG4JTS/oneinit/main/INSTALL_AGENT.md
+https://raw.githubusercontent.com/oneinitAI/oneinit/main/INSTALL_AGENT.md
 ```
 
 The guide includes: npm or build instructions, PATH setup, tool installation (Python, Node.js), AI Skill configuration, and environment migration.

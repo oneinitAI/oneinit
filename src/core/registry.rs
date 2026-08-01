@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use super::{CoreError, Result, cache_dir, data_dir};
 
 /// 默认注册表 URL（GitHub raw content）
-const DEFAULT_REGISTRY_URL: &str = "https://raw.githubusercontent.com/BG4JTS/oneinit-recipes/main";
+const DEFAULT_REGISTRY_URL: &str = "https://raw.githubusercontent.com/oneinitAI/oneinit-recipes/main";
 
 // ============================================================
 // 数据结构

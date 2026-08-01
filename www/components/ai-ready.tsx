@@ -14,7 +14,7 @@ const CARDS = [
   {
     n: "03", t: "Agent Installation Guide",
     d: "Give your AI assistant one prompt. It clones the repo, builds the binary, installs tools, and configures the Skill. Zero human intervention.",
-    code: "$ curl -fsSL https://raw.githubusercontent.com/\nBG4JTS/oneinit/main/install.sh | sh\n$ oneinit skill install\n$ oneinit install python3.11 --json\n$ oneinit install node20 --json",
+    code: "$ curl -fsSL https://raw.githubusercontent.com/\noneinitAI/oneinit/main/install.sh | sh\n$ oneinit skill install\n$ oneinit install python3.11 --json\n$ oneinit install node20 --json",
   },
   {
     n: "04", t: "AI Agent Autonomous DevOps",
