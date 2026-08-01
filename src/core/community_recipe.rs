@@ -25,6 +25,14 @@ pub struct CommunityRecipe {
     pub version: String,
     #[allow(dead_code)]
     pub description: String,
+    /// 软件许可证（如 MIT、GPL-2.0），安装前展示
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub license: Option<String>,
+    /// 许可证详情 URL，安装前展示
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub license_url: Option<String>,
     pub platforms: Platforms,
     pub post_install: Option<PostInstallConfig>,
     #[allow(dead_code)]
@@ -360,6 +368,23 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
         &format!("[SECURITY] Install to: {}", install_dir.display()),
         Some(serde_json::Value::Null),
     );
+    // 展示许可证信息（若有）
+    if let Some(license) = &recipe.license {
+        let line = match (&recipe.license_url, license.is_empty()) {
+            (Some(url), false) => format!("[SECURITY] License:  {} ({})", license, url),
+            (Some(url), true) => format!("[SECURITY] License:  see {}", url),
+            (None, false) => format!("[SECURITY] License:  {}", license),
+            (None, true) => String::new(),
+        };
+        if !line.is_empty() {
+            formatter.output(&line, Some(serde_json::Value::Null));
+        }
+    } else if let Some(url) = &recipe.license_url {
+        formatter.output(
+            &format!("[SECURITY] License:  see {}", url),
+            Some(serde_json::Value::Null),
+        );
+    }
 
     // display commands to be executed
     if let Some(ref post) = recipe.post_install {
@@ -736,6 +761,50 @@ platforms:
         assert!(result.checks.iter().all(|(_, ok, _)| *ok));
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_parse_license_fields() {
+        let yaml = r#"
+name: lic-tool
+version: "1.0.0"
+description: "Licensed tool"
+license: "MIT"
+license_url: "https://example.com/license"
+platforms:
+  windows:
+    url: "https://example.com/test.zip"
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    install_type: "zip_extract"
+    install_path: "test"
+    path_add: ["{{install_dir}}"]
+"#;
+        let recipe: CommunityRecipe = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(recipe.license.as_deref(), Some("MIT"));
+        assert_eq!(
+            recipe.license_url.as_deref(),
+            Some("https://example.com/license")
+        );
+    }
+
+    #[test]
+    fn test_license_fields_optional() {
+        // 老配方没有 license 字段也能解析（serde default）
+        let yaml = r#"
+name: old-tool
+version: "1.0.0"
+description: "No license fields"
+platforms:
+  windows:
+    url: "https://example.com/test.zip"
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    install_type: "zip_extract"
+    install_path: "test"
+    path_add: ["{{install_dir}}"]
+"#;
+        let recipe: CommunityRecipe = serde_yaml::from_str(yaml).unwrap();
+        assert!(recipe.license.is_none());
+        assert!(recipe.license_url.is_none());
     }
 
     #[test]
