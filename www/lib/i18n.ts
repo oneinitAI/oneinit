@@ -219,6 +219,15 @@ export const dict: Dict = {
   "ft.support": { en: "💚 Support OneInit — it's made by one person", zh: "💚 支持 OneInit —— 一个人的开源项目" },
   "ft.terms": { en: "Terms of Service", zh: "用户协议" },
 
+  // ===== 爱发电 (Afdian) =====
+  "afdian.title": { en: "Support on 爱发电", zh: "爱发电支持" },
+  "afdian.desc": {
+    en: "Domestic fans can support me directly on Afdian.",
+    zh: "国内朋友可以在爱发电直接支持我。",
+  },
+  "afdian.cta": { en: "爱发电 · Support", zh: "爱发电 · 支持我" },
+  "afdian.url": { en: "https://ifdian.net/a/BG4JTS", zh: "https://ifdian.net/a/BG4JTS" },
+
   // ===== Terms of Service =====
   "terms.title": { en: "Terms of Service", zh: "用户协议" },
   "terms.updated": { en: "Last updated: August 2026", zh: "最后更新：2026 年 8 月" },
