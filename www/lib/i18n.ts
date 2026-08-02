@@ -257,4 +257,17 @@ export const dict: Dict = {
   "cl.fetching": { en: "Fetching releases...", zh: "拉取发行版..." },
   "cl.err": { en: "Failed to load releases — GitHub API rate limited?", zh: "加载失败——GitHub API 限流？" },
   "cl.empty": { en: "No releases yet.", zh: "暂无发行版。" },
+  "cl.assets": { en: "Downloads", zh: "下载" },
+  "cl.published": { en: "Published", zh: "发布于" },
+  "cl.author": { en: "Author", zh: "作者" },
+  "cl.by": { en: "by", zh: "由" },
+
+  // ===== Credits / 致谢 =====
+  "credit.line": {
+    en: "Built by a non-programmer with the help of DeepSeek, GLM, ChatGPT & friends.",
+    zh: "由非程序员借助 DeepSeek、GLM、ChatGPT 等 AI 模型共同完成。",
+  },
+
+  // ===== Hero changelog entry =====
+  "hero.changelog": { en: "View changelog →", zh: "查看更新日志 →" },
 };

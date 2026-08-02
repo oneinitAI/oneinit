@@ -270,6 +270,16 @@ OneInit 是个人独立开源项目。如果它帮你节省了时间，欢迎支
 
 **每一个 Star ⭐ 都能让更多开发者发现 OneInit。** 给仓库点个 Star 就是最好的鼓励！
 
+## 致谢 / Credits
+
+**我不是专业程序员**——本项目大部分代码由 **DeepSeek、GLM（智谱）、ChatGPT** 等
+AI 编程助手协助完成。这个项目证明了：借助现代 AI 模型，任何人都能做出真正的工具。
+感谢所有参与编写、审查和调试这份代码的模型们。
+
+> I'm **not a professional programmer** — most of this code was written with
+> the help of AI coding assistants: **DeepSeek, GLM (Zhipu), ChatGPT, and others**.
+> This project is proof that anyone can build real tools with modern AI models.
+
 ---
 
 <div align="center">

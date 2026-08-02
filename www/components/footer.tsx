@@ -44,6 +44,7 @@ export function Footer() {
         <p className="mt-6 font-mono text-xs text-zinc-800">
           &copy; {new Date().getFullYear()} BG4JTS. All rights reserved.
         </p>
+        <p className="mt-2 font-mono text-[11px] text-zinc-700">{t("credit.line")}</p>
       </div>
     </footer>
   );
