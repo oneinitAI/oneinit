@@ -128,6 +128,9 @@ https://raw.githubusercontent.com/oneinitAI/oneinit/main/INSTALL_AGENT.md
 | `oneinit search [关键词]` | 搜索可用配方（内置 + 社区） |
 | `oneinit init --preset <名称>` | 预置套装批量安装（python/ai/frontend/full） |
 | `oneinit sync` | 从 `oneinit.yaml` 批量同步环境 |
+| `oneinit team add <url>` | 配置团队环境仓库（验签 + 固定公钥） |
+| `oneinit team sync` | 同步团队环境（每次运行自动检测） |
+| `oneinit team status` / `remove` | 查看 / 移除团队环境配置 |
 | `oneinit capture [-o 文件]` | 扫描当前环境（7 种语言检测器） |
 | `oneinit export [-o 文件]` | 导出环境为 tar.gz |
 | `oneinit import <文件>` | 从 tar.gz 导入环境 |
@@ -195,6 +198,28 @@ maintainer:
 **模板变量**：`{{install_dir}}`、`{{user_home}}`、`{{mirror_pip}}`、`{{mirror_pip_host}}`、`{{mirror_npm}}`
 
 **支持的安装类型**：`zip_extract`、`tar_extract`、`exe_silent`、`binary_copy`、`msi_install`、`pkg_install`
+
+## 团队环境同步
+
+> 团队共享一套开发环境：fork 模板仓库 → 改 `team.yaml` → 全队自动同步。
+
+```bash
+# 每个成员配置一次（拉取 + 验签 + 固定公钥，随后立即同步）
+oneinit team add https://raw.githubusercontent.com/<org>/<repo>/main
+
+# 之后每次运行 oneinit 自动检测（24h 间隔），内容变化时逐个确认安装
+# 手动立即同步
+oneinit team sync --force
+```
+
+模板仓库：**[oneinitAI/oneinit-team-env](https://github.com/oneinitAI/oneinit-team-env)**
+
+- **team.yaml** 支持：工具列表（`envs`）、镜像源（`mirrors`，真实应用 pip/npm/yarn）、
+  环境变量（`env_vars`）、PATH（`path`）、配置文件模板（`config_files`）、安装后命令（`post_install`）
+- **签名（可选推荐）**：Ed25519 验签，`team add` 固定公钥（TOFU），每次同步强制验签，篡改即拒绝
+- **安全**：缺失工具逐个 `y` 确认；执行命令类配方默认拒绝（`--allow-exec`）；
+  配置文件写入前预览确认；检测失败静默不阻塞
+- 完整规范见 **[团队环境.md](团队环境.md)**
 
 ## 架构
 

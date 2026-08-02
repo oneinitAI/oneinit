@@ -30,11 +30,11 @@ const REGISTRY_PUBLIC_KEY_HEX: &str =
 
 /// 验证 INDEX.json 的 Ed25519 签名（使用内置注册表公钥）
 pub fn verify_index_signature(data: &[u8], sig_hex: &str) -> bool {
-    verify_with_key(data, sig_hex, REGISTRY_PUBLIC_KEY_HEX)
+    verify_signature(data, sig_hex, REGISTRY_PUBLIC_KEY_HEX)
 }
 
-/// 用指定公钥（hex）验签 — 测试可注入
-fn verify_with_key(data: &[u8], sig_hex: &str, pub_hex: &str) -> bool {
+/// 用指定公钥（hex）验签 — 团队环境 / 测试均可注入
+pub fn verify_signature(data: &[u8], sig_hex: &str, pub_hex: &str) -> bool {
     use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
     let Some(pub_bytes) = hex_decode(pub_hex) else {
@@ -584,15 +584,15 @@ mod tests {
             .collect();
 
         // 正路径：正确签名通过
-        assert!(verify_with_key(data, &sig, &pub_hex));
+        assert!(verify_signature(data, &sig, &pub_hex));
         // 篡改路径：数据被改 → 拒绝
-        assert!(!verify_with_key(b"{\"version\":2}", &sig, &pub_hex));
+        assert!(!verify_signature(b"{\"version\":2}", &sig, &pub_hex));
         // 伪造路径：随机错误签名 → 拒绝
-        assert!(!verify_with_key(data, &"00".repeat(64), &pub_hex));
+        assert!(!verify_signature(data, &"00".repeat(64), &pub_hex));
         // 非法 hex → 拒绝
-        assert!(!verify_with_key(data, "not-hex", &pub_hex));
+        assert!(!verify_signature(data, "not-hex", &pub_hex));
         // 公钥非法 → 拒绝
-        assert!(!verify_with_key(data, &sig, "zz"));
+        assert!(!verify_signature(data, &sig, "zz"));
     }
 
     #[test]

@@ -108,6 +108,9 @@ The guide includes: npm or build instructions, PATH setup, tool installation (Py
 | `oneinit search [keyword]` | Search available recipes |
 | `oneinit init --preset <name>` | Batch-install a suite (python/ai/frontend/full) |
 | `oneinit sync` | Batch sync from `oneinit.yaml` |
+| `oneinit team add <url>` | Configure team env repo (verify signature, pin key) |
+| `oneinit team sync` | Sync team env now (auto-checked on every run) |
+| `oneinit team status` / `remove` | Show / remove team env config |
 | `oneinit capture [-o file]` | Scan current environment (7 detectors) |
 | `oneinit export [-o file]` | Export environment as tar.gz |
 | `oneinit import <file>` | Import environment from tar.gz |
@@ -141,6 +144,30 @@ maintainer:
 ```
 
 Then: `oneinit install my-tool`
+
+## Team Environment Sync
+
+Share one dev environment across your team. Fork the
+[oneinit-team-env](https://github.com/oneinitAI/oneinit-team-env) template,
+edit `team.yaml` (tools, mirrors, env vars, PATH, config files), push — and
+every member stays in sync automatically.
+
+```bash
+# one-time setup (per member)
+oneinit team add https://raw.githubusercontent.com/<org>/<repo>/main
+
+# auto: every `oneinit` run detects changes (24h interval) and syncs
+# manual: force sync now
+oneinit team sync --force
+```
+
+- **Signature (optional, recommended):** `team.yaml` can be Ed25519-signed;
+  oneinit pins the key on `team add` and verifies on every sync. Tampered
+  content is rejected.
+- **Safety:** missing tools install with the usual security banner + `y`
+  confirmation; recipes that run commands/installers require
+  `--allow-exec` (default deny); config files are previewed before writing.
+- See [团队环境.md](团队环境.md) for the full spec.
 
 ## Terms of Service
 

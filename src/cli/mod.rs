@@ -5,6 +5,7 @@ use crate::core::{
     recipe::{self, resolve},
     registry,
     sync::{self, SyncConfig},
+    team,
 };
 use crate::output::OutputFormatter;
 
@@ -642,6 +643,211 @@ pub async fn run_sync(formatter: &OutputFormatter) {
             "message": "Environment synchronized successfully"
         })),
     );
+}
+
+// ============================================================
+// 团队环境同步（team.yaml）
+// ============================================================
+
+/// oneinit team add <url> — 配置团队环境并立即同步
+pub async fn run_team_add(
+    formatter: &OutputFormatter,
+    url: &str,
+    branch: &str,
+    force: bool,
+    allow_exec: bool,
+) {
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+    if let Err(e) = team::add_team(formatter, url, branch, force).await {
+        formatter.error(&e);
+        return;
+    }
+    // 配置成功后立即同步一次
+    run_team_sync(formatter, true, allow_exec).await;
+}
+
+/// oneinit team remove — 移除团队环境配置
+pub fn run_team_remove(formatter: &OutputFormatter) {
+    match team::remove_team() {
+        Ok(true) => formatter.output("[TEAM] 已移除团队环境配置", None::<serde_json::Value>),
+        Ok(false) => formatter.output("[TEAM] 未配置团队环境", None::<serde_json::Value>),
+        Err(e) => formatter.error(&e),
+    }
+}
+
+/// oneinit team status — 查看团队环境状态
+pub fn run_team_status(formatter: &OutputFormatter) {
+    team::status(formatter);
+}
+
+/// oneinit team sync — 立即同步团队环境
+pub async fn run_team_sync(formatter: &OutputFormatter, force: bool, allow_exec: bool) {
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+    if !team::is_configured() {
+        formatter.output(
+            "[TEAM] 未配置团队环境 — 使用 oneinit team add <url>",
+            None::<serde_json::Value>,
+        );
+        return;
+    }
+
+    let content = match team::fetch_if_changed(formatter, force).await {
+        Ok(Some(c)) => c,
+        Ok(None) => return, // 无变化
+        Err(e) => {
+            formatter.error(&e);
+            return;
+        }
+    };
+
+    apply_team_env(formatter, &content, allow_exec).await;
+}
+
+/// 每次运行 oneinit 时的团队环境自动检测（轻量：24h 间隔 + 内容哈希）
+///
+/// 仅检测 + 内容变化时同步；失败静默 `[WARN]`，不阻塞主命令。
+pub async fn maybe_team_sync(formatter: &OutputFormatter) {
+    let cfg = team::load_config();
+    if !team::is_configured() || !team::needs_check(&cfg) {
+        return;
+    }
+    match team::fetch_if_changed(formatter, false).await {
+        Ok(Some(content)) => apply_team_env(formatter, &content, false).await,
+        Ok(None) => {}
+        Err(e) => {
+            formatter.output(
+                &format!("[WARN] 团队环境检测失败: {}", e),
+                Some(serde_json::json!({
+                    "status": "warning",
+                    "action": "team_sync",
+                    "error": e.to_string(),
+                })),
+            );
+        }
+    }
+}
+
+/// 应用团队环境：安装缺失工具 + 镜像 + env_vars + PATH + config_files + post_install
+async fn apply_team_env(formatter: &OutputFormatter, content: &str, allow_exec: bool) {
+    let config = match sync::parse_config(content) {
+        Ok(c) => c,
+        Err(e) => {
+            formatter.error(&e);
+            return;
+        }
+    };
+
+    let team_name = config
+        .team
+        .as_ref()
+        .and_then(|t| t.name.clone())
+        .unwrap_or_else(|| "(未命名)".to_string());
+    formatter.output(
+        &format!("[TEAM] 同步团队环境: {}", team_name),
+        Some(serde_json::json!({
+            "status": "team_sync",
+            "action": "team",
+            "team": team_name,
+        })),
+    );
+
+    // 1. 工具（3 层解析：内置 -> 本地社区 -> 远程注册表）
+    let names = sync::envs_to_recipe_names(&config);
+    let mut installing_stack = Vec::new();
+    if !names.is_empty() {
+        formatter.output(
+            &format!("[TEAM] 需要检查 {} 个工具: {:?}", names.len(), names),
+            Some(serde_json::Value::Null),
+        );
+        for name in &names {
+            install_recursive(name, None, formatter, &mut installing_stack, allow_exec).await;
+        }
+    }
+
+    // 2. 镜像源
+    if let Some(mirrors) = &config.mirrors
+        && !mirrors.is_empty()
+        && let Err(e) = team::apply_mirrors(mirrors, formatter)
+    {
+        formatter.error(&e);
+    }
+
+    // 3. 环境变量
+    if !config.env_vars.is_empty()
+        && let Err(e) = team::apply_env_vars(&config.env_vars, formatter)
+    {
+        formatter.error(&e);
+    }
+
+    // 4. PATH 条目
+    if !config.path.is_empty()
+        && let Err(e) = team::apply_path_entries(&config.path, formatter)
+    {
+        formatter.error(&e);
+    }
+
+    // 5. 配置文件模板
+    if !config.config_files.is_empty()
+        && let Err(e) = team::apply_config_files(&config.config_files, formatter)
+    {
+        formatter.error(&e);
+    }
+
+    // 6. post_install 命令（安全：默认拒绝，需 --allow-exec，与 H-4 一致）
+    if let Some(cmds) = &config.post_install
+        && !cmds.is_empty()
+    {
+        if allow_exec {
+            if let Err(e) = sync::run_post_install(cmds, formatter) {
+                formatter.error(&e);
+            }
+        } else {
+            formatter.output(
+                "[SKIP] 跳过 post_install 命令（需要 --allow-exec）",
+                None::<serde_json::Value>,
+            );
+        }
+    }
+
+    // 仅当所有工具都已安装成功才记录哈希（失败时下次可重试）
+    let all_tools_ok = {
+        let manifest = Manifest::open().ok();
+        names.iter().all(|n| {
+            manifest
+                .as_ref()
+                .and_then(|m| m.get(n).ok().flatten())
+                .is_some()
+        })
+    };
+
+    let mut cfg = team::load_config();
+    cfg.cached_sha256 = team::sha256_hex(content.as_bytes());
+    cfg.last_sync = chrono::Utc::now().to_rfc3339();
+    if let Err(e) = team::save_config(&cfg) {
+        formatter.error(&e);
+    }
+
+    if all_tools_ok {
+        formatter.output(
+            "[TEAM] 同步完成",
+            Some(serde_json::json!({ "status": "complete", "action": "team_sync" })),
+        );
+    } else {
+        formatter.output(
+            "[WARN] 部分工具未成功安装，未记录为已同步 — 可重试 `oneinit team sync --force`",
+            Some(serde_json::json!({
+                "status": "warning",
+                "action": "team_sync",
+                "partial": true,
+            })),
+        );
+    }
 }
 
 /// oneinit verify <file> -- Validate community recipe YAML

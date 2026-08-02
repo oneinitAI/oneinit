@@ -149,6 +149,43 @@ enum Commands {
         #[command(subcommand)]
         action: SkillAction,
     },
+
+    /// 团队环境同步（team.yaml：共享开发环境，每次运行自动检测）
+    Team {
+        #[command(subcommand)]
+        action: TeamAction,
+    },
+}
+
+#[derive(clap::Subcommand)]
+enum TeamAction {
+    /// 添加团队环境仓库（拉取 team.yaml + 验签 + 固定公钥，随后立即同步）
+    Add {
+        /// 仓库 URL：https://github.com/<owner>/<repo> 或 raw 地址
+        url: String,
+        /// 分支（默认 main）
+        #[arg(long, default_value = "main")]
+        branch: String,
+        /// 覆盖已有配置 / 重新固定签名公钥
+        #[arg(long)]
+        force: bool,
+        /// 允许执行含命令的配方（默认拒绝）
+        #[arg(long)]
+        allow_exec: bool,
+    },
+    /// 移除团队环境配置
+    Remove,
+    /// 查看团队环境状态
+    Status,
+    /// 立即同步团队环境（默认静默，仅内容变化时安装缺失工具）
+    Sync {
+        /// 忽略 24h 检测间隔与缓存哈希，强制重新同步
+        #[arg(long)]
+        force: bool,
+        /// 允许执行含命令的配方（默认拒绝）
+        #[arg(long)]
+        allow_exec: bool,
+    },
 }
 
 #[derive(clap::Subcommand)]
@@ -190,7 +227,12 @@ async fn main() {
     // 高风险操作前显示免责声明
     let is_dangerous = matches!(
         cli.command,
-        Commands::Install { .. } | Commands::Sync | Commands::Import { dry_run: false, .. }
+        Commands::Install { .. }
+            | Commands::Sync
+            | Commands::Import { dry_run: false, .. }
+            | Commands::Team {
+                action: TeamAction::Add { .. } | TeamAction::Sync { .. }
+            }
     );
     if is_dangerous {
         security::print_disclaimer(&formatter);
@@ -199,10 +241,36 @@ async fn main() {
     // 每次使用自动拉取配方索引（缓存缺失或过期 >24h 时静默更新）
     let skip_auto_update = matches!(
         cli.command,
-        Commands::Update | Commands::Registry { .. } | Commands::Completions { .. }
+        Commands::Update
+            | Commands::Registry { .. }
+            | Commands::Completions { .. }
+            | Commands::Team { .. }
+            | Commands::Sync
+            | Commands::Capture { .. }
+            | Commands::Export { .. }
+            | Commands::Import { .. }
+            | Commands::Freeze { .. }
     );
     if !skip_auto_update {
         maybe_auto_update(&formatter).await;
+    }
+
+    // 团队环境自动检测（仅检测 + 内容变化时提示，不阻塞主命令）
+    let skip_team_check = matches!(
+        cli.command,
+        Commands::Update
+            | Commands::Registry { .. }
+            | Commands::Completions { .. }
+            | Commands::Team { .. }
+            | Commands::Sync
+            | Commands::Capture { .. }
+            | Commands::Export { .. }
+            | Commands::Import { .. }
+            | Commands::Freeze { .. }
+            | Commands::Doctor
+    );
+    if !skip_team_check {
+        cli::maybe_team_sync(&formatter).await;
     }
 
     match cli.command {
@@ -267,6 +335,21 @@ async fn main() {
             SkillAction::Install { target } => cli::run_skill_install(&formatter, &target).await,
             SkillAction::Status => cli::run_skill_status(&formatter).await,
             SkillAction::Uninstall => cli::run_skill_uninstall(&formatter).await,
+        },
+        Commands::Team { action } => match action {
+            TeamAction::Add {
+                url,
+                branch,
+                force,
+                allow_exec,
+            } => {
+                cli::run_team_add(&formatter, &url, &branch, force, allow_exec).await;
+            }
+            TeamAction::Remove => cli::run_team_remove(&formatter),
+            TeamAction::Status => cli::run_team_status(&formatter),
+            TeamAction::Sync { force, allow_exec } => {
+                cli::run_team_sync(&formatter, force, allow_exec).await;
+            }
         },
     }
 }
