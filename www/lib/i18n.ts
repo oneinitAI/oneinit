@@ -239,4 +239,22 @@ export const dict: Dict = {
     zh: "安装前请查看 [SECURITY] 确认提示中的 license / license_url。如果某个工具的许可证不允许你的预期用途，请勿安装。",
   },
   "terms.back": { en: "← Back to home", zh: "← 返回首页" },
+
+  // ===== Changelog =====
+  "cl.title": { en: "Changelog", zh: "更新日志" },
+  "cl.subtitle": {
+    en: "Every release, straight from GitHub Releases.",
+    zh: "每次版本更新，实时同步自 GitHub Releases。",
+  },
+  "cl.links": { en: "Links", zh: "链接" },
+  "cl.npm": { en: "npm", zh: "npm" },
+  "cl.releases": { en: "GitHub Releases", zh: "GitHub Releases" },
+  "cl.home": { en: "Homepage", zh: "官网" },
+  "cl.prerelease": { en: "Pre-release", zh: "预览版" },
+  "cl.install": { en: "Install", zh: "安装" },
+  "cl.changelog": { en: "Changelog", zh: "更新日志" },
+  "cl.security": { en: "Security Fixes", zh: "安全修复" },
+  "cl.fetching": { en: "Fetching releases...", zh: "拉取发行版..." },
+  "cl.err": { en: "Failed to load releases — GitHub API rate limited?", zh: "加载失败——GitHub API 限流？" },
+  "cl.empty": { en: "No releases yet.", zh: "暂无发行版。" },
 };

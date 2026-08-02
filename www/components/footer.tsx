@@ -22,6 +22,7 @@ export function Footer() {
         <div className="mt-12 flex items-center justify-center gap-6 text-sm text-zinc-600">
           <a href="https://github.com/oneinitAI/oneinit" className="hover:text-zinc-400">GitHub</a>
           <a href="https://www.npmjs.com/package/oneinit" className="hover:text-zinc-400">npm</a>
+          <a href="/changelog" className="hover:text-zinc-400">{t("cl.title")}</a>
           <a href="/terms" className="hover:text-zinc-400">{t("ft.terms")}</a>
           <span>GPL-3.0</span>
         </div>
