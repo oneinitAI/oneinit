@@ -135,6 +135,19 @@ export const dict: Dict = {
     zh: "内置安全机制：每个配方安装前都做 SHA256 校验，任何操作前用户需确认。",
   },
 
+  // ===== Team Env =====
+  "team.badge": { en: "Team Environment", zh: "团队环境" },
+  "team.title1": { en: "One repo.", zh: "一个仓库，" },
+  "team.title2": { en: "Whole team in sync.", zh: "全队自动同步。" },
+  "team.desc": {
+    en: "Fork the team template, edit team.yaml (tools, mirrors, env vars, PATH, config files), push — and OneInit auto-detects on every run and syncs missing tools with your confirmation. New teammate? One command.",
+    zh: "fork 团队模板，改一个 team.yaml（工具、镜像、环境变量、PATH、配置文件）推上去——之后每次运行 OneInit 自动检测，变化时逐个确认安装缺失工具。新同事加入？一条命令搞定。",
+  },
+  "team.security": {
+    en: "Ed25519-signed team.yaml is pinned on first add and verified on every sync — tampered content is refused. Recipes that run commands stay denied by default (--allow-exec).",
+    zh: "team.yaml 支持 Ed25519 签名：首次配置固定公钥，之后每次同步强制验签，篡改即拒绝。执行命令类配方默认拒绝（--allow-exec）。",
+  },
+
   // ===== Recipes (live) =====
   "rc.badge": { en: "SUPPORTED RECIPES · LIVE", zh: "支持配方 · 实时" },
   "rc.title1": { en: "One command.", zh: "一条命令，" },
