@@ -230,8 +230,10 @@ pub async fn fetch_index() -> Result<Index> {
         return Err(CoreError::Registry("no registry configured".into()));
     }
 
+    // 安全 M-2：禁用重定向，防止被攻陷的注册表把请求重定向到攻击者服务器
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| CoreError::Registry(format!("HTTP client creation failed: {e}")))?;
 
@@ -305,8 +307,10 @@ pub async fn fetch_recipe(
 
     let url = format!("{base_url}/recipes/{name}/{version}.yaml");
 
+    // 安全 M-2：禁用重定向
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| CoreError::Registry(format!("HTTP client creation failed: {e}")))?;
 
