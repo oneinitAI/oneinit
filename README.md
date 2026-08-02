@@ -172,6 +172,15 @@ oneinit team sync --force
   `--allow-exec` (default deny); config files are previewed before writing.
 - See [团队环境.md](团队环境.md) for the full spec.
 
+## Contributing & Roadmap
+
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — report bugs, propose features,
+  submit PRs, code style. Newcomer-friendly, FAQ included.
+- **[ROADMAP.md](ROADMAP.md)** — project direction & where to contribute value.
+- **Good First Issues** — beginner-friendly tasks with clear acceptance
+  criteria: https://github.com/oneinitAI/oneinit/issues?q=label%3A%22good+first+issue%22
+- Communication happens on GitHub Issues & PR comments.
+
 ## Terms of Service
 
 By using OneInit you agree to the following:
