@@ -224,6 +224,14 @@ oneinit team sync --force
   配置文件写入前预览确认；检测失败静默不阻塞
 - 完整规范见 **[团队环境.md](团队环境.md)**
 
+## 贡献与路线图
+
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — 报告 Bug、提议功能、提交 PR、代码风格规范（新手友好，含 FAQ）
+- **[ROADMAP.md](ROADMAP.md)** — 项目方向与贡献价值点
+- **Good First Issues** — 面向新手的任务，范围明确、有清晰验收标准：
+  https://github.com/oneinitAI/oneinit/issues?q=label%3A%22good+first+issue%22
+- 项目沟通在 GitHub Issues 与 PR 评论区进行
+
 ## 架构
 
 ```
