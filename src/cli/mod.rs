@@ -850,6 +850,88 @@ async fn apply_team_env(formatter: &OutputFormatter, content: &str, allow_exec: 
     }
 }
 
+/// oneinit viz — 环境可视化（ASCII 树 / HTML 报告 / Issue 快照）
+pub async fn run_viz(
+    formatter: &OutputFormatter,
+    html: bool,
+    issue: bool,
+    output: Option<&str>,
+    open: bool,
+    no_scan: bool,
+) {
+    if let Err(e) = ensure_dirs() {
+        formatter.error(&e);
+        return;
+    }
+
+    let report = crate::core::viz::gather(!no_scan);
+
+    if html {
+        let path = output.unwrap_or("report.html");
+        let content = crate::core::viz::render_html(&report);
+        if let Err(e) = crate::core::viz::write_output(path, &content) {
+            formatter.error(&e);
+            return;
+        }
+        formatter.output(
+            &format!("[OK] HTML 报告已生成: {}", path),
+            Some(serde_json::json!({
+                "status": "success",
+                "action": "viz",
+                "format": "html",
+                "path": path,
+            })),
+        );
+        if open {
+            open_in_browser(path);
+        }
+        return;
+    }
+
+    if issue {
+        let path = output.unwrap_or("env-snapshot.md");
+        let content = crate::core::viz::render_issue(&report);
+        if let Err(e) = crate::core::viz::write_output(path, &content) {
+            formatter.error(&e);
+            return;
+        }
+        formatter.output(
+            &format!("[OK] Issue 环境快照已生成: {}", path),
+            Some(serde_json::json!({
+                "status": "success",
+                "action": "viz",
+                "format": "issue",
+                "path": path,
+            })),
+        );
+        // 同时打印 Markdown，方便直接复制粘贴到 Issue
+        println!("\n{}", content);
+        return;
+    }
+
+    // 默认：ASCII 树（human + JSON 双输出）
+    let tree = crate::core::viz::render_ascii(&report);
+    formatter.output(&tree, Some(serde_json::json!(report)));
+}
+
+/// 尽力用系统默认浏览器打开文件
+fn open_in_browser(path: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "", path])
+            .spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg(path).spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+    }
+}
+
 /// oneinit verify <file> -- Validate community recipe YAML
 pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
     use crate::core::community_recipe;

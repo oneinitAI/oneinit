@@ -111,6 +111,9 @@ The guide includes: npm or build instructions, PATH setup, tool installation (Py
 | `oneinit team add <url>` | Configure team env repo (verify signature, pin key) |
 | `oneinit team sync` | Sync team env now (auto-checked on every run) |
 | `oneinit team status` / `remove` | Show / remove team env config |
+| `oneinit viz` | Visualize environment as an ASCII tree |
+| `oneinit viz --html` | Generate HTML(SVG) environment report |
+| `oneinit viz --issue` | Generate paste-ready GitHub Issue snapshot |
 | `oneinit capture [-o file]` | Scan current environment (7 detectors) |
 | `oneinit export [-o file]` | Export environment as tar.gz |
 | `oneinit import <file>` | Import environment from tar.gz |
