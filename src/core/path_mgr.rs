@@ -27,6 +27,17 @@ pub fn add(directory: &Path) -> Result<()> {
     set_path(&new_path)
 }
 
+/// 判断目录是否已在当前进程 PATH 中（viz 等只读场景用）
+pub fn is_in_path(directory: &Path) -> bool {
+    let Ok(current) = get_path() else {
+        return false;
+    };
+    let dir_str = directory.to_string_lossy().to_string();
+    split_path(&current)
+        .iter()
+        .any(|p| paths_equal(p, &dir_str))
+}
+
 /// 从 PATH 中移除指定目录
 pub fn remove(directory: &Path) -> Result<()> {
     let dir_str = directory.to_string_lossy().to_string();

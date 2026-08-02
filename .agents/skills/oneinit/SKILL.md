@@ -192,6 +192,26 @@ oneinit team remove
    - `post_install` 没执行 → 默认拒绝远程命令，需 `oneinit team sync --allow-exec`
    - 新工具没同步 → 每 24h 自动检测一次，或 `team sync --force` 立即同步
 
+### Environment Visualization (oneinit viz)
+
+```bash
+# ASCII 环境树（工具/版本/激活状态/全局包/缓存/磁盘占用）
+oneinit viz --json
+
+# 跳过全局包扫描（快速模式，不运行 pip/npm 检测）
+oneinit viz --no-scan --json
+
+# HTML(SVG) 报告（自包含，可 --open 打开浏览器）
+oneinit viz --html -o report.html --open
+
+# GitHub Issue 环境快照（Markdown，直接粘贴到 Issue，节省沟通成本）
+oneinit viz --issue -o env-snapshot.md
+```
+
+- 数据全部来自本机磁盘（Manifest/envs/cache/recipes），不发起网络请求（自动跳过索引更新）
+- `(active)` = 该工具的 bin 目录在当前 PATH 中；`⚠ dir missing` = 安装目录已丢失
+- 全局包：复用 capture 检测器（python/node），`--no-scan` 可跳过
+
 ### TUI
 
 ```bash

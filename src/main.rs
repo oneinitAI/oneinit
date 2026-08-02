@@ -155,6 +155,25 @@ enum Commands {
         #[command(subcommand)]
         action: TeamAction,
     },
+
+    /// 环境可视化（ASCII 树 / HTML 报告 / Issue 快照）
+    Viz {
+        /// 生成 HTML(SVG) 报告
+        #[arg(long)]
+        html: bool,
+        /// 生成 GitHub Issue 环境快照（Markdown）
+        #[arg(long)]
+        issue: bool,
+        /// 输出文件路径（--html 默认 report.html；--issue 默认 env-snapshot.md）
+        #[arg(short, long)]
+        output: Option<String>,
+        /// 生成 HTML 后尝试用系统浏览器打开
+        #[arg(long)]
+        open: bool,
+        /// 跳过全局包扫描（快速模式）
+        #[arg(long)]
+        no_scan: bool,
+    },
 }
 
 #[derive(clap::Subcommand)]
@@ -250,6 +269,7 @@ async fn main() {
             | Commands::Export { .. }
             | Commands::Import { .. }
             | Commands::Freeze { .. }
+            | Commands::Viz { .. }
     );
     if !skip_auto_update {
         maybe_auto_update(&formatter).await;
@@ -267,6 +287,7 @@ async fn main() {
             | Commands::Export { .. }
             | Commands::Import { .. }
             | Commands::Freeze { .. }
+            | Commands::Viz { .. }
             | Commands::Doctor
     );
     if !skip_team_check {
@@ -351,6 +372,15 @@ async fn main() {
                 cli::run_team_sync(&formatter, force, allow_exec).await;
             }
         },
+        Commands::Viz {
+            html,
+            issue,
+            output,
+            open,
+            no_scan,
+        } => {
+            cli::run_viz(&formatter, html, issue, output.as_deref(), open, no_scan).await;
+        }
     }
 }
 

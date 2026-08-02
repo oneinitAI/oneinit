@@ -131,6 +131,9 @@ https://raw.githubusercontent.com/oneinitAI/oneinit/main/INSTALL_AGENT.md
 | `oneinit team add <url>` | 配置团队环境仓库（验签 + 固定公钥） |
 | `oneinit team sync` | 同步团队环境（每次运行自动检测） |
 | `oneinit team status` / `remove` | 查看 / 移除团队环境配置 |
+| `oneinit viz` | 环境可视化（ASCII 树：工具/版本/激活状态/缓存） |
+| `oneinit viz --html` | 生成 HTML(SVG) 环境报告 |
+| `oneinit viz --issue` | 生成可直接粘贴到 GitHub Issue 的环境快照 |
 | `oneinit capture [-o 文件]` | 扫描当前环境（7 种语言检测器） |
 | `oneinit export [-o 文件]` | 导出环境为 tar.gz |
 | `oneinit import <文件>` | 从 tar.gz 导入环境 |

@@ -10,6 +10,7 @@ pub mod recipe;
 pub mod registry;
 pub mod sync;
 pub mod team;
+pub mod viz;
 
 use std::path::PathBuf;
 
