@@ -172,6 +172,26 @@ oneinit team remove
 - 安全：缺失工具逐个 `y` 确认；执行命令类配方默认拒绝（`--allow-exec`）；配置文件写入前预览确认
 - 自动检测：每次运行检查，24h 内未变则零网络开销；失败静默不阻塞主命令
 
+#### 引导用户配置团队环境（Guide: 帮用户搭建团队环境时按此流程）
+
+1. **创建/编辑环境仓库**：让用户 fork `github.com/oneinitAI/oneinit-team-env` 模板，
+   或直接帮用户改 `team.yaml`（工具 `envs`、镜像 `mirrors`、环境变量 `env_vars`、
+   PATH `path`、配置文件 `config_files`）。模板变量：`{{user_home}}` `{{mirror_pip}}` `{{mirror_npm}}`。
+2. **（可选，推荐）签名**：
+   - 本地：`cd <repo> && node scripts/sign.js --gen-key` → 得到 `TEAM_SIGN_KEY`(私钥 seed) 与 `signing_key`(公钥)
+   - 把公钥写入 `team.yaml` 的 `team.signing_key`；私钥设为 GitHub secret：
+     `gh secret set TEAM_SIGN_KEY --repo <org>/<repo> --body <seed-hex>`（私钥不要提交进代码库）
+   - push 后 `.github/workflows/sign.yml` 自动生成 `team.yaml.sig`（未配置 secret 则跳过签名）
+3. **成员接入**：`oneinit team add https://raw.githubusercontent.com/<org>/<repo>/main`
+   （或 `oneinit team add https://github.com/<org>/<repo>`，自动转 raw；`--branch` 指定分支；
+   换过密钥/覆盖配置用 `--force` 重新固定公钥）
+4. **验证**：`oneinit team status`（看 URL/团队名/签名状态）、`oneinit team sync --force`
+   （立即同步，缺失工具逐个确认）
+5. **常见问题**：
+   - 成员报"签名不匹配"→ 团队换过密钥，让成员 `team add <url> --force` 重新固定
+   - `post_install` 没执行 → 默认拒绝远程命令，需 `oneinit team sync --allow-exec`
+   - 新工具没同步 → 每 24h 自动检测一次，或 `team sync --force` 立即同步
+
 ### TUI
 
 ```bash
