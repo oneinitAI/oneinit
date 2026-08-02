@@ -82,14 +82,71 @@ echo "[INSTALL] Version: $TAG"
 
 ARCHIVE_NAME="oneinit-${TAG}-${PLATFORM}-${ARCHITECTURE}.${ARCHIVE_EXT}"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/${TAG}/${ARCHIVE_NAME}"
+SUMS_URL="https://github.com/$REPO/releases/download/${TAG}/SHA256SUMS.txt"
 
 echo "[INSTALL] Downloading: $DOWNLOAD_URL"
 
 TMPDIR="$(mktemp -d || echo /tmp/oneinit-install-$$)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
+# download to file (curl or wget)
+download_file() {
+    url="$1"
+    out="$2"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL -o "$out" "$url"
+    else
+        wget -q -O "$out" "$url"
+    fi
+}
+
+# sha256 of a file (sha256sum on Linux, shasum on macOS)
+calc_sha256() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    else
+        echo "[ERROR] Need sha256sum or shasum to verify download." >&2
+        exit 1
+    fi
+}
+
+# download + verify against release SHA256SUMS.txt; mismatch -> abort
+download_and_verify() {
+    url="$1"
+    archive_out="$2"
+    sums_out="$3"
+
+    download_file "$url" "$archive_out" || {
+        echo "[ERROR] Download failed: $url"
+        exit 1
+    }
+
+    # 旧版本 Release 可能没有 SHA256SUMS.txt：缺失时告警但不阻断（尽力而为）
+    if download_file "$SUMS_URL" "$sums_out" 2>/dev/null; then
+        expected="$(grep "  ${ARCHIVE_NAME}$" "$sums_out" | awk '{print $1}')"
+        if [ -z "$expected" ]; then
+            echo "[WARN] SHA256SUMS.txt has no entry for ${ARCHIVE_NAME} — skipping verify."
+            return 0
+        fi
+        actual="$(calc_sha256 "$archive_out")"
+        if [ "$expected" = "$actual" ]; then
+            echo "[OK] SHA256 verified: ${ARCHIVE_NAME}"
+        else
+            echo "[ERROR] SHA256 mismatch for ${ARCHIVE_NAME}"
+            echo "        expected: $expected"
+            echo "        actual:   $actual"
+            echo "[ABORT] Download may be tampered. Refusing to install."
+            exit 1
+        fi
+    else
+        echo "[WARN] SHA256SUMS.txt not available for ${TAG} — skipping SHA256 verify."
+    fi
+}
+
 if [ "$ARCHIVE_EXT" = "zip" ]; then
-    $FETCH -o "$TMPDIR/oneinit.zip" "$DOWNLOAD_URL"
+    download_and_verify "$DOWNLOAD_URL" "$TMPDIR/oneinit.zip" "$TMPDIR/SHA256SUMS.txt"
     if command -v unzip >/dev/null 2>&1; then
         (cd "$TMPDIR" && unzip -o oneinit.zip)
     elif command -v python3 >/dev/null 2>&1; then
@@ -99,7 +156,7 @@ if [ "$ARCHIVE_EXT" = "zip" ]; then
         exit 1
     fi
 else
-    $FETCH -o "$TMPDIR/oneinit.tar.gz" "$DOWNLOAD_URL"
+    download_and_verify "$DOWNLOAD_URL" "$TMPDIR/oneinit.tar.gz" "$TMPDIR/SHA256SUMS.txt"
     tar -xzf "$TMPDIR/oneinit.tar.gz" -C "$TMPDIR"
 fi
 

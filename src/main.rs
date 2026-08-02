@@ -42,6 +42,12 @@ enum Commands {
     Install {
         /// 要安装的工具包名称
         package: String,
+        /// 允许执行远程配方声明的命令 / 安装器（默认拒绝）
+        #[arg(
+            long,
+            help = "Allow recipes to run commands/installers (default: deny)"
+        )]
+        allow_exec: bool,
     },
 
     /// Uninstall a tool
@@ -201,7 +207,10 @@ async fn main() {
 
     match cli.command {
         Commands::Init { preset } => cli::run_init(&formatter, preset.as_deref()).await,
-        Commands::Install { package } => cli::run_install(&formatter, &package).await,
+        Commands::Install {
+            package,
+            allow_exec,
+        } => cli::run_install(&formatter, &package, allow_exec).await,
         Commands::Uninstall { package } => cli::run_uninstall(&formatter, &package).await,
         Commands::List => cli::run_list(&formatter).await,
         Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()).await,

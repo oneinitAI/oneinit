@@ -77,9 +77,13 @@ async fn install_from_tui(name: &str, formatter: &OutputFormatter) -> String {
 
     // 2. 本地社区
     if let Some(r) = community_recipe::resolve(name) {
-        return match community_recipe::install(&r, formatter).await {
+        // TUI 默认拒绝执行类配方（安全），提示用 CLI --allow-exec
+        return match community_recipe::install(&r, formatter, false).await {
             Ok(()) => format!("[OK] {} installation complete", r.name),
-            Err(e) => format!("[ERROR] installation failed: {}", e),
+            Err(e) => format!(
+                "[ERROR] installation failed: {}\n       Hint: 含命令的配方请在 CLI 用 `oneinit install --allow-exec {}`",
+                e, name
+            ),
         };
     }
 
@@ -101,9 +105,12 @@ async fn install_from_tui(name: &str, formatter: &OutputFormatter) -> String {
             Some(serde_json::Value::Null),
         );
         return match registry::fetch_recipe(name, &target_version).await {
-            Ok(r) => match community_recipe::install(&r, formatter).await {
+            Ok(r) => match community_recipe::install(&r, formatter, false).await {
                 Ok(()) => format!("[OK] {} installation complete", r.name),
-                Err(e) => format!("[ERROR] installation failed: {}", e),
+                Err(e) => format!(
+                    "[ERROR] installation failed: {}\n       Hint: 含命令的配方请在 CLI 用 `oneinit install --allow-exec {}`",
+                    e, name
+                ),
             },
             Err(e) => format!("[ERROR] remote fetch failed: {}", e),
         };

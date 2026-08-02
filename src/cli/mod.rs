@@ -187,7 +187,7 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
 ///   oneinit install python          # install default/latest
 ///   oneinit install python@3.11.9   # install specific version
 ///   oneinit install node@latest     # install latest
-pub async fn run_install(formatter: &OutputFormatter, package: &str) {
+pub async fn run_install(formatter: &OutputFormatter, package: &str, allow_exec: bool) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
@@ -197,7 +197,14 @@ pub async fn run_install(formatter: &OutputFormatter, package: &str) {
     let (name, version_spec) = parse_package_spec(package);
 
     // recursive install (handle dependencies)
-    install_recursive(&name, version_spec.as_deref(), formatter, &mut Vec::new()).await;
+    install_recursive(
+        &name,
+        version_spec.as_deref(),
+        formatter,
+        &mut Vec::new(),
+        allow_exec,
+    )
+    .await;
 }
 
 /// parse name@version syntax
@@ -224,6 +231,7 @@ fn install_recursive<'a>(
     version_spec: Option<&'a str>,
     formatter: &'a OutputFormatter,
     installing_stack: &'a mut Vec<String>,
+    allow_exec: bool,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + 'a>> {
     Box::pin(async move {
         // 防止循环依赖
@@ -266,8 +274,8 @@ fn install_recursive<'a>(
             }
             RecipeResolution::Community(rec) => {
                 // 先安装依赖
-                install_dependencies(&rec, formatter, installing_stack).await;
-                if let Err(e) = community_recipe::install(&rec, formatter).await {
+                install_dependencies(&rec, formatter, installing_stack, allow_exec).await;
+                if let Err(e) = community_recipe::install(&rec, formatter, allow_exec).await {
                     formatter.error(&e);
                 }
             }
@@ -373,6 +381,7 @@ async fn install_dependencies(
     recipe: &crate::core::community_recipe::CommunityRecipe,
     formatter: &OutputFormatter,
     installing_stack: &mut Vec<String>,
+    allow_exec: bool,
 ) {
     if let Some(ref deps) = recipe.depends {
         if deps.is_empty() {
@@ -383,7 +392,7 @@ async fn install_dependencies(
             Some(serde_json::Value::Null),
         );
         for dep in deps {
-            install_recursive(dep, None, formatter, installing_stack).await;
+            install_recursive(dep, None, formatter, installing_stack, allow_exec).await;
         }
     }
 }

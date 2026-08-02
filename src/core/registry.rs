@@ -18,6 +18,58 @@ const DEFAULT_REGISTRY_URL: &str =
     "https://raw.githubusercontent.com/oneinitAI/oneinit-recipes/main";
 
 // ============================================================
+// 配方签名验证（安全 #3）
+//
+// INDEX.json.sig = Ed25519 签名（hex），签名对象为 INDEX.json 原文。
+// 注册表维护者用私钥（GitHub secret）签名，公钥内置于此。
+// ============================================================
+
+/// 注册表签名公钥（Ed25519，32 字节 hex）— 与配方仓库私钥配对
+const REGISTRY_PUBLIC_KEY_HEX: &str =
+    "4d3b8ea42836ab97766150581ae45439c5a3477bf036a5157c7dff9ba2ad3869";
+
+/// 验证 INDEX.json 的 Ed25519 签名（使用内置注册表公钥）
+pub fn verify_index_signature(data: &[u8], sig_hex: &str) -> bool {
+    verify_with_key(data, sig_hex, REGISTRY_PUBLIC_KEY_HEX)
+}
+
+/// 用指定公钥（hex）验签 — 测试可注入
+fn verify_with_key(data: &[u8], sig_hex: &str, pub_hex: &str) -> bool {
+    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+
+    let Some(pub_bytes) = hex_decode(pub_hex) else {
+        return false;
+    };
+    let pub_array: [u8; 32] = match pub_bytes.try_into() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    let Some(sig_bytes) = hex_decode(sig_hex.trim()) else {
+        return false;
+    };
+    let sig_array: [u8; 64] = match sig_bytes.try_into() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    let Ok(pubkey) = VerifyingKey::from_bytes(&pub_array) else {
+        return false;
+    };
+    let sig = Signature::from_bytes(&sig_array);
+    pubkey.verify(data, &sig).is_ok()
+}
+
+/// hex 字符串 → 字节（小写/大写均可）
+fn hex_decode(s: &str) -> Option<Vec<u8>> {
+    if !s.len().is_multiple_of(2) || !s.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok())
+        .collect()
+}
+
+// ============================================================
 // 数据结构
 // ============================================================
 
@@ -195,6 +247,38 @@ async fn fetch_index_from(client: &reqwest::Client, base_url: &str) -> Result<In
         .text()
         .await
         .map_err(|e| CoreError::Registry(format!("read {url} response failed: {e}")))?;
+
+    // 安全 #3：验签（INDEX.json.sig 存在则强校验；不存在则警告，兼容旧注册表）
+    let sig_url = format!("{}/INDEX.json.sig", base_url);
+    match client.get(&sig_url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            let sig_text = resp
+                .text()
+                .await
+                .map_err(|e| CoreError::Registry(format!("read {sig_url} failed: {e}")))?;
+            let sig = sig_text.trim().to_string();
+            if verify_index_signature(body.as_bytes(), &sig) {
+                eprintln!("[OK] INDEX.json signature verified for {base_url}");
+            } else {
+                return Err(CoreError::Registry(format!(
+                    "INDEX.json signature verification FAILED for {base_url} — \
+                     registry may be tampered. Refusing to use this index."
+                )));
+            }
+        }
+        Ok(_) => {
+            eprintln!(
+                "[WARN] {} has no INDEX.json.sig — skipping signature check",
+                base_url
+            );
+        }
+        Err(e) => {
+            eprintln!(
+                "[WARN] could not fetch {}: {} — skipping signature check",
+                sig_url, e
+            );
+        }
+    }
 
     serde_json::from_str(&body)
         .map_err(|e| CoreError::Registry(format!("INDEX.json parse failed at {url}: {e}")))
@@ -476,6 +560,52 @@ pub fn generate_index(recipes: &[super::community_recipe::CommunityRecipe]) -> I
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_verify_index_signature_valid_and_tampered() {
+        use ed25519_dalek::{Signer, SigningKey};
+
+        // 固定 seed 生成密钥对（可复现）
+        let seed = [7u8; 32];
+        let signing = SigningKey::from_bytes(&seed);
+        let pub_hex: String = signing
+            .verifying_key()
+            .to_bytes()
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect();
+
+        let data = b"{\"version\":1,\"packages\":{}}";
+        let sig: String = signing
+            .sign(data)
+            .to_bytes()
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect();
+
+        // 正路径：正确签名通过
+        assert!(verify_with_key(data, &sig, &pub_hex));
+        // 篡改路径：数据被改 → 拒绝
+        assert!(!verify_with_key(b"{\"version\":2}", &sig, &pub_hex));
+        // 伪造路径：随机错误签名 → 拒绝
+        assert!(!verify_with_key(data, &"00".repeat(64), &pub_hex));
+        // 非法 hex → 拒绝
+        assert!(!verify_with_key(data, "not-hex", &pub_hex));
+        // 公钥非法 → 拒绝
+        assert!(!verify_with_key(data, &sig, "zz"));
+    }
+
+    #[test]
+    fn test_hex_decode() {
+        assert_eq!(
+            hex_decode("4d3b8ea4").unwrap(),
+            vec![0x4d, 0x3b, 0x8e, 0xa4]
+        );
+        assert_eq!(hex_decode("FF00"), Some(vec![0xff, 0x00]));
+        assert!(hex_decode("").unwrap().is_empty());
+        assert_eq!(hex_decode("xyz"), None);
+        assert_eq!(hex_decode("abc"), None); // 奇数长度
+    }
 
     #[test]
     fn test_merge_indexes_first_wins_and_source() {
