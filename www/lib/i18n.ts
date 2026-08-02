@@ -264,10 +264,10 @@ export const dict: Dict = {
 
   // ===== Credits / 致谢 =====
   "credit.line": {
-    en: "Built by a non-programmer with the help of DeepSeek, GLM, ChatGPT & friends.",
-    zh: "由非程序员借助 DeepSeek、GLM、ChatGPT 等 AI 模型共同完成。",
+    en: "Coded by a developer with the help of DeepSeek, GLM, ChatGPT & friends.",
+    zh: "由程序员借助 DeepSeek、GLM、ChatGPT 等 AI 模型辅助完成。",
   },
 
   // ===== Hero changelog entry =====
-  "hero.changelog": { en: "View changelog →", zh: "查看更新日志 →" },
+  "hero.changelog": { en: "View Changelog", zh: "查看更新日志" },
 };

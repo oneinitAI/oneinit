@@ -180,14 +180,13 @@ OneInit is a solo open-source project. If it saves you time, consider supporting
 
 ## Credits / 致谢
 
-I'm **not a professional programmer** — most of this code was written with the
-help of AI coding assistants: **DeepSeek, GLM (智谱), ChatGPT, and others**.
-This project is proof that anyone can build real tools with modern AI models.
-Thank you to all the models that wrote, reviewed, and debugged this codebase.
+I'm a developer — this code was written by me, with heavy assistance from
+AI coding tools: **DeepSeek, GLM (智谱), ChatGPT, and others**. Large parts of
+the codebase were written, reviewed, and debugged with their help.
+Thanks to all the models that made this project possible!
 
-> 我不是专业程序员——本项目大部分代码由 **DeepSeek、GLM（智谱）、ChatGPT** 等
-> AI 编程助手协助完成。这个项目证明了：借助现代 AI 模型，任何人都能做出真正的工具。
-> 感谢所有参与编写、审查和调试这份代码的模型们。
+> 我是程序员——本项目的代码由我编写，并大量借助 **DeepSeek、GLM（智谱）、
+> ChatGPT** 等 AI 编程助手完成。感谢这些模型帮助编写、审查和调试了大量代码。
 
 ---
 <div align="center">

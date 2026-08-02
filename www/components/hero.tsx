@@ -49,13 +49,20 @@ export function Hero() {
             </button>
           </motion.div>
 
-          <motion.a
-            href="/changelog"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.65 }}
-            className="mt-6 inline-flex w-fit items-center gap-1.5 font-mono text-xs text-zinc-500 hover:text-emerald-400 transition-colors"
+          <motion.div
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.65 }}
+            className="mt-8"
           >
-            {t("hero.changelog")}
-          </motion.a>
+            <a
+              href="/changelog"
+              className="inline-flex items-center gap-2 rounded-xl border border-emerald-600/25 bg-emerald-600/[0.06] px-5 py-2.5 font-mono text-sm font-medium text-emerald-400 transition-all hover:border-emerald-500/50 hover:bg-emerald-600/10 hover:text-emerald-300 active:scale-[0.98]"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 8v4l3 3" /><circle cx="12" cy="12" r="9" />
+              </svg>
+              {t("hero.changelog")}
+            </a>
+          </motion.div>
         </div>
 
         <motion.div initial={{ opacity:0,scale:0.95 }} animate={{ opacity:1,scale:1 }} transition={{ duration:0.7,delay:0.4 }}
