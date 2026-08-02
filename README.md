@@ -178,6 +178,14 @@ OneInit is a solo open-source project. If it saves you time, consider supporting
 
 **Every star ⭐ helps more developers discover OneInit.** Star the repo to show your support!
 
+## 爱发电 / Afdian
+
+国内朋友也可以直接在爱发电支持我：
+
+[![爱发电](https://img.shields.io/badge/爱发电-支持我-946CE6?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzc2NkNDMCI+PHBhdGggZD0iTTE4LjkgMTIuNWwtNi4zIDUuMmMtLjMuMi0uNy4yLTEgMGwtNi4zLTUuMmMtLjQtLjMtLjQtLjgtLjEtMS4xbDIuMS0yLjJjLjMtLjMuOC0uMyAxLjEgMGw0LjIgMy41IDQuMi0zLjVjLjMtLjMuOC0uMyAxLjEgMGwyLjEgMi4yYy4zLjMuMy44LS4xIDEuMXoiLz48L3N2Zz4=)](https://ifdian.net/a/BG4JTS)
+
+→ **https://ifdian.net/a/BG4JTS**
+
 ## Credits / 致谢
 
 I'm a developer — this code was written by me, with heavy assistance from
