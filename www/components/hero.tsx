@@ -48,6 +48,14 @@ export function Hero() {
               <span className="text-emerald-500">$</span> {t("hero.npm")}
             </button>
           </motion.div>
+
+          <motion.a
+            href="/changelog"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.65 }}
+            className="mt-6 inline-flex w-fit items-center gap-1.5 font-mono text-xs text-zinc-500 hover:text-emerald-400 transition-colors"
+          >
+            {t("hero.changelog")}
+          </motion.a>
         </div>
 
         <motion.div initial={{ opacity:0,scale:0.95 }} animate={{ opacity:1,scale:1 }} transition={{ duration:0.7,delay:0.4 }}
