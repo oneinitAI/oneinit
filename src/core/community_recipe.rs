@@ -362,9 +362,16 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
 ///
 /// Security flow（按 社区recipe.md 第四节要求）：
 /// 1. prominently display source, SHA256, target dir, commands
-/// 2. wait for user to type y to confirm
+/// 2. wait for user to type y to confirm (unless allow_exec explicitly granted)
 /// 3. download -> verify -> extract/install -> post_install -> PATH -> Manifest
-pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> Result<()> {
+///
+/// `allow_exec`：是否允许执行远程配方声明的命令/安装器。默认 false——
+/// 含 post_install.commands 或执行类 install_type 的配方会被拒绝（安全 H-4）。
+pub async fn install(
+    recipe: &CommunityRecipe,
+    formatter: &OutputFormatter,
+    allow_exec: bool,
+) -> Result<()> {
     let start = Instant::now();
 
     // get current platform config
@@ -374,6 +381,37 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
             recipe.name
         ))
     })?;
+
+    // 安全 H-4：判定配方是否含"执行"类操作（命令 / 安装器）
+    let has_commands = recipe
+        .post_install
+        .as_ref()
+        .and_then(|p| p.commands.as_ref())
+        .map(|c| !c.is_empty())
+        .unwrap_or(false);
+    let exec_type = matches!(
+        platform_cfg.install_type.as_str(),
+        "exe_silent" | "msi_install" | "pkg_install"
+    );
+    let needs_exec = has_commands || exec_type;
+
+    if needs_exec && !allow_exec {
+        return Err(CoreError::Other(format!(
+            "recipe '{}' requires executing commands/installers ({}{}). \
+             Refused for security. Re-run with --allow-exec to accept.",
+            recipe.name,
+            if has_commands {
+                "post_install commands"
+            } else {
+                ""
+            },
+            if exec_type {
+                " install_type=".to_string() + &platform_cfg.install_type
+            } else {
+                String::new()
+            },
+        )));
+    }
 
     let install_dir = envs_dir().join(&platform_cfg.install_path);
 
@@ -465,16 +503,23 @@ pub async fn install(recipe: &CommunityRecipe, formatter: &OutputFormatter) -> R
         Some(serde_json::Value::Null),
     );
 
-    // wait for user confirmation
-    print!("[SECURITY] Type y to confirm, any other key to cancel: ");
-    io::stdout().flush()?;
-    let confirmed = wait_for_confirmation();
-    if !confirmed {
+    // wait for user confirmation（--allow-exec 已显式授权，跳过交互）
+    if allow_exec {
         formatter.output(
-            "[CANCEL] Installation cancelled",
+            "[SECURITY] --allow-exec granted, skipping interactive confirm",
             Some(serde_json::Value::Null),
         );
-        return Ok(());
+    } else {
+        print!("[SECURITY] Type y to confirm, any other key to cancel: ");
+        io::stdout().flush()?;
+        let confirmed = wait_for_confirmation();
+        if !confirmed {
+            formatter.output(
+                "[CANCEL] Installation cancelled",
+                Some(serde_json::Value::Null),
+            );
+            return Ok(());
+        }
     }
 
     // ====== execute install ======
