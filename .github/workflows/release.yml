@@ -87,6 +87,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 需要完整历史以生成 changelog
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -97,10 +100,54 @@ jobs:
       - name: List artifacts
         run: ls -lh artifacts/
 
+      - name: Generate release notes
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PREV_TAG="$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo '')"
+
+          # 变更列表：上一 tag 到本次，去掉 merge commit
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES="$(git log --oneline --no-merges "${PREV_TAG}..HEAD" 2>/dev/null | head -60)"
+          else
+            CHANGES="$(git log --oneline --no-merges -20 2>/dev/null)"
+          fi
+          [ -z "$CHANGES" ] && CHANGES="- Initial release"
+
+          # 提取安全修复条目（commit message 含 security/harden 等）
+          SECURITY="$(printf '%s\n' "$CHANGES" | grep -iE 'security|harden|CVE|vuln' || true)"
+
+          {
+            echo "## 🚀 OneInit $VERSION"
+            echo ""
+            echo "### 🔒 安全修复 / Security Fixes"
+            if [ -n "$SECURITY" ]; then
+              printf '%s\n' "$SECURITY" | sed 's/^/- /'
+            else
+              echo "- 本次无安全相关变更 / No security changes in this release."
+            fi
+            echo ""
+            echo "### 📝 更新日志 / Changelog"
+            printf '%s\n' "$CHANGES" | sed 's/^/- /'
+            echo ""
+            echo "### 📦 安装 / Install"
+            echo "- npm: \`npm install -g oneinit@$VERSION\`"
+            echo "- 一键脚本: \`curl -fsSL https://raw.githubusercontent.com/oneinitAI/oneinit/main/install.sh | sh\`"
+            echo "- 源码: \`git clone https://github.com/oneinitAI/oneinit.git && cargo build --release\`"
+            echo ""
+            echo "### 🔗 链接 / Links"
+            echo "- npm: https://www.npmjs.com/package/oneinit"
+            echo "- 官网: https://oneinit.bg4jts.cn"
+            echo "- 下载: 见下方 Assets"
+          } > RELEASE_BODY.md
+
+          echo "===== release body ====="
+          cat RELEASE_BODY.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: RELEASE_BODY.md
           draft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
           files: artifacts/*
