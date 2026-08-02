@@ -148,6 +148,30 @@ oneinit init --preset full            # python + node + go + java
 oneinit sync --json                   # batch-install from oneinit.yaml
 ```
 
+### Team Environment Sync (团队环境同步)
+
+团队共享开发环境：fork `oneinitAI/oneinit-team-env` 模板，编辑 `team.yaml`，成员一次配置后
+**每次运行 oneinit 自动检测同步**（工具 / 镜像 / 环境变量 / PATH / 配置文件）。
+
+```bash
+# 配置团队环境（拉取 team.yaml + 验签 + 固定公钥，随后立即同步）
+oneinit team add https://raw.githubusercontent.com/<org>/<repo>/main --json
+oneinit team add https://github.com/<org>/<repo> --branch main --json   # github.com 形式也可
+
+# 手动同步 / 强制同步
+oneinit team sync --json
+oneinit team sync --force --json      # 忽略 24h 间隔与缓存哈希
+
+# 状态 / 移除
+oneinit team status --json
+oneinit team remove
+```
+
+- team.yaml 结构：`team`(name/signing_key) + `envs` + `mirrors` + `env_vars` + `path` + `config_files` + `post_install`，见 `团队环境.md`
+- 签名（可选）：`team add` 固定公钥（TOFU），每次同步强制验签，不匹配拒绝
+- 安全：缺失工具逐个 `y` 确认；执行命令类配方默认拒绝（`--allow-exec`）；配置文件写入前预览确认
+- 自动检测：每次运行检查，24h 内未变则零网络开销；失败静默不阻塞主命令
+
 ### TUI
 
 ```bash

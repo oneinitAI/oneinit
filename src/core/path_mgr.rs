@@ -116,6 +116,9 @@ fn set_path_windows(new_path: &str) -> Result<()> {
 }
 
 /// Windows: 广播 WM_SETTINGCHANGE
+///
+/// 用 PostMessage（非阻塞）而非 SendMessage：SendMessage 到 HWND_BROADCAST
+/// 会在存在不响应窗口时无限阻塞（已知 Windows 陷阱），导致安装/同步卡死。
 #[cfg(target_os = "windows")]
 fn broadcast_setting_change() {
     use std::ffi::OsStr;
@@ -127,7 +130,7 @@ fn broadcast_setting_change() {
             .chain(std::iter::once(0))
             .collect();
         let hwnd = winapi::um::winuser::HWND_BROADCAST;
-        winapi::um::winuser::SendMessageW(
+        winapi::um::winuser::PostMessageW(
             hwnd,
             winapi::um::winuser::WM_SETTINGCHANGE,
             0,

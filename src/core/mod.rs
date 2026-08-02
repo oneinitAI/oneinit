@@ -9,6 +9,7 @@ pub mod preset;
 pub mod recipe;
 pub mod registry;
 pub mod sync;
+pub mod team;
 
 use std::path::PathBuf;
 

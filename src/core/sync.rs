@@ -4,8 +4,8 @@ use std::process::Command;
 
 use serde::Deserialize;
 
-/// oneinit.yaml 配置文件结构
-#[derive(Debug, Deserialize)]
+/// oneinit.yaml / team.yaml 配置文件结构
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct SyncConfig {
     /// 环境工具列表（如 python: 3.11, node: 18）
     pub envs: BTreeMap<String, serde_yaml::Value>,
@@ -13,12 +13,47 @@ pub struct SyncConfig {
     pub mirrors: Option<BTreeMap<String, String>>,
     /// 安装后执行的命令列表
     pub post_install: Option<Vec<String>>,
+    /// 团队元信息（team.yaml 专有，oneinit.yaml 可缺省）
+    pub team: Option<TeamMeta>,
+    /// 环境变量（写入用户 profile，幂等）
+    #[serde(default)]
+    pub env_vars: BTreeMap<String, String>,
+    /// 追加到 PATH 的条目（模板变量可渲染）
+    #[serde(default)]
+    pub path: Vec<String>,
+    /// 配置文件模板（写入用户 home，带路径安全检查）
+    #[serde(default)]
+    pub config_files: Vec<TeamConfigFile>,
+}
+
+/// 团队元信息
+#[derive(Debug, Clone, Deserialize)]
+pub struct TeamMeta {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub version: Option<String>,
+    /// Ed25519 公钥 hex（配 team.yaml.sig 使用）
+    pub signing_key: Option<String>,
+}
+
+/// 配置文件模板条目
+#[derive(Debug, Clone, Deserialize)]
+pub struct TeamConfigFile {
+    /// 目标路径（支持 {{user_home}} 等模板变量）
+    pub path: String,
+    /// 文件内容模板（支持 {{mirror_npm}} 等变量）
+    pub template: String,
 }
 
 /// 从 oneinit.yaml 文件解析配置
 pub fn load_config(yaml_path: &Path) -> crate::core::Result<SyncConfig> {
     let content = std::fs::read_to_string(yaml_path)?;
-    let config: SyncConfig = serde_yaml::from_str(&content)
+    parse_config(&content)
+}
+
+/// 从字符串解析配置（团队环境直接使用远程内容，无需落盘）
+pub fn parse_config(content: &str) -> crate::core::Result<SyncConfig> {
+    let config: SyncConfig = serde_yaml::from_str(content)
         .map_err(|e| crate::core::CoreError::Other(format!("YAML parse failed: {}", e)))?;
     Ok(config)
 }
@@ -111,8 +146,7 @@ mod tests {
 
         let config = SyncConfig {
             envs,
-            mirrors: None,
-            post_install: None,
+            ..Default::default()
         };
 
         let names = envs_to_recipe_names(&config);
@@ -124,8 +158,7 @@ mod tests {
     fn test_envs_to_recipe_names_empty() {
         let config = SyncConfig {
             envs: BTreeMap::new(),
-            mirrors: None,
-            post_install: None,
+            ..Default::default()
         };
         assert!(envs_to_recipe_names(&config).is_empty());
     }
