@@ -152,7 +152,7 @@ chore: bump version                      # 杂项
 
 | 方向 | 去哪里 |
 |------|--------|
-| 项目文档 | 本仓库根目录的 `*.md`（`社区配方.md`、`团队环境.md`、`开发.md` 等） |
+| 项目文档 | 本仓库根目录的 `*.md` 与 `docs/` 文件夹（`docs/团队环境.md`、`docs/team-env.md` 等） |
 | 社区配方 | [oneinitAI/oneinit-recipes](https://github.com/oneinitAI/oneinit-recipes)（有独立的贡献指南） |
 | 官网 | 本仓库 `www/` 目录（纯前端） |
 | AI Skill | 本仓库 `.agents/skills/oneinit/SKILL.md` |

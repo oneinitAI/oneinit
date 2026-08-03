@@ -175,7 +175,8 @@ oneinit team sync --force
 - **Safety:** missing tools install with the usual security banner + `y`
   confirmation; recipes that run commands/installers require
   `--allow-exec` (default deny); config files are previewed before writing.
-- See [团队环境.md](团队环境.md) for the full spec.
+- See [docs/team-env.md](docs/team-env.md) for the full spec. 中文版见
+  [docs/团队环境.md](docs/团队环境.md).
 
 ## Contributing & Roadmap
 

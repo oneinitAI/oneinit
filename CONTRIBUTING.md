@@ -166,7 +166,7 @@ chore: bump version                      # misc
 
 | Direction | Where |
 |-----------|-------|
-| Project docs | Root `*.md` files in this repo (`社区配方.md`, `团队环境.md`, `开发.md`, …) |
+| Project docs | Root `*.md` files + the `docs/` folder (`docs/team-env.md`, `docs/团队环境.md`, …) |
 | Community recipes | [oneinitAI/oneinit-recipes](https://github.com/oneinitAI/oneinit-recipes) (separate guide) |
 | Website | `www/` in this repo (frontend only) |
 | AI Skill | `.agents/skills/oneinit/SKILL.md` in this repo |
