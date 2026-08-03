@@ -187,7 +187,7 @@ oneinit team status --json
 oneinit team remove
 ```
 
-- team.yaml 结构：`team`(name/signing_key) + `envs` + `mirrors` + `env_vars` + `path` + `config_files` + `post_install`，见 `团队环境.md`
+- team.yaml 结构：`team`(name/signing_key) + `envs` + `mirrors` + `env_vars` + `path` + `config_files` + `post_install`，见 `docs/团队环境.md`
 - 签名（可选）：`team add` 固定公钥（TOFU），每次同步强制验签，不匹配拒绝
 - 安全：缺失工具逐个 `y` 确认；执行命令类配方默认拒绝（`--allow-exec`）；配置文件写入前预览确认
 - 自动检测：每次运行检查，24h 内未变则零网络开销；失败静默不阻塞主命令
