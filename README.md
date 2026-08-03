@@ -20,6 +20,11 @@
 
 OneInit is a CLI tool that initializes a complete development environment with **one command**. Download, extract, configure mirrors, write PATH, record in SQLite -- all automatic, all user-space, zero sudo.
 
+<div align="center">
+  <img src="https://picui.ogmua.cn/s1/2026/08/03/6a7038229313a.webp" alt="OneInit configuring Python" width="720" />
+  <p><em>OneInit setting up your Python environment for you</em></p>
+</div>
+
 ## Why OneInit?
 
 | Traditional | OneInit |
@@ -42,6 +47,12 @@ oneinit tui
 # Scan what's installed on this machine
 oneinit capture -o my-env.yaml
 ```
+
+> **AI-friendly `--json`**: every command supports `--json`, printing structured
+> JSON instead of human text. An AI assistant can read exactly what happened
+> (status, package, version, error) and act on it. That lets the AI
+> autonomously continue — installing the next tool, verifying the result, or
+> reporting a precise error — without parsing prose.
 
 ## Installation
 

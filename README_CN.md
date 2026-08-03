@@ -44,6 +44,11 @@
 - **社区配方** -- 写一个 YAML 文件放到 `~/.oneinit/recipes/`，一条命令安装
 - **AI 原生** -- 所有命令支持 `--json` 输出，AI Agent 可直接消费
 
+<div align="center">
+  <img src="https://picui.ogmua.cn/s1/2026/08/03/6a7038229313a.webp" alt="OneInit 帮你配置 Python 环境" width="720" />
+  <p><em>OneInit 帮你配置好 Python 环境</em></p>
+</div>
+
 ## 快速开始
 
 ```bash
@@ -62,6 +67,10 @@ oneinit export -o backup.tar.gz --include-envs
 # 在新机器上恢复
 oneinit import backup.tar.gz
 ```
+
+> **AI 友好的 `--json`**：所有命令都支持 `--json`，输出结构化 JSON 而非人类文本。
+> AI 助手能准确读懂发生了什么（状态、包名、版本、错误）。
+> 这样 AI 就能自主完成后续操作——安装下一个工具、验证结果、精确汇报错误——无需解析自然语言。
 
 ## 安装
 
