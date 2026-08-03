@@ -57,6 +57,10 @@ enum Commands {
         /// 只预览将要执行的操作，不实际安装
         #[arg(long)]
         dry_run: bool,
+        /// 项目感知安装：扫描项目目录（requirements.txt / package.json /
+        /// Cargo.toml / go.mod），自动识别并安装对应工具链（默认当前目录）
+        #[arg(long, num_args = 0..=1, default_missing_value = ".")]
+        project: Option<String>,
     },
 
     /// Install a tool（如 python3.7, node18）
@@ -346,9 +350,11 @@ async fn main() {
     }
 
     match cli.command {
-        Commands::Init { preset, dry_run } => {
-            cli::run_init(&formatter, preset.as_deref(), dry_run).await
-        }
+        Commands::Init {
+            preset,
+            dry_run,
+            project,
+        } => cli::run_init(&formatter, preset.as_deref(), dry_run, project.as_deref()).await,
         Commands::Install {
             package,
             allow_exec,

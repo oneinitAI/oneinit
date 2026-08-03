@@ -168,6 +168,64 @@ oneinit init --preset full            # python + node + go + java
 oneinit sync --json                   # batch-install from oneinit.yaml
 ```
 
+### Project-Aware Install (项目感知安装)
+
+`oneinit init --project` scans a project directory, auto-detects its manifest
+files, and installs the required toolchains — user says "配置这个项目", OneInit
+plans the environment / 用户说"配置这个项目"，OneInit 自主完成环境规划:
+
+```bash
+oneinit init --project               # scan current dir (default)
+oneinit init --project /path/to/proj # scan a specific project
+oneinit init --project --dry-run     # preview the plan only
+```
+
+Detection mapping / 检测映射:
+
+| Manifest / 清单文件 | Toolchain / 工具链 |
+|---|---|
+| `requirements.txt` / `pyproject.toml` / `setup.py` | `python3.11` |
+| `package.json` | `node20` |
+| `Cargo.toml` | `rust` (remote recipe) |
+| `go.mod` | `go` |
+
+AI workflow: 用户说"配置这个项目" → 运行 `oneinit init --project --json` →
+读取 `detected` 数组确认 → 用 `--dry-run` 预览 → 确认后正式执行 → `oneinit list --json` 验证。
+
+### Intent-Based Environment (环境意图识别)
+
+用户表达的是**意图**而非包名时（"我想做机器学习"），由 AI 把意图映射为工具链并执行：
+
+| Intent / 意图 | Recommended stack / 推荐栈 |
+|---|---|
+| 机器学习 / 数据分析 | `python3.11` + pip 安装 `torch torchvision jupyter`；**先询问是否需要 GPU 支持**（需要 → 提示安装 CUDA 版 PyTorch） |
+| Web 前端 | `oneinit init --preset frontend`（node20） |
+| 后端 / API | `oneinit init --preset python`（或 node） |
+| 全栈 | `oneinit init --preset full` |
+| 新机器 / 从零 | `oneinit init --preset full` + 团队环境 `oneinit team add <url>` |
+
+AI workflow: 解析意图 → 给出推荐栈（涉及重型 ML 依赖先问 GPU）→ 用 oneinit 安装 →
+`oneinit viz --json` 展示结果。OneInit 负责执行，AI 负责"规划意图→工具链"。
+
+### AI-Driven Self-Healing (故障自愈)
+
+环境出错时，把"环境医生"交给 AI —— 用 oneinit 的只读命令诊断，再决定修复:
+
+```bash
+oneinit doctor --json      # 健康检查：manifest/孤儿路径/PATH/缓存
+oneinit viz --issue        # 一键生成可粘贴的环境快照
+```
+
+AI workflow / 自愈流程:
+1. **诊断**: 运行 `oneinit doctor --json` / `oneinit viz --json`，读取结构化结果
+2. **定位**: 常见问题 —— 路径缺失（orphan）→ 重装该工具；PATH 残留 → `uninstall` 后再装；
+   缓存过期 → `oneinit update`；校验失败 → 重试安装
+3. **修复**: 用 oneinit 命令修复（`install` / `uninstall` / `update` / `team sync --force`），
+   需要权限的操作先征得用户同意
+4. **验证**: 再次 `oneinit doctor --json` 确认所有检查通过，向用户汇报"修好了什么"
+
+> 原则: AI 只做诊断与规划，破坏性修复必须经用户确认后才执行。
+
 ### Team Environment Sync (团队环境同步)
 
 团队共享开发环境：fork `oneinitAI/oneinit-team-env` 模板，编辑 `team.yaml`，成员一次配置后

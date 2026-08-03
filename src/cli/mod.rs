@@ -10,9 +10,20 @@ use crate::core::{
 use crate::output::OutputFormatter;
 
 /// oneinit init — initialize dev environment with presets
-pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>, dry_run: bool) {
+pub async fn run_init(
+    formatter: &OutputFormatter,
+    preset_name: Option<&str>,
+    dry_run: bool,
+    project: Option<&str>,
+) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
+        return;
+    }
+
+    // Project-aware install: scan a project dir and install detected toolchains
+    if let Some(dir) = project {
+        run_init_project(formatter, dir, dry_run).await;
         return;
     }
 
@@ -144,6 +155,92 @@ fn dry_run_packages(formatter: &OutputFormatter, action: &str, packages: &[Strin
             "skipped": skipped,
         })),
     );
+}
+
+/// Project-aware install: scan a project directory for manifest files and
+/// install the detected toolchains (init --project).
+async fn run_init_project(formatter: &OutputFormatter, dir: &str, dry_run: bool) {
+    let path = std::path::Path::new(dir);
+    if !path.is_dir() {
+        formatter.output(
+            &format!("[ERROR] Project directory not found: {}", dir),
+            None::<serde_json::Value>,
+        );
+        return;
+    }
+
+    let detected = detect_project_toolchains(path);
+    if detected.is_empty() {
+        formatter.output(
+            &format!(
+                "[INFO] 未检测到项目清单文件（requirements.txt / pyproject.toml / package.json / Cargo.toml / go.mod）in {}",
+                path.display()
+            ),
+            Some(serde_json::json!({
+                "status": "info",
+                "action": "init_project",
+                "detected": [],
+            })),
+        );
+        return;
+    }
+
+    let mut lines = format!("[PROJECT] 检测到 {} 个项目清单:\n", detected.len());
+    for (recipe, source) in &detected {
+        lines.push_str(&format!("  - {}  ←  {}\n", recipe, source));
+    }
+    formatter.output(
+        &lines,
+        Some(serde_json::json!({
+            "status": "success",
+            "action": "init_project",
+            "detected": detected,
+        })),
+    );
+
+    // Install each toolchain (3-tier resolution, skips already installed)
+    let packages: Vec<String> = detected.iter().map(|(r, _)| r.clone()).collect();
+    if dry_run {
+        dry_run_packages(formatter, "init --project", &packages);
+        return;
+    }
+    let mut stack = Vec::new();
+    for pkg in &packages {
+        install_recursive(pkg, None, formatter, &mut stack, false).await;
+    }
+    formatter.output(
+        "[PROJECT] 项目环境就绪 ✓",
+        Some(serde_json::json!({
+            "status": "complete",
+            "action": "init_project",
+            "packages": packages,
+        })),
+    );
+}
+
+/// Detect toolchains required by a project from common manifest files.
+/// Returns (recipe_name, source_file) pairs.
+fn detect_project_toolchains(dir: &std::path::Path) -> Vec<(String, String)> {
+    let mut result = Vec::new();
+    if dir.join("Cargo.toml").exists() {
+        result.push(("rust".to_string(), "Cargo.toml".to_string()));
+    }
+    if dir.join("go.mod").exists() {
+        result.push(("go".to_string(), "go.mod".to_string()));
+    }
+    if dir.join("package.json").exists() {
+        result.push(("node20".to_string(), "package.json".to_string()));
+    }
+    if dir.join("requirements.txt").exists()
+        || dir.join("pyproject.toml").exists()
+        || dir.join("setup.py").exists()
+    {
+        result.push((
+            "python3.11".to_string(),
+            "requirements.txt / pyproject.toml".to_string(),
+        ));
+    }
+    result
 }
 
 /// list all available presets
@@ -1932,7 +2029,34 @@ pub async fn run_self_update(formatter: &OutputFormatter) {
 
 #[cfg(test)]
 mod tests {
-    use super::render_table;
+    use super::{detect_project_toolchains, render_table};
+    use std::path::Path;
+
+    #[test]
+    fn test_detect_project_toolchains() {
+        let dir = std::env::temp_dir().join(format!("oneinit-proj-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("package.json"), "{}").unwrap();
+        std::fs::write(dir.join("requirements.txt"), "requests\n").unwrap();
+        std::fs::write(dir.join("go.mod"), "module demo\n").unwrap();
+
+        let detected = detect_project_toolchains(Path::new(&dir));
+        let recipes: Vec<&str> = detected.iter().map(|(r, _)| r.as_str()).collect();
+        assert!(recipes.contains(&"node20"));
+        assert!(recipes.contains(&"python3.11"));
+        assert!(recipes.contains(&"go"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_detect_project_toolchains_empty() {
+        let dir = std::env::temp_dir().join(format!("oneinit-proj-empty-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let detected = detect_project_toolchains(Path::new(&dir));
+        assert!(detected.is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn test_render_table() {
