@@ -4,10 +4,13 @@ pub mod config_gen;
 pub mod downloader;
 pub mod manifest;
 pub mod migration;
+pub mod operation;
 pub mod path_mgr;
+pub mod planner;
 pub mod preset;
 pub mod recipe;
 pub mod registry;
+pub mod self_update;
 pub mod sync;
 pub mod team;
 pub mod viz;
@@ -104,6 +107,49 @@ pub enum CoreError {
 
     #[error("{0}")]
     Other(String),
+}
+
+impl CoreError {
+    /// Actionable suggestion for the error (shown as [HINT] / JSON "suggestion").
+    pub fn suggestion(&self) -> Option<String> {
+        let msg = self.to_string().to_lowercase();
+        match self {
+            CoreError::Download(_) => Some(
+                "Check your network connection, or set a proxy (HTTP_PROXY/HTTPS_PROXY). If the URL is stale, run `oneinit update` to refresh the registry.".to_string(),
+            ),
+            CoreError::Checksum { .. } => Some(
+                "The downloaded file does not match the expected checksum — it may be corrupted or tampered. Re-run the install to retry.".to_string(),
+            ),
+            CoreError::Extract(_) => Some(
+                "The archive could not be extracted. The download may be corrupt; re-run the install.".to_string(),
+            ),
+            CoreError::Registry(_) => Some(
+                "Registry fetch failed. Run `oneinit update` to retry, or `oneinit registry list` to check your subscriptions.".to_string(),
+            ),
+            CoreError::Database(_) => Some(
+                "The local manifest database is unreadable. Run `oneinit doctor` to diagnose.".to_string(),
+            ),
+            CoreError::PathOp(_) => Some(
+                "PATH update failed. OneInit is designed to run without admin rights — make sure you are not using sudo.".to_string(),
+            ),
+            CoreError::Other(_) if msg.contains("not found") && msg.contains("recipe") => Some(
+                "The recipe was not found. Use `oneinit search <name>` to find alternatives, or `oneinit update` to refresh the remote index.".to_string(),
+            ),
+            CoreError::Other(_) if msg.contains("not found") && msg.contains("registry") => Some(
+                "The registry may be unreachable or the package is missing. Run `oneinit update` and try again.".to_string(),
+            ),
+            CoreError::Other(_) if msg.contains("permission") || msg.contains("denied") => Some(
+                "Permission denied. OneInit installs into your home directory (~/.oneinit) and should not need admin rights.".to_string(),
+            ),
+            CoreError::Other(_) if msg.contains("signature") || msg.contains("tampered") => Some(
+                "Signature verification failed — the content may have been tampered. If you changed your signing key, re-add with --force.".to_string(),
+            ),
+            CoreError::Other(_) if msg.contains("yaml") || msg.contains("parse failed") => Some(
+                "The config file (oneinit.yaml / team.yaml) has a YAML syntax error. Check the file with a YAML linter or editor.".to_string(),
+            ),
+            _ => None,
+        }
+    }
 }
 
 /// 核心引擎统一 Result 类型

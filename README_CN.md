@@ -128,6 +128,8 @@ https://raw.githubusercontent.com/oneinitAI/oneinit/main/INSTALL_AGENT.md
 | `oneinit search [关键词]` | 搜索可用配方（内置 + 社区） |
 | `oneinit init --preset <名称>` | 预置套装批量安装（python/ai/frontend/full） |
 | `oneinit sync` | 从 `oneinit.yaml` 批量同步环境 |
+| `oneinit install <包名> --dry-run` | 预览将要执行的操作（不实际安装） |
+| `oneinit self-update` | 自更新（SHA256SUMS 校验后替换二进制） |
 | `oneinit team add <url>` | 配置团队环境仓库（验签 + 固定公钥） |
 | `oneinit team sync` | 同步团队环境（每次运行自动检测） |
 | `oneinit team status` / `remove` | 查看 / 移除团队环境配置 |
@@ -141,6 +143,8 @@ https://raw.githubusercontent.com/oneinitAI/oneinit/main/INSTALL_AGENT.md
 | `oneinit tui` | 启动交互式终端界面 |
 
 > 所有命令均支持 `--json` 全局开关，输出结构化 JSON，AI 可直接解析。
+> 全局参数：`-y/--yes` 跳过确认、`-v/--debug` 调试输出。
+> 别名：`i`→install、`u`/`rm`→uninstall、`ls`→list、`up`→sync、`check`→doctor、`upgrade`→self-update。
 
 ## 环境检测器
 

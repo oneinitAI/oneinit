@@ -3,11 +3,11 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
-use super::config_gen::{AppConfig, apply_configs, remove_configs};
+use super::config_gen::{AppConfig, remove_configs};
 use super::downloader;
 use super::manifest::{InstallRecord, Manifest};
 use super::path_mgr;
-use super::{CoreError, Result, envs_dir, temp_dir};
+use super::{CoreError, Result, envs_dir};
 use crate::output::OutputFormatter;
 
 // ============================================================
@@ -56,7 +56,8 @@ pub enum PostInstallStep {
 }
 
 /// 文件修改操作
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
 pub enum ModifyAction {
     /// 取消注释包含指定模式的行（删除行首的 #）
     UncommentLine { pattern: String },
@@ -64,6 +65,39 @@ pub enum ModifyAction {
     AppendLine { content: String },
     /// 替换文件全部内容
     ReplaceContent { content: String },
+}
+
+/// Apply a modify action to the given file content (pure function, used by
+/// both the builtin post-install and the plan executor).
+pub fn apply_modify_action(action: &ModifyAction, content: &str) -> String {
+    match action {
+        ModifyAction::UncommentLine { pattern } => content
+            .lines()
+            .map(|line| {
+                let trimmed = line.trim_start();
+                if trimmed.starts_with('#') && trimmed[1..].trim_start().starts_with(pattern) {
+                    // 取消注释：删除行首的 # 和紧随的空格
+                    let after_hash = &trimmed[1..];
+                    format!(
+                        "{}{}",
+                        &line[..line.len() - trimmed.len()],
+                        after_hash.trim_start()
+                    )
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+        ModifyAction::AppendLine { content: line } => {
+            if content.ends_with('\n') {
+                format!("{}{}", content, line)
+            } else {
+                format!("{}\n{}", content, line)
+            }
+        }
+        ModifyAction::ReplaceContent { content: new } => new.clone(),
+    }
 }
 
 // ============================================================
@@ -123,61 +157,26 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
         Some(serde_json::Value::Null),
     );
 
-    // 1. create install directory
+    // Build the operation plan (same plan used by --dry-run), then execute it
+    let plan = crate::core::planner::plan_builtin_install(recipe)?;
+
+    // 2. 备份当前 PATH（在执行任何 PATH 修改前）
+    let path_backup = path_mgr::backup()?;
+
+    // 清理旧目录，避免残留文件
     if install_dir.exists() {
         fs::remove_dir_all(&install_dir)?;
     }
-    fs::create_dir_all(&install_dir)?;
 
-    // 2. 备份当前 PATH
-    let path_backup = path_mgr::backup()?;
+    crate::core::planner::execute_plan(&plan, formatter).await?;
 
-    // 3. download压缩包
-    let archive_name = recipe.download_url.rsplit('/').next().unwrap_or("archive");
-    let temp_archive = temp_dir().join(archive_name);
-    let dl_result = downloader::download(&recipe.download_url, &temp_archive).await?;
-    formatter.output(
-        &format!(
-            "[OK] download complete: {} ({:.1} MB)",
-            archive_name,
-            dl_result.file_size as f64 / 1_048_576.0
-        ),
-        Some(serde_json::json!({"message": "download_complete"})),
-    );
-
-    // 4. verify SHA256
-    downloader::verify_sha256(&temp_archive, &recipe.sha256)?;
-    formatter.output("[OK] SHA256 verified", Some(serde_json::Value::Null));
-
-    // 5. 解压到安装目录
-    let extracted = downloader::extract(&temp_archive, &install_dir)?;
-    formatter.output(
-        &format!("[OK] Extraction complete: {}  files", extracted.len()),
-        Some(serde_json::Value::Null),
-    );
-
-    // 清理临时压缩包
-    let _ = fs::remove_file(&temp_archive);
-
-    // 6. execute install后处理
-    if let Some(ref post) = recipe.post_install {
-        execute_post_install(post, &install_dir, formatter).await?;
-    }
-
-    // 7. generate config files
-    let config_files = apply_configs(&install_dir, &recipe.configs)?;
-    for cf in &config_files {
-        formatter.output(
-            &format!("[OK] config file: {}", cf.display()),
-            Some(serde_json::Value::Null),
-        );
-    }
-
-    // 8. 添加到 PATH
+    // 记录到清单
     let bin_path = install_dir.join(&recipe.bin_dir);
-    path_mgr::add(&bin_path)?;
-
-    // 9. 记录到清单
+    let config_files = recipe
+        .configs
+        .iter()
+        .map(|c| install_dir.join(&c.rel_path).to_string_lossy().to_string())
+        .collect::<Vec<_>>();
     let manifest = Manifest::open()?;
     let record = InstallRecord {
         id: uuid::Uuid::new_v4().to_string(),
@@ -187,10 +186,7 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
         archive_url: Some(recipe.download_url.clone()),
         sha256: Some(recipe.sha256.clone()),
         path_entries: vec![bin_path.to_string_lossy().to_string()],
-        config_files: config_files
-            .iter()
-            .map(|p| p.to_string_lossy().to_string())
-            .collect(),
+        config_files,
         installed_at: chrono::Utc::now().to_rfc3339(),
         original_path: Some(path_backup),
         env_vars_backup: serde_json::json!({}),
@@ -346,36 +342,7 @@ fn execute_modify_file(rel_path: &str, action: &ModifyAction, install_dir: &Path
     let file_path = install_dir.join(rel_path);
 
     let content = fs::read_to_string(&file_path)?;
-    let new_content = match action {
-        ModifyAction::UncommentLine { pattern } => {
-            content
-                .lines()
-                .map(|line| {
-                    let trimmed = line.trim_start();
-                    if trimmed.starts_with('#') && trimmed[1..].trim_start().starts_with(pattern) {
-                        // 取消注释：删除行首的 # 和紧随的空格
-                        let after_hash = &trimmed[1..];
-                        format!(
-                            "{}{}",
-                            &line[..line.len() - trimmed.len()],
-                            after_hash.trim_start()
-                        )
-                    } else {
-                        line.to_string()
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
-        ModifyAction::AppendLine { content: line } => {
-            if content.ends_with('\n') {
-                format!("{}{}", content, line)
-            } else {
-                format!("{}\n{}", content, line)
-            }
-        }
-        ModifyAction::ReplaceContent { content: new } => new.clone(),
-    };
+    let new_content = apply_modify_action(action, &content);
 
     fs::write(&file_path, new_content)?;
     Ok(())

@@ -25,6 +25,24 @@ struct Cli {
     )]
     json: bool,
 
+    /// Auto-confirm all prompts (skip interactive confirmations)
+    #[arg(
+        global = true,
+        short = 'y',
+        long = "yes",
+        help = "Auto-confirm all prompts (skip interactive confirmations)"
+    )]
+    yes: bool,
+
+    /// Enable debug output
+    #[arg(
+        global = true,
+        short = 'v',
+        long = "debug",
+        help = "Enable debug output"
+    )]
+    debug: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -36,9 +54,13 @@ enum Commands {
         /// 预置套装名称（如 "python", "frontend", "ai"）
         #[arg(short, long)]
         preset: Option<String>,
+        /// 只预览将要执行的操作，不实际安装
+        #[arg(long)]
+        dry_run: bool,
     },
 
     /// Install a tool（如 python3.7, node18）
+    #[command(visible_alias = "i")]
     Install {
         /// 要安装的工具包名称
         package: String,
@@ -48,16 +70,28 @@ enum Commands {
             help = "Allow recipes to run commands/installers (default: deny)"
         )]
         allow_exec: bool,
+        /// 只预览将要执行的操作，不实际安装
+        #[arg(long)]
+        dry_run: bool,
     },
 
     /// Uninstall a tool
+    #[command(visible_alias = "u", visible_alias = "rm")]
     Uninstall {
         /// 要卸载的工具包名称
         package: String,
+        /// 只预览将要删除的内容，不实际卸载
+        #[arg(long)]
+        dry_run: bool,
     },
 
     /// List installed tools
-    List,
+    #[command(visible_alias = "ls")]
+    List {
+        /// 输出格式: table / csv（默认 table；json 用全局 --json）
+        #[arg(long, value_parser = ["table", "csv"])]
+        format: Option<String>,
+    },
 
     /// Search available tools
     Search {
@@ -66,7 +100,12 @@ enum Commands {
     },
 
     /// Sync from oneinit.yaml
-    Sync,
+    #[command(visible_alias = "up")]
+    Sync {
+        /// 只预览将要安装的工具，不实际安装
+        #[arg(long)]
+        dry_run: bool,
+    },
 
     /// Capture environment to oneinit.yaml
     Capture {
@@ -129,6 +168,7 @@ enum Commands {
     Tui,
 
     /// Environment health check（PATH 残留、清单漂移、磁盘空间）
+    #[command(visible_alias = "check")]
     Doctor,
 
     /// Export installed tools (like pip freeze)
@@ -137,6 +177,10 @@ enum Commands {
         #[arg(short, long, default_value = "oneinit.yaml")]
         output: String,
     },
+
+    /// Update OneInit itself to the latest release
+    #[command(visible_alias = "upgrade")]
+    SelfUpdate,
 
     /// Generate shell completion script
     Completions {
@@ -204,6 +248,9 @@ enum TeamAction {
         /// 允许执行含命令的配方（默认拒绝）
         #[arg(long)]
         allow_exec: bool,
+        /// 只预览将要同步的内容，不实际执行
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -241,13 +288,15 @@ enum RegistryAction {
 async fn main() {
     let cli = Cli::parse();
 
-    let formatter = output::OutputFormatter::new(cli.json);
+    let mut formatter = output::OutputFormatter::new(cli.json);
+    formatter.auto_yes = cli.yes;
+    formatter.debug = cli.debug;
 
     // 高风险操作前显示免责声明
     let is_dangerous = matches!(
         cli.command,
         Commands::Install { .. }
-            | Commands::Sync
+            | Commands::Sync { .. }
             | Commands::Import { dry_run: false, .. }
             | Commands::Team {
                 action: TeamAction::Add { .. } | TeamAction::Sync { .. }
@@ -264,12 +313,13 @@ async fn main() {
             | Commands::Registry { .. }
             | Commands::Completions { .. }
             | Commands::Team { .. }
-            | Commands::Sync
+            | Commands::Sync { .. }
             | Commands::Capture { .. }
             | Commands::Export { .. }
             | Commands::Import { .. }
             | Commands::Freeze { .. }
             | Commands::Viz { .. }
+            | Commands::SelfUpdate
     );
     if !skip_auto_update {
         maybe_auto_update(&formatter).await;
@@ -282,28 +332,34 @@ async fn main() {
             | Commands::Registry { .. }
             | Commands::Completions { .. }
             | Commands::Team { .. }
-            | Commands::Sync
+            | Commands::Sync { .. }
             | Commands::Capture { .. }
             | Commands::Export { .. }
             | Commands::Import { .. }
             | Commands::Freeze { .. }
             | Commands::Viz { .. }
             | Commands::Doctor
+            | Commands::SelfUpdate
     );
     if !skip_team_check {
         cli::maybe_team_sync(&formatter).await;
     }
 
     match cli.command {
-        Commands::Init { preset } => cli::run_init(&formatter, preset.as_deref()).await,
+        Commands::Init { preset, dry_run } => {
+            cli::run_init(&formatter, preset.as_deref(), dry_run).await
+        }
         Commands::Install {
             package,
             allow_exec,
-        } => cli::run_install(&formatter, &package, allow_exec).await,
-        Commands::Uninstall { package } => cli::run_uninstall(&formatter, &package).await,
-        Commands::List => cli::run_list(&formatter).await,
+            dry_run,
+        } => cli::run_install(&formatter, &package, allow_exec, dry_run).await,
+        Commands::Uninstall { package, dry_run } => {
+            cli::run_uninstall(&formatter, &package, dry_run).await
+        }
+        Commands::List { format } => cli::run_list(&formatter, format.as_deref()).await,
         Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()).await,
-        Commands::Sync => cli::run_sync(&formatter).await,
+        Commands::Sync { dry_run } => cli::run_sync(&formatter, dry_run).await,
         Commands::Capture { output } => {
             cli::run_capture(&formatter, output.as_deref().unwrap_or("oneinit.yaml")).await
         }
@@ -332,6 +388,7 @@ async fn main() {
         }
         Commands::Doctor => cli::run_doctor(&formatter).await,
         Commands::Freeze { output } => cli::run_freeze(&formatter, &output).await,
+        Commands::SelfUpdate => cli::run_self_update(&formatter).await,
         Commands::Completions { shell } => {
             use clap::CommandFactory;
             let mut cmd = Cli::command();
@@ -368,8 +425,12 @@ async fn main() {
             }
             TeamAction::Remove => cli::run_team_remove(&formatter),
             TeamAction::Status => cli::run_team_status(&formatter),
-            TeamAction::Sync { force, allow_exec } => {
-                cli::run_team_sync(&formatter, force, allow_exec).await;
+            TeamAction::Sync {
+                force,
+                allow_exec,
+                dry_run,
+            } => {
+                cli::run_team_sync(&formatter, force, allow_exec, dry_run).await;
             }
         },
         Commands::Viz {

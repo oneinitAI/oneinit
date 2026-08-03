@@ -10,7 +10,7 @@ use crate::core::{
 use crate::output::OutputFormatter;
 
 /// oneinit init — initialize dev environment with presets
-pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
+pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>, dry_run: bool) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
@@ -68,7 +68,11 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
                 })),
             );
 
-            // batch install
+            // batch install（--dry-run 只预览）
+            if dry_run {
+                dry_run_packages(formatter, "init", &preset.packages);
+                return;
+            }
             batch_install(&preset.packages, formatter).await;
         }
         None => {
@@ -84,6 +88,62 @@ pub async fn run_init(formatter: &OutputFormatter, preset_name: Option<&str>) {
             list_available_presets(formatter);
         }
     }
+}
+
+/// Render the plan for a list of package names (builtin-only resolution,
+/// matching `batch_install` semantics). Used by --dry-run.
+fn dry_run_packages(formatter: &OutputFormatter, action: &str, packages: &[String]) {
+    let mut skipped = 0usize;
+    let mut planned = 0usize;
+    let mut rendered = String::new();
+    for name in packages {
+        // already installed → skip
+        if let Ok(manifest) = Manifest::open()
+            && let Ok(Some(_)) = manifest.get(name)
+        {
+            skipped += 1;
+            continue;
+        }
+        match recipe::resolve(name) {
+            Some(recipe) => match crate::core::planner::plan_builtin_install(&recipe) {
+                Ok(plan) => {
+                    rendered.push_str(&crate::core::planner::render_plan(
+                        &plan,
+                        &format!("Install {name}"),
+                    ));
+                    rendered.push('\n');
+                    planned += 1;
+                }
+                Err(e) => {
+                    formatter.output(
+                        &format!("[ERROR] cannot plan '{}': {}", name, e),
+                        None::<serde_json::Value>,
+                    );
+                }
+            },
+            None => {
+                formatter.output(
+                    &format!(
+                        "[WARN] '{}' 没有内置配方 — 用 `oneinit install {} --dry-run` 单独预览（支持远程配方）",
+                        name, name
+                    ),
+                    None::<serde_json::Value>,
+                );
+            }
+        }
+    }
+    formatter.output(
+        &format!(
+            "🔍 {action} --dry-run: {} 待安装, {} 已安装跳过\n\n{}",
+            planned, skipped, rendered
+        ),
+        Some(serde_json::json!({
+            "status": "dry_run",
+            "action": action,
+            "planned": planned,
+            "skipped": skipped,
+        })),
+    );
 }
 
 /// list all available presets
@@ -188,7 +248,12 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter) {
 ///   oneinit install python          # install default/latest
 ///   oneinit install python@3.11.9   # install specific version
 ///   oneinit install node@latest     # install latest
-pub async fn run_install(formatter: &OutputFormatter, package: &str, allow_exec: bool) {
+pub async fn run_install(
+    formatter: &OutputFormatter,
+    package: &str,
+    allow_exec: bool,
+    dry_run: bool,
+) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
@@ -196,6 +261,12 @@ pub async fn run_install(formatter: &OutputFormatter, package: &str, allow_exec:
 
     // parse name@version syntax
     let (name, version_spec) = parse_package_spec(package);
+
+    // --dry-run: resolve and preview the plan without executing
+    if dry_run {
+        dry_run_install(formatter, &name, version_spec.as_deref(), allow_exec).await;
+        return;
+    }
 
     // recursive install (handle dependencies)
     install_recursive(
@@ -206,6 +277,58 @@ pub async fn run_install(formatter: &OutputFormatter, package: &str, allow_exec:
         allow_exec,
     )
     .await;
+}
+
+/// Preview the operations a single install would perform (no execution).
+async fn dry_run_install(
+    formatter: &OutputFormatter,
+    name: &str,
+    version_spec: Option<&str>,
+    allow_exec: bool,
+) {
+    use crate::core::planner;
+
+    // already installed?
+    if let Ok(manifest) = Manifest::open()
+        && let Ok(Some(record)) = manifest.get(name)
+    {
+        formatter.output(
+            &format!(
+                "[SKIP] '{}' already installed v{}",
+                name,
+                record.version.as_deref().unwrap_or("?")
+            ),
+            None::<serde_json::Value>,
+        );
+        return;
+    }
+
+    let plan = match resolve_recipe_with_deps(name, version_spec, formatter).await {
+        RecipeResolution::Builtin(rec) => planner::plan_builtin_install(&rec),
+        RecipeResolution::Community(rec) => planner::plan_community_install(&rec, allow_exec),
+        RecipeResolution::NotFound(hint) => {
+            formatter.output(
+                &format!("[ERROR] Not found: '{}'  recipe.{}", name, hint),
+                None::<serde_json::Value>,
+            );
+            return;
+        }
+    };
+
+    match plan {
+        Ok(plan) => {
+            formatter.output(
+                &planner::render_plan(&plan, &format!("Install {name}")),
+                Some(serde_json::json!({
+                    "status": "dry_run",
+                    "action": "install",
+                    "package": name,
+                    "total_ops": plan.summary.total_ops,
+                })),
+            );
+        }
+        Err(e) => formatter.error(&e),
+    }
 }
 
 /// parse name@version syntax
@@ -399,9 +522,33 @@ async fn install_dependencies(
 }
 
 /// oneinit uninstall <package> — uninstall a tool
-pub async fn run_uninstall(formatter: &OutputFormatter, package: &str) {
+pub async fn run_uninstall(formatter: &OutputFormatter, package: &str, dry_run: bool) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
+        return;
+    }
+
+    // --dry-run: preview what would be removed
+    if dry_run {
+        if let Ok(manifest) = Manifest::open()
+            && let Ok(Some(record)) = manifest.get(package)
+        {
+            let plan = crate::core::planner::plan_uninstall(&record);
+            formatter.output(
+                &crate::core::planner::render_plan(&plan, &format!("Uninstall {package}")),
+                Some(serde_json::json!({
+                    "status": "dry_run",
+                    "action": "uninstall",
+                    "package": package,
+                    "total_ops": plan.summary.total_ops,
+                })),
+            );
+        } else {
+            formatter.output(
+                &format!("[ERROR] '{}' not installed", package),
+                None::<serde_json::Value>,
+            );
+        }
         return;
     }
 
@@ -415,8 +562,8 @@ pub async fn run_uninstall(formatter: &OutputFormatter, package: &str) {
     }
 }
 
-/// oneinit list — list installed tools
-pub async fn run_list(formatter: &OutputFormatter) {
+/// oneinit list — list installed tools (--format table|csv)
+pub async fn run_list(formatter: &OutputFormatter, format: Option<&str>) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
@@ -427,22 +574,51 @@ pub async fn run_list(formatter: &OutputFormatter) {
     match Manifest::open() {
         Ok(manifest) => match manifest.list() {
             Ok(records) => {
-                let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();
-                formatter.output(
-                    &if names.is_empty() {
-                        "No tools installed yet. Use oneinit install <package> to start."
-                            .to_string()
+                if format == Some("csv") {
+                    // CSV with header
+                    let mut csv = String::from("name,version,status,install_path\n");
+                    for r in &records {
+                        csv.push_str(&format!(
+                            "{},{},{},{}\n",
+                            r.name,
+                            r.version.as_deref().unwrap_or("?"),
+                            "installed",
+                            r.install_path
+                        ));
+                    }
+                    formatter.output(
+                        &csv,
+                        Some(serde_json::json!({
+                            "status": "success",
+                            "action": "list",
+                            "format": "csv",
+                            "count": records.len()
+                        })),
+                    );
+                    return;
+                }
+                let rows: Vec<Vec<String>> = records
+                    .iter()
+                    .map(|r| {
+                        vec![
+                            r.name.clone(),
+                            r.version.clone().unwrap_or_else(|| "?".to_string()),
+                            "installed".to_string(),
+                            r.install_path.clone(),
+                        ]
+                    })
+                    .collect();
+                let rendered = render_table(
+                    &["Name", "Version", "Status", "Path"],
+                    &rows,
+                    if records.is_empty() {
+                        Some("No tools installed yet. Use oneinit install <package> to start.")
                     } else {
-                        format!(
-                            "Installed {} 个工具:\n{}",
-                            names.len(),
-                            names
-                                .iter()
-                                .map(|n| format!("  - {}", n))
-                                .collect::<Vec<_>>()
-                                .join("\n")
-                        )
+                        None
                     },
+                );
+                formatter.output(
+                    &rendered,
                     Some(serde_json::json!({
                         "status": "success",
                         "action": "list",
@@ -558,7 +734,7 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
 }
 
 /// oneinit sync — sync environment from oneinit.yaml
-pub async fn run_sync(formatter: &OutputFormatter) {
+pub async fn run_sync(formatter: &OutputFormatter, dry_run: bool) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
@@ -605,6 +781,10 @@ pub async fn run_sync(formatter: &OutputFormatter) {
 
     // 3. 批量安装 envs
     let recipe_names = sync::envs_to_recipe_names(&config);
+    if dry_run {
+        dry_run_packages(formatter, "sync", &recipe_names);
+        return;
+    }
     batch_install(&recipe_names, formatter).await;
 
     // 4. 应用镜像配置（记录日志，未来扩展覆盖默认镜像）
@@ -666,7 +846,7 @@ pub async fn run_team_add(
         return;
     }
     // 配置成功后立即同步一次
-    run_team_sync(formatter, true, allow_exec).await;
+    run_team_sync(formatter, true, allow_exec, false).await;
 }
 
 /// oneinit team remove — 移除团队环境配置
@@ -684,7 +864,12 @@ pub fn run_team_status(formatter: &OutputFormatter) {
 }
 
 /// oneinit team sync — 立即同步团队环境
-pub async fn run_team_sync(formatter: &OutputFormatter, force: bool, allow_exec: bool) {
+pub async fn run_team_sync(
+    formatter: &OutputFormatter,
+    force: bool,
+    allow_exec: bool,
+    dry_run: bool,
+) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
@@ -706,7 +891,111 @@ pub async fn run_team_sync(formatter: &OutputFormatter, force: bool, allow_exec:
         }
     };
 
+    if dry_run {
+        dry_run_team_env(formatter, &content, allow_exec);
+        return;
+    }
     apply_team_env(formatter, &content, allow_exec).await;
+}
+
+/// Preview a team env sync: list missing tools and the env/config operations
+/// that would be applied (no execution).
+fn dry_run_team_env(formatter: &OutputFormatter, content: &str, allow_exec: bool) {
+    let config = match sync::parse_config(content) {
+        Ok(c) => c,
+        Err(e) => {
+            formatter.error(&e);
+            return;
+        }
+    };
+    let team_name = config
+        .team
+        .as_ref()
+        .and_then(|t| t.name.clone())
+        .unwrap_or_else(|| "(未命名)".to_string());
+
+    let mut lines = format!("🔍 Team env sync --dry-run ({team_name}):\n\n");
+    let mut planned = 0usize;
+    let mut skipped = 0usize;
+
+    // 1. missing tools (builtin-only plan for preview)
+    let names = sync::envs_to_recipe_names(&config);
+    for name in &names {
+        if let Ok(manifest) = Manifest::open()
+            && let Ok(Some(_)) = manifest.get(name)
+        {
+            skipped += 1;
+            continue;
+        }
+        match recipe::resolve(name) {
+            Some(recipe) => match crate::core::planner::plan_builtin_install(&recipe) {
+                Ok(plan) => {
+                    lines.push_str(&format!("  📦 Install {name}: {} operations\n", plan.summary.total_ops));
+                    planned += 1;
+                }
+                Err(e) => lines.push_str(&format!("  ⚠️  cannot plan {name}: {e}\n")),
+            },
+            None => lines.push_str(&format!(
+                "  📦 Install {name}: (remote/community recipe — run `oneinit install {} --dry-run` for detail)\n",
+                name
+            )),
+        }
+    }
+    if !names.is_empty() {
+        lines.push('\n');
+    }
+
+    // 2. mirrors
+    if let Some(mirrors) = &config.mirrors
+        && !mirrors.is_empty()
+    {
+        for (k, v) in mirrors {
+            lines.push_str(&format!("  🔧 Apply mirror {k} = {v}\n"));
+            planned += 1;
+        }
+    }
+    // 3. env vars
+    for (k, v) in &config.env_vars {
+        lines.push_str(&format!("  🔧 Set env {k} = {v}\n"));
+        planned += 1;
+    }
+    // 4. PATH
+    for p in &config.path {
+        lines.push_str(&format!("  ➕ PATH += {p}\n"));
+        planned += 1;
+    }
+    // 5. config files
+    for cf in &config.config_files {
+        lines.push_str(&format!("  📝 Write config file {}\n", cf.path));
+        planned += 1;
+    }
+    // 6. post_install
+    if let Some(cmds) = &config.post_install
+        && !cmds.is_empty()
+    {
+        if allow_exec {
+            for c in cmds {
+                lines.push_str(&format!("  📜 Run: {c}\n"));
+                planned += 1;
+            }
+        } else {
+            lines.push_str("  ⏭️  post_install commands skipped (need --allow-exec)\n");
+        }
+    }
+
+    lines.push_str(&format!(
+        "\n📊 Total: {planned} operations, {skipped} tools already installed\n"
+    ));
+    formatter.output(
+        &lines,
+        Some(serde_json::json!({
+            "status": "dry_run",
+            "action": "team_sync",
+            "team": team_name,
+            "planned": planned,
+            "already_installed": skipped,
+        })),
+    );
 }
 
 /// 每次运行 oneinit 时的团队环境自动检测（轻量：24h 间隔 + 内容哈希）
@@ -1578,4 +1867,90 @@ pub async fn run_skill_status(formatter: &OutputFormatter) {
 /// oneinit skill uninstall -- 卸载 AI Skill
 pub async fn run_skill_uninstall(formatter: &OutputFormatter) {
     crate::skill_mgr::uninstall(formatter);
+}
+
+/// Render a simple ASCII table (no external dependency).
+/// `empty_msg` replaces the table when `rows` is empty.
+fn render_table(headers: &[&str], rows: &[Vec<String>], empty_msg: Option<&str>) -> String {
+    if rows.is_empty() {
+        return empty_msg.unwrap_or("(empty)").to_string();
+    }
+    // column widths
+    let mut widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
+    for row in rows {
+        for (i, cell) in row.iter().enumerate() {
+            if i < widths.len() {
+                widths[i] = widths[i].max(cell.len());
+            }
+        }
+    }
+    let border = |left: &str, mid: &str, right: &str| -> String {
+        let mut s = String::from(left);
+        for (i, w) in widths.iter().enumerate() {
+            s.push_str(&"─".repeat(w + 2));
+            s.push_str(if i + 1 == widths.len() { right } else { mid });
+        }
+        s
+    };
+    let mut out = String::new();
+    out.push_str(&border("┌", "┬", "┐"));
+    out.push('\n');
+    // header
+    out.push('│');
+    for (i, h) in headers.iter().enumerate() {
+        out.push_str(&format!(" {} ", h));
+        out.push_str(&" ".repeat(widths[i] - h.len()));
+        out.push('│');
+    }
+    out.push('\n');
+    out.push_str(&border("├", "┼", "┤"));
+    out.push('\n');
+    // rows
+    for row in rows {
+        out.push('│');
+        for (i, cell) in row.iter().enumerate() {
+            out.push_str(&format!(" {} ", cell));
+            if i < widths.len() {
+                out.push_str(&" ".repeat(widths[i].saturating_sub(cell.len())));
+            }
+            out.push('│');
+        }
+        out.push('\n');
+    }
+    out.push_str(&border("└", "┴", "┘"));
+    out.push('\n');
+    out
+}
+
+/// oneinit self-update — update OneInit itself to the latest release
+pub async fn run_self_update(formatter: &OutputFormatter) {
+    match crate::core::self_update::run_self_update(formatter).await {
+        Ok(_) => {}
+        Err(e) => formatter.error(&e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::render_table;
+
+    #[test]
+    fn test_render_table() {
+        let rows = vec![
+            vec!["python3.11".to_string(), "3.11.9".to_string()],
+            vec!["node20".to_string(), "20.18.1".to_string()],
+        ];
+        let t = render_table(&["Name", "Version"], &rows, None);
+        assert!(t.contains("python3.11"));
+        assert!(t.contains("┌"));
+        assert!(t.contains("└"));
+        // column alignment: node20 row aligns under header
+        assert!(t.contains("node20   "));
+    }
+
+    #[test]
+    fn test_render_table_empty() {
+        let t = render_table(&["A"], &[], Some("nothing"));
+        assert_eq!(t, "nothing");
+    }
 }
