@@ -503,10 +503,10 @@ pub async fn install(
         Some(serde_json::Value::Null),
     );
 
-    // wait for user confirmation（--allow-exec 已显式授权，跳过交互）
-    if allow_exec {
+    // wait for user confirmation（--allow-exec / --yes 已显式授权，跳过交互）
+    if allow_exec || formatter.auto_yes {
         formatter.output(
-            "[SECURITY] --allow-exec granted, skipping interactive confirm",
+            "[SECURITY] skipping interactive confirm (--allow-exec / --yes)",
             Some(serde_json::Value::Null),
         );
     } else {
@@ -522,128 +522,28 @@ pub async fn install(
         }
     }
 
-    // ====== execute install ======
-    // 1. create install directory
+    // ====== execute install (plan → execute) ======
+    // 1. build the operation plan (same plan used by --dry-run)
+    let plan = crate::core::planner::plan_community_install(recipe, allow_exec)?;
+
+    // 2. backup PATH before any PATH modification
+    let path_backup = super::path_mgr::backup()?;
+
+    // 3. clean up any stale install dir, then create fresh
     if install_dir.exists() {
         std::fs::remove_dir_all(&install_dir)?;
     }
-    std::fs::create_dir_all(&install_dir)?;
 
-    // 2. backup PATH
-    let path_backup = super::path_mgr::backup()?;
+    // 4. execute all operations
+    crate::core::planner::execute_plan(&plan, formatter).await?;
 
-    // 3. download
-    let archive_name = platform_cfg.url.rsplit('/').next().unwrap_or("archive");
-    let temp_archive = super::temp_dir().join(archive_name);
-    let dl_result = super::downloader::download(&platform_cfg.url, &temp_archive).await?;
-    formatter.output(
-        &format!(
-            "[OK] download complete: {} ({:.1} MB)",
-            archive_name,
-            dl_result.file_size as f64 / 1_048_576.0
-        ),
-        Some(serde_json::Value::Null),
-    );
-
-    // 4. SHA256 verify
-    super::downloader::verify_sha256(&temp_archive, &platform_cfg.sha256)?;
-    formatter.output("[OK] SHA256 verified", Some(serde_json::Value::Null));
-
-    // 5. dispatch by install_type
-    match platform_cfg.install_type.as_str() {
-        "zip_extract" | "tar_extract" => {
-            super::downloader::extract(&temp_archive, &install_dir)?;
-            formatter.output("[OK] Extraction complete", Some(serde_json::Value::Null));
-        }
-        "exe_silent" => {
-            // silent install: run exe and wait
-            let args = platform_cfg.install_args.clone().unwrap_or_default();
-            let status = Command::new(&temp_archive)
-                .args(&args)
-                .status()
-                .map_err(|e| CoreError::Other(format!("installer execution failed: {}", e)))?;
-            if !status.success() {
-                return Err(CoreError::Other(format!(
-                    "安装程序退出码: {:?}",
-                    status.code()
-                )));
-            }
-            formatter.output(
-                "[OK] Silent install complete",
-                Some(serde_json::Value::Null),
-            );
-        }
-        "binary_copy" => {
-            std::fs::copy(&temp_archive, install_dir.join(archive_name))?;
-            formatter.output("[OK] File copy complete", Some(serde_json::Value::Null));
-        }
-        "msi_install" => {
-            // Windows MSI 静默安装: msiexec /i <file> /qn
-            let args = platform_cfg
-                .install_args
-                .clone()
-                .unwrap_or_else(|| vec!["/qn".to_string(), "/norestart".to_string()]);
-            let mut msiexec_args =
-                vec!["/i".to_string(), temp_archive.to_string_lossy().to_string()];
-            msiexec_args.extend(args);
-            let status = Command::new("msiexec")
-                .args(&msiexec_args)
-                .status()
-                .map_err(|e| CoreError::Other(format!("msiexec execution failed: {}", e)))?;
-            if !status.success() {
-                return Err(CoreError::Other(format!(
-                    "MSI 安装退出码: {:?}",
-                    status.code()
-                )));
-            }
-            formatter.output("[OK] MSI install complete", Some(serde_json::Value::Null));
-        }
-        "pkg_install" => {
-            // macOS .pkg 安装: 固定目标为用户主目录（M-4 修复：
-            // 原 install_args 可控制 -target / 装到系统根）
-            // SAFETY: 仅拼接路径，无副作用
-            let home = dirs::home_dir()
-                .map(|h| h.to_string_lossy().to_string())
-                .unwrap_or_else(|| "/".to_string());
-            let status = Command::new("installer")
-                .args(["-pkg", &temp_archive.to_string_lossy(), "-target", &home])
-                .status()
-                .map_err(|e| CoreError::Other(format!("installer execution failed: {}", e)))?;
-            if !status.success() {
-                return Err(CoreError::Other(format!(
-                    "pkg 安装退出码: {:?}",
-                    status.code()
-                )));
-            }
-            formatter.output("[OK] PKG install complete", Some(serde_json::Value::Null));
-        }
-        other => {
-            return Err(CoreError::Other(format!(
-                "install_type '{}' 暂不支持（当前支持: zip_extract, tar_extract, exe_silent, binary_copy, msi_install, pkg_install）",
-                other
-            )));
-        }
-    }
-
-    // cleanup temp file
-    let _ = std::fs::remove_file(&temp_archive);
-
-    // 6. execute post_install
-    if let Some(ref post) = recipe.post_install {
-        execute_post_install(post, &install_dir, formatter)?;
-    }
-
-    // 7. add path_add to PATH
-    let mut path_entries = Vec::new();
-    for path_template in &platform_cfg.path_add {
-        let rendered = render_template(path_template, &install_dir);
-        let path = PathBuf::from(&rendered);
-        super::path_mgr::add(&path)?;
-        path_entries.push(rendered);
-    }
-
-    // 8. record to Manifest
+    // 5. record to Manifest
     let manifest = super::manifest::Manifest::open()?;
+    let path_entries = platform_cfg
+        .path_add
+        .iter()
+        .map(|p| render_template(p, &install_dir))
+        .collect();
     let record = super::manifest::InstallRecord {
         id: uuid::Uuid::new_v4().to_string(),
         name: recipe.name.clone(),

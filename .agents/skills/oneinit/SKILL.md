@@ -72,7 +72,27 @@ oneinit install dotnet8 --json
 
 # Check if already installed before installing
 oneinit list --json
+
+# Preview operations without executing (install/uninstall/init/sync/team sync)
+oneinit install python3.11 --dry-run --json
+oneinit uninstall python3.11 --dry-run --json
+
+# Skip interactive confirmations / debug output (global flags)
+oneinit -y install node20
+oneinit -v install node20
 ```
+
+#### Aliases
+
+`i`→install · `u`/`rm`→uninstall · `ls`→list · `up`→sync · `check`→doctor · `upgrade`→self-update
+
+#### Self-update
+
+```bash
+oneinit self-update --json    # or: oneinit upgrade
+```
+Downloads the latest release asset, verifies against SHA256SUMS.txt, then
+replaces the running binary (Windows uses a delayed swap script).
 
 Install flow: download -> checksum verify (SHA256 or SHA512) -> extract -> post-install -> apply mirror configs -> add to PATH -> record in manifest.
 

@@ -108,6 +108,8 @@ The guide includes: npm or build instructions, PATH setup, tool installation (Py
 | `oneinit search [keyword]` | Search available recipes |
 | `oneinit init --preset <name>` | Batch-install a suite (python/ai/frontend/full) |
 | `oneinit sync` | Batch sync from `oneinit.yaml` |
+| `oneinit install <pkg> --dry-run` | Preview operations without executing |
+| `oneinit self-update` | Update OneInit itself (SHA256SUMS-verified) |
 | `oneinit team add <url>` | Configure team env repo (verify signature, pin key) |
 | `oneinit team sync` | Sync team env now (auto-checked on every run) |
 | `oneinit team status` / `remove` | Show / remove team env config |
@@ -121,6 +123,9 @@ The guide includes: npm or build instructions, PATH setup, tool installation (Py
 | `oneinit tui` | Interactive terminal UI |
 
 > All commands support `--json` for AI-friendly structured output.
+> Global flags: `-y/--yes` skips confirmations, `-v/--debug` enables debug
+> output. Aliases: `i`→install, `u`/`rm`→uninstall, `ls`→list, `up`→sync,
+> `check`→doctor, `upgrade`→self-update.
 
 ## Environment Detectors
 
