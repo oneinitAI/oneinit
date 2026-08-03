@@ -466,6 +466,18 @@ platforms:
     install_type: "exe_silent"
     install_path: "test"
     path_add: ["{{install_dir}}"]
+  linux:
+    url: "https://example.com/tool.zip"
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    install_type: "exe_silent"
+    install_path: "test"
+    path_add: ["{{install_dir}}"]
+  darwin:
+    url: "https://example.com/tool.zip"
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    install_type: "exe_silent"
+    install_path: "test"
+    path_add: ["{{install_dir}}"]
 "#;
         let recipe: super::super::community_recipe::CommunityRecipe =
             serde_yaml::from_str(yaml).unwrap();
