@@ -175,8 +175,10 @@ oneinit team sync --force
 ## Contributing & Roadmap
 
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — report bugs, propose features,
-  submit PRs, code style. Newcomer-friendly, FAQ included.
+  submit PRs, code style. Newcomer-friendly, FAQ included. 中文版见
+  [CONTRIBUTING_CN.md](CONTRIBUTING_CN.md).
 - **[ROADMAP.md](ROADMAP.md)** — project direction & where to contribute value.
+  中文版见 [ROADMAP_CN.md](ROADMAP_CN.md).
 - **Good First Issues** — beginner-friendly tasks with clear acceptance
   criteria: https://github.com/oneinitAI/oneinit/issues?q=label%3A%22good+first+issue%22
 - Communication happens on GitHub Issues & PR comments.
