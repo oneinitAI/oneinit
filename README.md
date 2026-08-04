@@ -25,6 +25,11 @@ OneInit is a CLI tool that initializes a complete development environment with *
   <p><em>OneInit setting up your Python environment for you</em></p>
 </div>
 
+> **⚠️ Early-stage project — preview releases only.** OneInit is under active
+> development. All published releases are pre-release previews (e.g.
+> `0.2.0-beta.1`); commands and behavior may change at any time. Evaluate
+> before using in production.
+
 ## Why OneInit?
 
 | Traditional | OneInit |
