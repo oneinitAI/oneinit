@@ -10,8 +10,14 @@ use std::path::PathBuf;
 
 use crate::output::OutputFormatter;
 
-/// 内置 SKILL.md 内容（编译时嵌入）
+/// 内置 SKILL.md 内容（编译时嵌入）— 主 skill
 const SKILL_CONTENT: &str = include_str!("../.agents/skills/oneinit/SKILL.md");
+
+/// 分 skill（主 skill 之外的能力子集）— (子目录名, SKILL.md 内容)
+const SUB_SKILLS: &[(&str, &str)] = &[(
+    "recipe-wizard",
+    include_str!("../.agents/skills/oneinit/recipe-wizard/SKILL.md"),
+)];
 
 /// 检测已安装的 AI 助手目录
 ///
@@ -88,16 +94,37 @@ pub fn install_to(agent: &str, formatter: &OutputFormatter) -> bool {
         return false;
     }
 
+    // 写入分 skill（主 skill + 多个分 skill）
+    for (sub, content) in SUB_SKILLS {
+        let sub_dir = target_dir.join(sub);
+        if let Err(e) = std::fs::create_dir_all(&sub_dir) {
+            formatter.output(
+                &format!("[ERROR] create dir failed: {}", e),
+                Some(serde_json::Value::Null),
+            );
+            return false;
+        }
+        if let Err(e) = std::fs::write(sub_dir.join("SKILL.md"), content) {
+            formatter.output(
+                &format!("[ERROR] write sub-skill failed: {}", e),
+                Some(serde_json::Value::Null),
+            );
+            return false;
+        }
+    }
+
     formatter.output(
         &format!(
-            "[OK] {} oneinit Skill -> {}",
+            "[OK] {} oneinit Skill (+{} sub-skills) -> {}",
             if was_update { "updated" } else { "installed" },
+            SUB_SKILLS.len(),
             skill_file.display()
         ),
         Some(serde_json::json!({
             "status": "success", "action": "skill_install",
             "agent": agent, "path": skill_file.to_string_lossy(),
             "updated": was_update,
+            "sub_skills": SUB_SKILLS.iter().map(|(n, _)| n).collect::<Vec<_>>(),
         })),
     );
     true
