@@ -153,7 +153,12 @@ pub fn plan_community_install(
         url: platform_cfg.url.clone(),
         dest: temp_archive.clone(),
         size: None,
-        sha256: Some(platform_cfg.sha256.clone()),
+        // Empty checksum (dynamic recipe with --no-checksum) → skip verification
+        sha256: if platform_cfg.sha256.is_empty() {
+            None
+        } else {
+            Some(platform_cfg.sha256.clone())
+        },
     });
 
     // install_type dispatch

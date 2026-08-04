@@ -206,7 +206,7 @@ async fn run_init_project(formatter: &OutputFormatter, dir: &str, dry_run: bool)
     }
     let mut stack = Vec::new();
     for pkg in &packages {
-        install_recursive(pkg, None, formatter, &mut stack, false).await;
+        install_recursive(pkg, None, formatter, &mut stack, false, false, false).await;
     }
     formatter.output(
         "[PROJECT] 项目环境就绪 ✓",
@@ -350,6 +350,8 @@ pub async fn run_install(
     package: &str,
     allow_exec: bool,
     dry_run: bool,
+    refresh: bool,
+    no_checksum: bool,
 ) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
@@ -361,7 +363,15 @@ pub async fn run_install(
 
     // --dry-run: resolve and preview the plan without executing
     if dry_run {
-        dry_run_install(formatter, &name, version_spec.as_deref(), allow_exec).await;
+        dry_run_install(
+            formatter,
+            &name,
+            version_spec.as_deref(),
+            allow_exec,
+            refresh,
+            no_checksum,
+        )
+        .await;
         return;
     }
 
@@ -372,6 +382,8 @@ pub async fn run_install(
         formatter,
         &mut Vec::new(),
         allow_exec,
+        refresh,
+        no_checksum,
     )
     .await;
 }
@@ -382,6 +394,8 @@ async fn dry_run_install(
     name: &str,
     version_spec: Option<&str>,
     allow_exec: bool,
+    refresh: bool,
+    no_checksum: bool,
 ) {
     use crate::core::planner;
 
@@ -400,17 +414,18 @@ async fn dry_run_install(
         return;
     }
 
-    let plan = match resolve_recipe_with_deps(name, version_spec, formatter).await {
-        RecipeResolution::Builtin(rec) => planner::plan_builtin_install(&rec),
-        RecipeResolution::Community(rec) => planner::plan_community_install(&rec, allow_exec),
-        RecipeResolution::NotFound(hint) => {
-            formatter.output(
-                &format!("[ERROR] Not found: '{}'  recipe.{}", name, hint),
-                None::<serde_json::Value>,
-            );
-            return;
-        }
-    };
+    let plan =
+        match resolve_recipe_with_deps(name, version_spec, formatter, refresh, no_checksum).await {
+            RecipeResolution::Builtin(rec) => planner::plan_builtin_install(&rec),
+            RecipeResolution::Community(rec) => planner::plan_community_install(&rec, allow_exec),
+            RecipeResolution::NotFound(hint) => {
+                formatter.output(
+                    &format!("[ERROR] Not found: '{}'  recipe.{}", name, hint),
+                    None::<serde_json::Value>,
+                );
+                return;
+            }
+        };
 
     match plan {
         Ok(plan) => {
@@ -453,6 +468,8 @@ fn install_recursive<'a>(
     formatter: &'a OutputFormatter,
     installing_stack: &'a mut Vec<String>,
     allow_exec: bool,
+    refresh: bool,
+    no_checksum: bool,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + 'a>> {
     Box::pin(async move {
         // 防止循环依赖
@@ -465,7 +482,7 @@ fn install_recursive<'a>(
         }
         installing_stack.push(name.to_string());
 
-        // check if already installed
+        // check if already installed (by the requested name)
         if let Ok(manifest) = Manifest::open()
             && let Ok(Some(record)) = manifest.get(name)
         {
@@ -484,8 +501,9 @@ fn install_recursive<'a>(
             return;
         }
 
-        // find recipe（内置 -> 本地社区 -> 远程），同时获取依赖信息
-        let recipe_info = resolve_recipe_with_deps(name, version_spec, formatter).await;
+        // find recipe（内置 -> 本地社区 -> 远程 -> 动态非完全匹配），同时获取依赖信息
+        let recipe_info =
+            resolve_recipe_with_deps(name, version_spec, formatter, refresh, no_checksum).await;
 
         match recipe_info {
             RecipeResolution::Builtin(rec) => {
@@ -494,8 +512,28 @@ fn install_recursive<'a>(
                 }
             }
             RecipeResolution::Community(rec) => {
+                // 动态配方可能以 family@version 命名 — 检查是否已装
+                if rec.name != name
+                    && let Ok(manifest) = Manifest::open()
+                    && let Ok(Some(_)) = manifest.get(&rec.name)
+                {
+                    formatter.output(
+                        &format!("[OK] '{}' 已安装 v{}", rec.name, rec.version),
+                        None::<serde_json::Value>,
+                    );
+                    installing_stack.pop();
+                    return;
+                }
                 // 先安装依赖
-                install_dependencies(&rec, formatter, installing_stack, allow_exec).await;
+                install_dependencies(
+                    &rec,
+                    formatter,
+                    installing_stack,
+                    allow_exec,
+                    refresh,
+                    no_checksum,
+                )
+                .await;
                 if let Err(e) = community_recipe::install(&rec, formatter, allow_exec).await {
                     formatter.error(&e);
                 }
@@ -522,11 +560,13 @@ enum RecipeResolution {
     NotFound(String),
 }
 
-/// 3-tier recipe lookup (builtin -> local -> remote)
+/// 3-tier recipe lookup (builtin -> local community -> remote -> dynamic)
 async fn resolve_recipe_with_deps(
     name: &str,
     version_spec: Option<&str>,
     formatter: &OutputFormatter,
+    refresh: bool,
+    no_checksum: bool,
 ) -> RecipeResolution {
     // 1. 内置recipe（@latest 或无版本时尝试）
     if (version_spec.is_none() || version_spec == Some("latest"))
@@ -588,6 +628,11 @@ async fn resolve_recipe_with_deps(
         }
     }
 
+    // 4. 动态非完全匹配（versioned family + @version / 默认版本 / 旧名重定向）
+    if let Some(resolution) = try_dynamic(name, version_spec, refresh, no_checksum).await {
+        return resolution;
+    }
+
     // 未找到
     let hint = if registry::load_cached_index().is_none() {
         " Hint: run 'oneinit update' to fetch remote recipe index.".to_string()
@@ -597,12 +642,82 @@ async fn resolve_recipe_with_deps(
     RecipeResolution::NotFound(hint)
 }
 
+/// Try to resolve a non-exact-match (dynamic) recipe:
+/// - `python@3.11` / `node@lts` / `go@latest` (versioned family + spec)
+/// - `python` (family, default version)
+/// - old-style names `python3.12` / `node18` (family + version suffix)
+async fn try_dynamic(
+    name: &str,
+    version_spec: Option<&str>,
+    refresh: bool,
+    no_checksum: bool,
+) -> Option<RecipeResolution> {
+    use crate::core::{dynamic, version};
+
+    // Determine (family, spec): explicit spec wins; else old-name redirect
+    let (family, spec): (String, Option<String>) = if version_spec.is_some() {
+        (name.to_string(), version_spec.map(|s| s.to_string()))
+    } else if let Some((f, v)) = old_name_redirect(name) {
+        (f, Some(v))
+    } else if version::is_versioned(name) {
+        (name.to_string(), None) // default version
+    } else {
+        return None;
+    };
+
+    if !version::is_versioned(&family) {
+        return None;
+    }
+
+    // Resolve the concrete version
+    let resolved = match version::resolve(&family, spec.as_deref()) {
+        Ok(v) => v,
+        Err(e) => {
+            return Some(RecipeResolution::NotFound(format!(" {}", e)));
+        }
+    };
+
+    if refresh {
+        let _ = version::refresh(&family).await;
+    }
+
+    match dynamic::build(&family, &resolved, refresh, no_checksum).await {
+        Ok(recipe) => {
+            crate::core::cache_db::cache_version(&family, &resolved, "resolved").ok();
+            Some(RecipeResolution::Community(Box::new(recipe)))
+        }
+        Err(e) => Some(RecipeResolution::NotFound(format!(" 动态配方失败: {}", e))),
+    }
+}
+
+/// Old-style recipe name → (family, version suffix):
+/// `python3.12` → ("python", "3.12"); `node18` → ("node", "18");
+/// `java17` → ("java", "17"); `go1.23` → ("go", "1.23").
+fn old_name_redirect(name: &str) -> Option<(String, String)> {
+    const FAMILIES: [&str; 5] = ["python", "node", "go", "java", "rust"];
+    for family in FAMILIES {
+        if let Some(rest) = name.strip_prefix(family)
+            && !rest.is_empty()
+            && rest
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false)
+        {
+            return Some((family.to_string(), rest.to_string()));
+        }
+    }
+    None
+}
+
 /// recursively install recipe dependencies
 async fn install_dependencies(
     recipe: &crate::core::community_recipe::CommunityRecipe,
     formatter: &OutputFormatter,
     installing_stack: &mut Vec<String>,
     allow_exec: bool,
+    refresh: bool,
+    no_checksum: bool,
 ) {
     if let Some(ref deps) = recipe.depends {
         if deps.is_empty() {
@@ -613,7 +728,16 @@ async fn install_dependencies(
             Some(serde_json::Value::Null),
         );
         for dep in deps {
-            install_recursive(dep, None, formatter, installing_stack, allow_exec).await;
+            install_recursive(
+                dep,
+                None,
+                formatter,
+                installing_stack,
+                allow_exec,
+                refresh,
+                no_checksum,
+            )
+            .await;
         }
     }
 }
@@ -1152,7 +1276,16 @@ async fn apply_team_env(formatter: &OutputFormatter, content: &str, allow_exec: 
             Some(serde_json::Value::Null),
         );
         for name in &names {
-            install_recursive(name, None, formatter, &mut installing_stack, allow_exec).await;
+            install_recursive(
+                name,
+                None,
+                formatter,
+                &mut installing_stack,
+                allow_exec,
+                false,
+                false,
+            )
+            .await;
         }
     }
 
@@ -2023,6 +2156,89 @@ fn render_table(headers: &[&str], rows: &[Vec<String>], empty_msg: Option<&str>)
 pub async fn run_self_update(formatter: &OutputFormatter) {
     match crate::core::self_update::run_self_update(formatter).await {
         Ok(_) => {}
+        Err(e) => formatter.error(&e),
+    }
+}
+
+/// oneinit list versions <recipe> — list available versions for a family
+pub async fn run_list_versions(formatter: &OutputFormatter, recipe: &str) {
+    use crate::core::version;
+
+    if !version::is_versioned(recipe) {
+        formatter.output(
+            &format!(
+                "[ERROR] '{recipe}' 不是可版本化配方（支持: python / node / go / java / rust）"
+            ),
+            None::<serde_json::Value>,
+        );
+        return;
+    }
+    match version::list(recipe) {
+        Ok(versions) => {
+            let text = format!(
+                "{} 可用版本 ({}):\n  {}",
+                recipe,
+                versions.len(),
+                versions
+                    .iter()
+                    .map(|v| format!("  - {}", v))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+            formatter.output(
+                &text,
+                Some(serde_json::json!({
+                    "status": "success",
+                    "action": "list_versions",
+                    "recipe": recipe,
+                    "versions": versions,
+                })),
+            );
+        }
+        Err(e) => formatter.error(&e),
+    }
+}
+
+/// oneinit info <package[@version]> — show resolved version details
+pub async fn run_info(formatter: &OutputFormatter, package: &str) {
+    use crate::core::version;
+
+    let (name, spec) = parse_package_spec(package);
+    if !version::is_versioned(&name) {
+        // fall back to showing the recipe info via search
+        formatter.output(
+            &format!("[INFO] '{name}' 不是可版本化配方 — 用 `oneinit search {name}` 查看"),
+            None::<serde_json::Value>,
+        );
+        return;
+    }
+
+    match version::resolve(&name, spec.as_deref()) {
+        Ok(resolved) => {
+            let default_v = version::resolve(&name, None).unwrap_or_default();
+            let lts_v = version::resolve(&name, Some("lts")).unwrap_or_default();
+            formatter.output(
+                &format!(
+                    "🔍 {name}@{}\n  解析结果: {}（{}）\n  默认版本: {}\n  LTS 版本: {}\n  安装: `oneinit install {}@{}`",
+                    spec.as_deref().unwrap_or("default"),
+                    resolved,
+                    if resolved == default_v { "默认" } else { "指定" },
+                    default_v,
+                    lts_v,
+                    name,
+                    resolved
+                ),
+                Some(serde_json::json!({
+                    "status": "success",
+                    "action": "info",
+                    "package": name,
+                    "requested": spec,
+                    "resolved": resolved,
+                    "default": default_v,
+                    "lts": lts_v,
+                })),
+            );
+        }
         Err(e) => formatter.error(&e),
     }
 }
