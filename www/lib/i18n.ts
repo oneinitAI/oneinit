@@ -349,15 +349,4 @@ export const dict: Dict = {
   },
   "cb.top5": { en: "Top Contributors", zh: "贡献榜 TOP 5" },
   "cb.others": { en: "More Contributors", zh: "更多贡献者" },
-  "cb.admin": { en: "Admin", zh: "管理员" },
-  "cb.adminToken": { en: "Admin token", zh: "管理员令牌" },
-  "cb.adminLogin": { en: "GitHub login", zh: "GitHub 登录名" },
-  "cb.adminTags": { en: "Tags (comma separated)", zh: "标签（逗号分隔）" },
-  "cb.adminContrib": { en: "Contributions (optional)", zh: "贡献数（可选）" },
-  "cb.adminSave": { en: "Save / Update", zh: "保存 / 更新" },
-  "cb.adminSaving": { en: "Saving…", zh: "保存中…" },
-  "cb.adminHint": {
-    en: "Modify tags or contributions for any contributor (existing or new). Changes persist in contributors.extra.json.",
-    zh: "修改任意贡献者（已有或新增）的标签与贡献数，持久化到 contributors.extra.json。",
-  },
 };

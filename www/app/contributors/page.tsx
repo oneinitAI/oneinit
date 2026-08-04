@@ -33,48 +33,6 @@ export default function ContributorsPage() {
     loadContributors();
   }, [loadContributors]);
 
-  // 管理员面板状态
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [token, setToken] = useState("");
-  const [aLogin, setALogin] = useState("");
-  const [aTags, setATags] = useState("");
-  const [aContrib, setAContrib] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [adminMsg, setAdminMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
-  const saveContributor = async () => {
-    if (!aLogin.trim()) return;
-    setSaving(true);
-    setAdminMsg(null);
-    try {
-      const body: { login: string; tags?: string[]; contributions?: number } = {
-        login: aLogin.trim(),
-      };
-      if (aTags.trim()) {
-        body.tags = aTags.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 8);
-      }
-      if (aContrib.trim()) body.contributions = Number(aContrib);
-      const r = await fetch("/api/v1/contributors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token.trim()}` },
-        body: JSON.stringify(body),
-      });
-      const d = await r.json();
-      if (r.ok) {
-        setAdminMsg({ ok: true, text: `✅ ${d.login} tags=${JSON.stringify(d.tags)}` });
-        setATags("");
-        setAContrib("");
-        loadContributors();
-      } else {
-        setAdminMsg({ ok: false, text: `❌ ${d.error || r.status}` });
-      }
-    } catch (e: any) {
-      setAdminMsg({ ok: false, text: `❌ ${e.message}` });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const top5 = contributors.slice(0, 5);
   const rest = contributors.slice(5);
   const total = contributors.reduce((s, c) => s + c.contributions, 0);
@@ -104,64 +62,8 @@ export default function ContributorsPage() {
             <span className="rounded-full border border-violet-500/20 bg-violet-500/5 px-3 py-1 font-mono text-violet-400">
               {total} {t("cb.contributions")}
             </span>
-            <button
-              onClick={() => setShowAdmin(!showAdmin)}
-              className="rounded-full border border-white/[0.06] px-3 py-1 font-mono text-xs text-zinc-500 transition-all hover:border-zinc-500/40 hover:text-zinc-300"
-            >
-              {t("cb.admin")} {showAdmin ? "▲" : "▼"}
-            </button>
           </div>
         </div>
-
-        {/* 管理员面板：修改已有贡献者的 tag/贡献数 */}
-        {showAdmin && (
-          <div className="glass mb-10 rounded-2xl border border-amber-500/15 p-5">
-            <p className="mb-4 text-xs text-zinc-500">{t("cb.adminHint")}</p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <input
-                type="password"
-                placeholder={t("cb.adminToken")}
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                className="rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-amber-500/40"
-              />
-              <input
-                placeholder={t("cb.adminLogin")}
-                value={aLogin}
-                onChange={(e) => setALogin(e.target.value)}
-                className="rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-amber-500/40"
-              />
-              <input
-                placeholder={t("cb.adminTags")}
-                value={aTags}
-                onChange={(e) => setATags(e.target.value)}
-                className="rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-amber-500/40"
-              />
-              <input
-                placeholder={t("cb.adminContrib")}
-                value={aContrib}
-                onChange={(e) => setAContrib(e.target.value)}
-                type="number"
-                min={0}
-                className="rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-amber-500/40"
-              />
-            </div>
-            <div className="mt-3 flex items-center gap-3">
-              <button
-                onClick={saveContributor}
-                disabled={saving || !token.trim() || !aLogin.trim()}
-                className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-300 transition-all hover:border-amber-400/50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {saving ? t("cb.adminSaving") : t("cb.adminSave")}
-              </button>
-              {adminMsg && (
-                <span className={`font-mono text-xs ${adminMsg.ok ? "text-emerald-400" : "text-red-400"}`}>
-                  {adminMsg.text}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
 
         {loading && (
           <p className="py-20 text-center font-mono text-sm text-zinc-500 animate-pulse">
