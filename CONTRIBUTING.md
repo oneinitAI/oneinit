@@ -216,9 +216,3 @@ contributors.** If anything confuses you, spend a minute and tell us:
 ## 🧭 Roadmap
 
 See **[ROADMAP.md](ROADMAP.md)** for project goals and direction.
-
-## 🏷️ Releasing
-
-Releases strictly follow **SemVer 2.0.0** (see **[RELEASING.md](RELEASING.md)**):
-every release is a `beta` prerelease until the maintainer declares a stable
-release, and the maintainer always confirms before releasing.
