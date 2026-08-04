@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useLang } from "@/components/lang-provider";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
+import { Avatar } from "@/components/avatar";
 
 type Contributor = {
   login: string;
@@ -29,11 +30,12 @@ export default function ContributorsPage() {
   }, []);
 
   const total = contributors.reduce((s, c) => s + c.contributions, 0);
+  const maxC = Math.max(...contributors.map((c) => c.contributions), 1);
 
   return (
     <main className="relative min-h-screen bg-[#0a0a0f] text-zinc-200">
       <Nav />
-      <div className="mx-auto max-w-[1100px] px-6 pb-24 pt-28">
+      <div className="mx-auto max-w-[1000px] px-6 pb-24 pt-28">
         <div className="mb-12 text-center">
           <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-4 py-1.5 font-mono text-xs tracking-widest text-emerald-500">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
@@ -41,6 +43,14 @@ export default function ContributorsPage() {
           </span>
           <h1 className="text-4xl font-bold text-white md:text-5xl">{t("cb.title")}</h1>
           <p className="mx-auto mt-4 max-w-[620px] text-zinc-400">{t("cb.desc")}</p>
+          <div className="mt-6 flex items-center justify-center gap-3 text-sm">
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 font-mono text-emerald-400">
+              {contributors.length} {t("cb.total")}
+            </span>
+            <span className="rounded-full border border-violet-500/20 bg-violet-500/5 px-3 py-1 font-mono text-violet-400">
+              {total} {t("cb.contributions")}
+            </span>
+          </div>
         </div>
 
         {loading && (
@@ -56,38 +66,23 @@ export default function ContributorsPage() {
           <p className="py-20 text-center text-sm text-zinc-500">{t("cb.empty")}</p>
         )}
 
+        {/* 排行榜：按贡献数排序的竖排列表，占满页面宽度 */}
         {contributors.length > 0 && (
           <>
-            <div className="mb-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <div className="glass rounded-2xl p-5 text-center">
-                <div className="text-3xl font-bold text-emerald-400">{contributors.length}</div>
-                <div className="mt-1 text-xs text-zinc-500">{t("cb.total")}</div>
-              </div>
-              <div className="glass rounded-2xl p-5 text-center">
-                <div className="text-3xl font-bold text-violet-400">{total}</div>
-                <div className="mt-1 text-xs text-zinc-500">{t("cb.contributions")}</div>
-              </div>
-              <div className="glass col-span-2 hidden rounded-2xl p-5 md:block" />
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="space-y-2.5">
               {contributors.map((c, i) => (
                 <a
                   key={c.login}
                   href={c.html_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  data-aos="fade-up"
-                  data-aos-delay={(i % 3) * 80}
-                  className="glass glass-hover group flex items-center gap-3 rounded-2xl p-4 transition-all hover:-translate-y-0.5"
+                  className="glass glass-hover group flex items-center gap-3 rounded-2xl p-4 transition-all hover:-translate-y-0.5 sm:gap-5"
                 >
-                  <img
-                    src={c.avatar_url}
-                    alt={c.login}
-                    loading="lazy"
-                    className="h-12 w-12 shrink-0 rounded-full border border-white/10"
-                  />
-                  <div className="min-w-0">
+                  <span className="w-8 shrink-0 text-center font-mono text-sm font-bold text-zinc-600 group-hover:text-emerald-400">
+                    {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
+                  </span>
+                  <Avatar src={c.avatar_url} alt={c.login} size={44} />
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="truncate text-sm font-semibold text-zinc-100 group-hover:text-emerald-300">
                         {c.login}
@@ -101,9 +96,21 @@ export default function ContributorsPage() {
                         </span>
                       ))}
                     </div>
-                    <div className="mt-0.5 font-mono text-[11px] text-zinc-500">
-                      {c.contributions} · {c.repos.join(" / ") || c.source.join(" / ")}
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-700"
+                        style={{ width: `${Math.max((c.contributions / maxC) * 100, 4)}%` }}
+                      />
                     </div>
+                    <div className="mt-1 font-mono text-[10px] text-zinc-500">
+                      {c.repos.join(" / ") || c.source.join(" / ")}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="font-mono text-xl font-bold text-emerald-400">
+                      {c.contributions}
+                    </div>
+                    <div className="text-[10px] text-zinc-500">{t("cb.contributions")}</div>
                   </div>
                 </a>
               ))}
