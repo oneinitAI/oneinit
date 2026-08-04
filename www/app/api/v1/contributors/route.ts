@@ -72,7 +72,7 @@ function mergeExtra(merged: Record<string, Contributor>, extra: ExtraFile) {
 
 /** 头像统一走 avatars.githubusercontent.com（免重定向；github.com/{login}.png
  *  在账号被禁用时会 404，而该 CDN 仍可访问） */
-export function avatarUrl(login: string): string {
+function avatarUrl(login: string): string {
   return `https://avatars.githubusercontent.com/${login}?v=4`;
 }
 
