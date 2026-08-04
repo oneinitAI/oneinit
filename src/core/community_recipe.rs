@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{CoreError, Result, envs_dir};
 use crate::output::OutputFormatter;
@@ -18,33 +18,37 @@ use crate::output::OutputFormatter;
 // recipe DTO（严格对应 社区recipe.md 1.1 节 YAML 格式）
 // ============================================================
 
-/// 社区recipe（deserialized from YAML）
-#[derive(Debug, Clone, Deserialize)]
+/// 社区recipe（deserialized from YAML / serialized for the wizard）
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommunityRecipe {
     pub name: String,
     pub version: String,
     #[allow(dead_code)]
     pub description: String,
     /// 软件许可证（如 MIT、GPL-2.0），安装前展示
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub license: Option<String>,
     /// 许可证详情 URL，安装前展示
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub license_url: Option<String>,
     pub platforms: Platforms,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub post_install: Option<PostInstallConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub depends: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub tags: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub maintainer: Option<Maintainer>,
 }
 
 /// platform configuration set
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Platforms {
     pub windows: Option<PlatformConfig>,
     pub linux: Option<PlatformConfig>,
@@ -52,39 +56,46 @@ pub struct Platforms {
 }
 
 /// single platform configuration
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlatformConfig {
     pub url: String,
     pub sha256: String,
     pub install_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub install_args: Option<Vec<String>>,
     pub install_path: String,
     pub path_add: Vec<String>,
 }
 
 /// post-install configuration
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostInstallConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub env_vars: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_files: Option<Vec<ConfigFile>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commands: Option<Vec<String>>,
 }
 
 /// config file definition (template)
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigFile {
     pub path: String,
     pub template: String,
 }
 
 /// maintainer information
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Maintainer {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub github: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub email: Option<String>,
 }
