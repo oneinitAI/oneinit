@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLang } from "@/components/lang-provider";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
@@ -21,7 +21,7 @@ export default function ContributorsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
+  const loadContributors = useCallback(() => {
     fetch("/api/v1/contributors")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d: { contributors: Contributor[] }) => setContributors(d.contributors || []))
@@ -29,29 +29,139 @@ export default function ContributorsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    loadContributors();
+  }, [loadContributors]);
+
+  // 管理员面板状态
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [token, setToken] = useState("");
+  const [aLogin, setALogin] = useState("");
+  const [aTags, setATags] = useState("");
+  const [aContrib, setAContrib] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [adminMsg, setAdminMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const saveContributor = async () => {
+    if (!aLogin.trim()) return;
+    setSaving(true);
+    setAdminMsg(null);
+    try {
+      const body: { login: string; tags?: string[]; contributions?: number } = {
+        login: aLogin.trim(),
+      };
+      if (aTags.trim()) {
+        body.tags = aTags.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 8);
+      }
+      if (aContrib.trim()) body.contributions = Number(aContrib);
+      const r = await fetch("/api/v1/contributors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token.trim()}` },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setAdminMsg({ ok: true, text: `✅ ${d.login} tags=${JSON.stringify(d.tags)}` });
+        setATags("");
+        setAContrib("");
+        loadContributors();
+      } else {
+        setAdminMsg({ ok: false, text: `❌ ${d.error || r.status}` });
+      }
+    } catch (e: any) {
+      setAdminMsg({ ok: false, text: `❌ ${e.message}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const top5 = contributors.slice(0, 5);
+  const rest = contributors.slice(5);
   const total = contributors.reduce((s, c) => s + c.contributions, 0);
   const maxC = Math.max(...contributors.map((c) => c.contributions), 1);
+
+  const Tag = ({ tag }: { tag: string }) => (
+    <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-400">
+      {tag}
+    </span>
+  );
 
   return (
     <main className="relative min-h-screen bg-[#0a0a0f] text-zinc-200">
       <Nav />
       <div className="mx-auto max-w-[1000px] px-6 pb-24 pt-28">
-        <div className="mb-12 text-center">
+        <div className="mb-10 text-center">
           <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-4 py-1.5 font-mono text-xs tracking-widest text-emerald-500">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
             {t("cb.badge")}
           </span>
           <h1 className="text-4xl font-bold text-white md:text-5xl">{t("cb.title")}</h1>
           <p className="mx-auto mt-4 max-w-[620px] text-zinc-400">{t("cb.desc")}</p>
-          <div className="mt-6 flex items-center justify-center gap-3 text-sm">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-sm">
             <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 font-mono text-emerald-400">
               {contributors.length} {t("cb.total")}
             </span>
             <span className="rounded-full border border-violet-500/20 bg-violet-500/5 px-3 py-1 font-mono text-violet-400">
               {total} {t("cb.contributions")}
             </span>
+            <button
+              onClick={() => setShowAdmin(!showAdmin)}
+              className="rounded-full border border-white/[0.06] px-3 py-1 font-mono text-xs text-zinc-500 transition-all hover:border-zinc-500/40 hover:text-zinc-300"
+            >
+              {t("cb.admin")} {showAdmin ? "▲" : "▼"}
+            </button>
           </div>
         </div>
+
+        {/* 管理员面板：修改已有贡献者的 tag/贡献数 */}
+        {showAdmin && (
+          <div className="glass mb-10 rounded-2xl border border-amber-500/15 p-5">
+            <p className="mb-4 text-xs text-zinc-500">{t("cb.adminHint")}</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <input
+                type="password"
+                placeholder={t("cb.adminToken")}
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                className="rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 font-mono text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-amber-500/40"
+              />
+              <input
+                placeholder={t("cb.adminLogin")}
+                value={aLogin}
+                onChange={(e) => setALogin(e.target.value)}
+                className="rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-amber-500/40"
+              />
+              <input
+                placeholder={t("cb.adminTags")}
+                value={aTags}
+                onChange={(e) => setATags(e.target.value)}
+                className="rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-amber-500/40"
+              />
+              <input
+                placeholder={t("cb.adminContrib")}
+                value={aContrib}
+                onChange={(e) => setAContrib(e.target.value)}
+                type="number"
+                min={0}
+                className="rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-amber-500/40"
+              />
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={saveContributor}
+                disabled={saving || !token.trim() || !aLogin.trim()}
+                className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-300 transition-all hover:border-amber-400/50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {saving ? t("cb.adminSaving") : t("cb.adminSave")}
+              </button>
+              {adminMsg && (
+                <span className={`font-mono text-xs ${adminMsg.ok ? "text-emerald-400" : "text-red-400"}`}>
+                  {adminMsg.text}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {loading && (
           <p className="py-20 text-center font-mono text-sm text-zinc-500 animate-pulse">
@@ -66,11 +176,14 @@ export default function ContributorsPage() {
           <p className="py-20 text-center text-sm text-zinc-500">{t("cb.empty")}</p>
         )}
 
-        {/* 排行榜：按贡献数排序的竖排列表，占满页面宽度 */}
         {contributors.length > 0 && (
           <>
+            {/* TOP 5 排行榜 */}
+            <h2 className="mb-4 font-mono text-sm font-bold tracking-widest text-zinc-300">
+              {t("cb.top5")}
+            </h2>
             <div className="space-y-2.5">
-              {contributors.map((c, i) => (
+              {top5.map((c, i) => (
                 <a
                   key={c.login}
                   href={c.html_url}
@@ -88,12 +201,7 @@ export default function ContributorsPage() {
                         {c.login}
                       </span>
                       {c.tags?.map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-400"
-                        >
-                          {tag}
-                        </span>
+                        <Tag key={tag} tag={tag} />
                       ))}
                     </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-zinc-800">
@@ -115,6 +223,45 @@ export default function ContributorsPage() {
                 </a>
               ))}
             </div>
+
+            {/* 其余贡献者：头像并排展示 */}
+            {rest.length > 0 && (
+              <>
+                <h2 className="mb-4 mt-10 font-mono text-sm font-bold tracking-widest text-zinc-300">
+                  {t("cb.others")} ({rest.length})
+                </h2>
+                <div className="flex flex-wrap gap-3">
+                  {rest.map((c) => (
+                    <a
+                      key={c.login}
+                      href={c.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="glass group flex items-center gap-2.5 rounded-xl px-3 py-2 transition-all hover:-translate-y-0.5"
+                    >
+                      <Avatar src={c.avatar_url} alt={c.login} size={36} />
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="text-sm font-semibold text-zinc-200 group-hover:text-emerald-300">
+                            {c.login}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {c.tags?.map((tag) => (
+                            <Tag key={tag} tag={tag} />
+                          ))}
+                          {(!c.tags || c.tags.length === 0) && (
+                            <span className="font-mono text-[10px] text-zinc-500">
+                              {c.contributions}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </>
+            )}
 
             <div className="mt-10 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.04] p-8 text-center">
               <h2 className="text-2xl font-bold text-white">{t("cb.ctaTitle")}</h2>
