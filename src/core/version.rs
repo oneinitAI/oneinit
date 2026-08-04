@@ -10,13 +10,13 @@ use super::{CoreError, Result};
 pub const FAMILIES: [&str; 5] = ["python", "node", "go", "java", "rust"];
 
 /// Default + LTS versions (hand-maintained fallback; refreshed from APIs).
+///
+/// Only versions the dynamic installer can actually fetch are listed: python
+/// is limited to 3.11+ because python.org stopped publishing Windows
+/// embeddable zips for 3.10 and older.
 fn embedded_catalog(recipe: &str) -> Option<(&'static str, &'static str, &'static [&'static str])> {
     match recipe {
-        "python" => Some((
-            "3.12.4",
-            "3.12.4",
-            &["3.13.0", "3.12.4", "3.11.9", "3.10.14", "3.9.19"],
-        )),
+        "python" => Some(("3.12.4", "3.12.4", &["3.13.0", "3.12.4", "3.11.9"])),
         "node" => Some((
             "20.18.1",
             "22.11.0",
