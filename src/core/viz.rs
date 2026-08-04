@@ -239,6 +239,19 @@ fn env_display_name(env: &VizEnv) -> String {
     }
 }
 
+/// 全局包管理器标签：node → npm, python → pip, rust → cargo
+fn pm_label(env: &VizEnv) -> &'static str {
+    if env.name.starts_with("node") {
+        "npm"
+    } else if env.name.starts_with("python") {
+        "pip"
+    } else if env.name.starts_with("rust") {
+        "cargo"
+    } else {
+        "packages"
+    }
+}
+
 // ============================================================
 // ASCII 树
 // ============================================================
@@ -272,7 +285,11 @@ pub fn render_ascii(report: &VizReport) -> String {
             s.push_str(&line);
             s.push('\n');
             if !env.global_packages.is_empty() || !env.depends.is_empty() {
-                let mut sub = format!("│{cont}└── pip: {}", env.global_packages.join(", "));
+                let mut sub = format!(
+                    "│{cont}└── {}: {}",
+                    pm_label(env),
+                    env.global_packages.join(", ")
+                );
                 if !env.depends.is_empty() {
                     sub.push_str(&format!("  [depends: {}]", env.depends.join(", ")));
                 }
@@ -434,7 +451,11 @@ fn build_tree(report: &VizReport) -> TNode {
                 };
                 let mut label = format!("{}/", env_display_name(env));
                 if !env.global_packages.is_empty() {
-                    label.push_str(&format!("  · pip: {}", env.global_packages.join(", ")));
+                    label.push_str(&format!(
+                        "  · {}: {}",
+                        pm_label(env),
+                        env.global_packages.join(", ")
+                    ));
                 }
                 TNode {
                     label,

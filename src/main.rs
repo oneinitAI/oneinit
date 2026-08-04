@@ -289,6 +289,8 @@ enum SkillAction {
         #[arg(short, long, default_value = "all")]
         target: String,
     },
+    /// List Skill installation status per AI agent
+    List,
     /// Show Skill installation status
     Status,
     /// Uninstall Skill
@@ -458,6 +460,7 @@ async fn main() {
         }
         Commands::Skill { action } => match action {
             SkillAction::Install { target } => cli::run_skill_install(&formatter, &target).await,
+            SkillAction::List => cli::run_skill_list(&formatter).await,
             SkillAction::Status => cli::run_skill_status(&formatter).await,
             SkillAction::Uninstall => cli::run_skill_uninstall(&formatter).await,
         },
