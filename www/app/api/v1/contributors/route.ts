@@ -60,7 +60,7 @@ function mergeExtra(merged: Record<string, Contributor>, extra: ExtraFile) {
       merged[e.login] = {
         login: e.login,
         html_url: `https://github.com/${e.login}`,
-        avatar_url: `https://github.com/${e.login}.png`,
+        avatar_url: avatarUrl(e.login),
         contributions: e.contributions ?? 1,
         repos: [],
         source: ["manual"],
@@ -68,6 +68,12 @@ function mergeExtra(merged: Record<string, Contributor>, extra: ExtraFile) {
       };
     }
   }
+}
+
+/** 头像统一走 avatars.githubusercontent.com（免重定向；github.com/{login}.png
+ *  在账号被禁用时会 404，而该 CDN 仍可访问） */
+export function avatarUrl(login: string): string {
+  return `https://avatars.githubusercontent.com/${login}?v=4`;
 }
 
 /** 校验管理员令牌（ADMIN_TOKEN） */
@@ -125,7 +131,7 @@ export async function GET() {
       const index = await idxRes.json();
       for (const p of Object.values(index.packages || {}) as any[]) {
         for (const m of p.maintainers || []) {
-          upsert(m, `https://github.com/${m}`, `https://github.com/${m}.png`, 1, "oneinit-recipes", "maintainer");
+          upsert(m, `https://github.com/${m}`, avatarUrl(m), 1, "oneinit-recipes", "maintainer");
         }
       }
     }

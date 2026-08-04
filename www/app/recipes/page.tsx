@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useLang } from "@/components/lang-provider";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
+import { Avatar } from "@/components/avatar";
 
 type Stats = {
   ok?: boolean;
@@ -237,12 +238,7 @@ export default function RecipesPage() {
                       rel="noopener noreferrer"
                       className="group flex items-center gap-2.5 rounded-xl border border-white/[0.05] px-3 py-2 transition-all hover:border-emerald-600/30 hover:bg-emerald-500/5"
                     >
-                      <img
-                        src={c.avatar_url}
-                        alt={c.login}
-                        className="h-8 w-8 rounded-full border border-white/10"
-                        loading="lazy"
-                      />
+                      <Avatar src={c.avatar_url} alt={c.login} size={32} />
                       <div className="leading-tight">
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm font-semibold text-zinc-200 group-hover:text-emerald-300">
