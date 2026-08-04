@@ -210,7 +210,7 @@ async fn run_init_project(formatter: &OutputFormatter, dir: &str, dry_run: bool)
     }
     let mut stack = Vec::new();
     for pkg in &packages {
-        install_recursive(pkg, None, formatter, &mut stack, false, false, false, false).await;
+        install_recursive(pkg, None, formatter, &mut stack, false, false, false).await;
     }
     formatter.output(
         "[PROJECT] 项目环境就绪 ✓",
@@ -390,7 +390,6 @@ pub async fn run_install(
         allow_exec,
         refresh,
         no_checksum,
-        true, // 顶层 install：无现成配方时进入配方向导
     )
     .await;
 }
@@ -470,7 +469,6 @@ fn parse_package_spec(spec: &str) -> (String, Option<String>) {
 ///
 /// installing_stack prevents circular dependencies.
 /// uses BoxFuture for async recursion.
-#[allow(clippy::too_many_arguments)]
 fn install_recursive<'a>(
     name: &'a str,
     version_spec: Option<&'a str>,
@@ -479,7 +477,6 @@ fn install_recursive<'a>(
     allow_exec: bool,
     refresh: bool,
     no_checksum: bool,
-    wizard: bool,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + 'a>> {
     Box::pin(async move {
         // 防止循环依赖
@@ -556,58 +553,11 @@ fn install_recursive<'a>(
                         "package": name, "message": "Recipe not found",
                     })),
                 );
-                // 无现成配方 → 交互式配方向导（仅顶层 install，非 JSON/-y 模式）
-                if wizard && !formatter.is_json() && !formatter.auto_yes {
-                    run_wizard_for(name, formatter, allow_exec).await;
-                }
             }
         }
 
         installing_stack.pop();
     })
-}
-
-/// 配方向导：没有现成配方时让用户选择「教程」或「生成配方+安装」，
-/// 安装配置好环境后询问是否贡献配方。
-async fn run_wizard_for(name: &str, formatter: &OutputFormatter, allow_exec: bool) {
-    use crate::core::recipe_wizard::{self, WizardChoice};
-
-    match recipe_wizard::prompt_action(name) {
-        Some(WizardChoice::Tutorial) => {
-            formatter.output(
-                &recipe_wizard::tutorial(name),
-                Some(serde_json::json!({
-                    "action": "recipe_wizard",
-                    "choice": "tutorial",
-                    "tool": name,
-                })),
-            );
-        }
-        Some(WizardChoice::Generate) => match recipe_wizard::interactive_build_recipe(name) {
-            Ok(recipe) => {
-                if let Ok(path) = recipe_wizard::save_recipe(&recipe) {
-                    formatter.output(
-                        &format!("[WIZARD] 配方已保存: {}", path.display()),
-                        Some(serde_json::json!({
-                            "action": "recipe_wizard",
-                            "status": "recipe_saved",
-                            "recipe": recipe.name,
-                            "file": path.to_string_lossy(),
-                        })),
-                    );
-                }
-                if let Err(e) =
-                    crate::core::community_recipe::install(&recipe, formatter, allow_exec).await
-                {
-                    formatter.error(&e);
-                } else if let Err(e) = recipe_wizard::offer_contribution(&recipe, formatter).await {
-                    formatter.error(&e);
-                }
-            }
-            Err(e) => formatter.error(&e),
-        },
-        None => {}
-    }
 }
 
 /// Recipe resolution result
@@ -796,7 +746,6 @@ async fn install_dependencies(
                 allow_exec,
                 refresh,
                 no_checksum,
-                false, // 依赖安装不触发配方向导
             )
             .await;
         }
@@ -1363,7 +1312,6 @@ async fn apply_team_env(formatter: &OutputFormatter, content: &str, allow_exec: 
                 allow_exec,
                 false,
                 false,
-                false, // 团队同步不触发配方向导
             )
             .await;
         }
@@ -1594,104 +1542,6 @@ pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
         Err(e) => {
             formatter.error(&e);
         }
-    }
-}
-
-/// oneinit recipe wizard <tool> [--allow-exec] — 交互式配方向导
-pub async fn run_recipe_wizard(formatter: &OutputFormatter, tool: &str, allow_exec: bool) {
-    use crate::core::recipe_wizard::{self, WizardChoice};
-
-    match recipe_wizard::prompt_action(tool) {
-        Some(WizardChoice::Tutorial) => {
-            formatter.output(
-                &recipe_wizard::tutorial(tool),
-                Some(serde_json::json!({
-                    "action": "recipe_wizard",
-                    "choice": "tutorial",
-                    "tool": tool,
-                })),
-            );
-        }
-        Some(WizardChoice::Generate) => match recipe_wizard::interactive_build_recipe(tool) {
-            Ok(recipe) => {
-                if let Ok(path) = recipe_wizard::save_recipe(&recipe) {
-                    formatter.output(
-                        &format!("[WIZARD] 配方已保存: {}", path.display()),
-                        Some(serde_json::json!({
-                            "action": "recipe_wizard",
-                            "status": "recipe_saved",
-                            "recipe": recipe.name,
-                            "file": path.to_string_lossy(),
-                        })),
-                    );
-                }
-                if let Err(e) =
-                    crate::core::community_recipe::install(&recipe, formatter, allow_exec).await
-                {
-                    formatter.error(&e);
-                } else if let Err(e) = recipe_wizard::offer_contribution(&recipe, formatter).await {
-                    formatter.error(&e);
-                }
-            }
-            Err(e) => formatter.error(&e),
-        },
-        None => {
-            formatter.output(
-                "[WIZARD] 已取消",
-                Some(serde_json::json!({
-                    "action": "recipe_wizard",
-                    "status": "cancelled",
-                })),
-            );
-        }
-    }
-}
-
-/// oneinit recipe tutorial <tool> — 查看手动安装教程
-pub async fn run_recipe_tutorial(formatter: &OutputFormatter, tool: &str) {
-    formatter.output(
-        &crate::core::recipe_wizard::tutorial(tool),
-        Some(serde_json::json!({
-            "action": "recipe_tutorial",
-            "tool": tool,
-        })),
-    );
-}
-
-/// oneinit recipe create <tool> — 交互生成配方并保存（不安装）
-pub async fn run_recipe_create(formatter: &OutputFormatter, tool: &str) {
-    use crate::core::recipe_wizard;
-    match recipe_wizard::interactive_build_recipe(tool) {
-        Ok(recipe) => match recipe_wizard::save_recipe(&recipe) {
-            Ok(path) => {
-                formatter.output(
-                    &format!("[WIZARD] 配方已保存: {}", path.display()),
-                    Some(serde_json::json!({
-                        "action": "recipe_create",
-                        "recipe": recipe.name,
-                        "file": path.to_string_lossy(),
-                    })),
-                );
-            }
-            Err(e) => formatter.error(&e),
-        },
-        Err(e) => formatter.error(&e),
-    }
-}
-
-/// oneinit recipe contribute <file> — 贡献已生成的配方
-pub async fn run_recipe_contribute(formatter: &OutputFormatter, file: &str) {
-    use crate::core::recipe_wizard;
-    let path = std::path::PathBuf::from(file);
-    let recipe = match recipe_wizard::load_recipe_file(&path) {
-        Ok(r) => r,
-        Err(e) => {
-            formatter.error(&e);
-            return;
-        }
-    };
-    if let Err(e) = recipe_wizard::offer_contribution(&recipe, formatter).await {
-        formatter.error(&e);
     }
 }
 
