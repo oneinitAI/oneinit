@@ -295,6 +295,7 @@ export const dict: Dict = {
 
   // ===== Recipes registry page =====
   "nav.recipes": { en: "Recipes", zh: "配方" },
+  "nav.contributors": { en: "Contributors", zh: "贡献者" },
   "rcp.badge": { en: "RECIPE REGISTRY · LIVE", zh: "配方注册中心 · 实时" },
   "rcp.title": { en: "Community Recipe Registry", zh: "社区配方注册中心" },
   "rcp.desc": {
@@ -329,5 +330,21 @@ export const dict: Dict = {
   "rcp.contributorsEmpty": {
     en: "No contributors yet. Be the first!",
     zh: "暂无贡献者，来做第一个吧！",
+  },
+
+  // ===== Contributors page =====
+  "cb.badge": { en: "CONTRIBUTORS · LIVE", zh: "贡献者 · 实时" },
+  "cb.title": { en: "Project Contributors", zh: "项目贡献者" },
+  "cb.desc": {
+    en: "Everyone who helps build OneInit — code, recipes, docs, feedback. Synced live with GitHub.",
+    zh: "为 OneInit 添砖加瓦的每一个人 —— 代码、配方、文档、反馈。与 GitHub 实时同步。",
+  },
+  "cb.total": { en: "Contributors", zh: "贡献者总数" },
+  "cb.contributions": { en: "contributions", zh: "次贡献" },
+  "cb.empty": { en: "No contributors yet. Be the first!", zh: "暂无贡献者，来做第一个吧！" },
+  "cb.ctaTitle": { en: "Become a Contributor", zh: "成为贡献者" },
+  "cb.ctaDesc": {
+    en: "Open a PR to the repos, or generate & upload a recipe with OneInit — you'll appear here automatically.",
+    zh: "向仓库提交 PR，或用 oneinit 生成并上传配方 —— 自动上榜。",
   },
 };
