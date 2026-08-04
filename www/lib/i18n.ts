@@ -292,4 +292,33 @@ export const dict: Dict = {
 
   // ===== Hero changelog entry =====
   "hero.changelog": { en: "View Changelog", zh: "查看更新日志" },
+
+  // ===== Recipes registry page =====
+  "nav.recipes": { en: "Recipes", zh: "配方" },
+  "rcp.badge": { en: "RECIPE REGISTRY · LIVE", zh: "配方注册中心 · 实时" },
+  "rcp.title": { en: "Community Recipe Registry", zh: "社区配方注册中心" },
+  "rcp.desc": {
+    en: "Every recipe installed or uploaded by the community — sourced from the GitHub registry and oneinit.bg4jts.cn uploads. One command to install them all.",
+    zh: "社区贡献的全部配方 —— 来自 GitHub 配方仓库与本站上传。一条命令即可安装。",
+  },
+  "rcp.loading": { en: "Loading registry stats…", zh: "正在加载统计…" },
+  "rcp.error": { en: "Failed to load registry data.", zh: "加载注册数据失败。" },
+  "rcp.total": { en: "Recipes", zh: "配方总数" },
+  "rcp.pending": { en: "Pending uploads", zh: "待审核上传" },
+  "rcp.tags.count": { en: "Tag families", zh: "标签分类" },
+  "rcp.maintainers.count": { en: "Contributors", zh: "贡献者" },
+  "rcp.platform": { en: "Platform Coverage", zh: "平台覆盖" },
+  "rcp.tags": { en: "Top Tags", zh: "热门标签" },
+  "rcp.pendingTitle": { en: "Pending Uploads (open PRs)", zh: "待审核上传（开放 PR）" },
+  "rcp.noPending": { en: "No pending uploads. Be the first to contribute!", zh: "暂无待审核上传，来做第一个贡献者吧！" },
+  "rcp.thName": { en: "NAME", zh: "名称" },
+  "rcp.thDesc": { en: "DESCRIPTION", zh: "描述" },
+  "rcp.thLatest": { en: "LATEST", zh: "最新版本" },
+  "rcp.thTags": { en: "TAGS", zh: "标签" },
+  "rcp.thMaintainers": { en: "MAINTAINERS", zh: "维护者" },
+  "rcp.contributeTitle": { en: "Contribute a Recipe", zh: "贡献你的配方" },
+  "rcp.contributeDesc": {
+    en: "No recipe for a tool? OneInit's wizard generates one, then uploads it here — it lands in the GitHub registry as a pull request after review.",
+    zh: "没有现成配方？oneinit 配方向导自动生成，然后上传到本站 —— 审核后进入 GitHub 配方仓库。",
+  },
 };
