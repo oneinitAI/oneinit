@@ -321,4 +321,13 @@ export const dict: Dict = {
     en: "No recipe for a tool? OneInit's wizard generates one, then uploads it here — it lands in the GitHub registry as a pull request after review.",
     zh: "没有现成配方？oneinit 配方向导自动生成，然后上传到本站 —— 审核后进入 GitHub 配方仓库。",
   },
+  "rcp.contributors": { en: "Contributors", zh: "贡献者名单" },
+  "rcp.contributorsDesc": {
+    en: "Synced live with GitHub — code contributors from both repos plus recipe maintainers.",
+    zh: "与 GitHub 实时同步 —— 两个仓库的代码贡献者 + 配方维护者。",
+  },
+  "rcp.contributorsEmpty": {
+    en: "No contributors yet. Be the first!",
+    zh: "暂无贡献者，来做第一个吧！",
+  },
 };

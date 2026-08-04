@@ -16,9 +16,19 @@ type Stats = {
   recipes: { name: string; description: string; latest: string; tags: string[]; maintainers: string[] }[];
 };
 
+type Contributor = {
+  login: string;
+  html_url: string;
+  avatar_url: string;
+  contributions: number;
+  repos: string[];
+  source: string[];
+};
+
 export default function RecipesPage() {
   const { t } = useLang();
   const [data, setData] = useState<Stats | null>(null);
+  const [contributors, setContributors] = useState<Contributor[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -28,6 +38,10 @@ export default function RecipesPage() {
       .then((d: Stats) => setData(d))
       .catch(() => setError(true))
       .finally(() => setLoading(false));
+    fetch("/api/v1/contributors")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: { contributors: Contributor[] }) => setContributors(d.contributors || []))
+      .catch(() => {});
   }, []);
 
   const pc = data?.platform_coverage ?? { windows: 0, linux: 0, darwin: 0 };
@@ -202,6 +216,44 @@ export default function RecipesPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* 贡献者名单（与 GitHub 同步） */}
+            <div className="glass mt-10 rounded-2xl p-6">
+              <h2 className="mb-1 font-mono text-sm font-bold text-white">
+                {t("rcp.contributors")}
+              </h2>
+              <p className="mb-5 text-xs text-zinc-500">{t("rcp.contributorsDesc")}</p>
+              {contributors.length === 0 ? (
+                <p className="text-sm text-zinc-500">{t("rcp.contributorsEmpty")}</p>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {contributors.map((c) => (
+                    <a
+                      key={c.login}
+                      href={c.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex items-center gap-2.5 rounded-xl border border-white/[0.05] px-3 py-2 transition-all hover:border-emerald-600/30 hover:bg-emerald-500/5"
+                    >
+                      <img
+                        src={c.avatar_url}
+                        alt={c.login}
+                        className="h-8 w-8 rounded-full border border-white/10"
+                        loading="lazy"
+                      />
+                      <div className="leading-tight">
+                        <div className="text-sm font-semibold text-zinc-200 group-hover:text-emerald-300">
+                          {c.login}
+                        </div>
+                        <div className="font-mono text-[10px] text-zinc-500">
+                          {c.contributions} · {c.repos.join(" / ")}
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* 贡献 CTA */}
