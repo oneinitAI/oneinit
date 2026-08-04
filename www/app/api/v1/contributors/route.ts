@@ -10,7 +10,8 @@ import { NextResponse } from "next/server";
  *     贡献数与标签（manual）
  * 按登录名合并、去重，按贡献数排序。
  *
- * GET 缓存 1 小时；POST（管理员）写入 extra 文件后即时生效。
+ * GET 缓存 5 分钟（每 5 分钟刷新，管理员修改后最多 5 分钟生效）；
+ * POST（管理员）写入 extra 文件后即时生效。
  */
 
 const MAIN_REPO = "oneinitAI/oneinit";
@@ -19,8 +20,15 @@ const REPOS = [MAIN_REPO, REPO_INDEX];
 const GH = "https://api.github.com";
 const INDEX_URL = `https://raw.githubusercontent.com/${REPO_INDEX}/main/INDEX.json`;
 const EXTRA_PATH = "contributors.extra.json";
-const EXTRA_URL = `${GH}/repos/${MAIN_REPO}/contents/${EXTRA_PATH}`;
+const EXTRA_RAW_URL = `https://raw.githubusercontent.com/${MAIN_REPO}/main/${EXTRA_PATH}`;
+const EXTRA_API_URL = `${GH}/repos/${MAIN_REPO}/contents/${EXTRA_PATH}`;
 const UA = { "User-Agent": "oneinit-bg4jts-cn" };
+
+/** GitHub API 读取统一带 GITHUB_TOKEN 认证（避免未认证限流 60/时） */
+function ghAuth(): Record<string, string> {
+  const token = process.env.GITHUB_TOKEN;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export type Contributor = {
   login: string;
@@ -35,9 +43,22 @@ export type Contributor = {
 type ExtraEntry = { login: string; contributions?: number; tags?: string[] };
 type ExtraFile = { entries: ExtraEntry[] };
 
-/** 读取手动贡献/标签文件；不存在时返回默认空文件 */
-async function readExtra(): Promise<{ data: ExtraFile; sha?: string }> {
-  const res = await fetch(EXTRA_URL, { headers: UA, next: { revalidate: 60 } });
+/** 读取手动贡献/标签文件（GET 用 raw.githubusercontent，无 API 限流）；
+ *  不存在/失败时降级为空文件 */
+async function readExtraRaw(): Promise<ExtraFile> {
+  try {
+    const res = await fetch(EXTRA_RAW_URL, { next: { revalidate: 300 } });
+    if (res.status === 404) return { entries: [] };
+    if (!res.ok) return { entries: [] };
+    return (await res.json()) as ExtraFile;
+  } catch {
+    return { entries: [] };
+  }
+}
+
+/** 读取 extra 文件 + sha（管理员写入用 contents API，已认证） */
+async function readExtraWithSha(): Promise<{ data: ExtraFile; sha?: string }> {
+  const res = await fetch(EXTRA_API_URL, { headers: { ...UA, ...ghAuth() } });
   if (res.status === 404) return { data: { entries: [] } };
   if (!res.ok) throw new Error(`read extra file failed (${res.status})`);
   const j = await res.json();
@@ -84,7 +105,7 @@ function isAdmin(req: Request): boolean {
   return auth === `Bearer ${token}`;
 }
 
-export const revalidate = 3600;
+export const revalidate = 300;
 
 export async function GET() {
   const merged: Record<string, Contributor> = {};
@@ -105,13 +126,13 @@ export async function GET() {
     merged[login] = c;
   };
 
-  // 1. GitHub contributors（两个仓库）
+  // 1. GitHub contributors（两个仓库，带 token 认证避免限流）
   await Promise.all(
     REPOS.map(async (repo) => {
       try {
         const res = await fetch(`${GH}/repos/${repo}/contributors?per_page=100`, {
-          headers: UA,
-          next: { revalidate: 3600 },
+          headers: { ...UA, ...ghAuth() },
+          next: { revalidate: 300 },
         });
         if (!res.ok) return;
         const list: any[] = await res.json();
@@ -126,7 +147,7 @@ export async function GET() {
 
   // 2. 配方仓库 INDEX maintainers（配方贡献者）
   try {
-    const idxRes = await fetch(INDEX_URL, { next: { revalidate: 3600 } });
+    const idxRes = await fetch(INDEX_URL, { next: { revalidate: 300 } });
     if (idxRes.ok) {
       const index = await idxRes.json();
       for (const p of Object.values(index.packages || {}) as any[]) {
@@ -139,13 +160,9 @@ export async function GET() {
     /* 忽略 */
   }
 
-  // 3. 手动贡献 + 标签（contributors.extra.json）
-  try {
-    const { data } = await readExtra();
-    mergeExtra(merged, data);
-  } catch {
-    /* extra 文件不可用时忽略（仅影响手动数据） */
-  }
+  // 3. 手动贡献 + 标签（contributors.extra.json，走 raw 无 API 限流）
+  const extra = await readExtraRaw();
+  mergeExtra(merged, extra);
 
   const contributors = Object.values(merged).sort((a, b) => b.contributions - a.contributions);
 
@@ -183,7 +200,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { data, sha } = await readExtra();
+    const { data, sha } = await readExtraWithSha();
     const entries = data.entries.filter((e) => e.login !== login);
     entries.push({ login, ...(body.contributions != null ? { contributions: body.contributions } : {}), ...(tags ? { tags } : {}) });
     const next: ExtraFile = { entries };
@@ -197,7 +214,7 @@ export async function POST(req: Request) {
 /** 写回 contributors.extra.json（直接提交 main，管理员操作） */
 async function writeExtra(token: string, data: ExtraFile, sha?: string) {
   const content = Buffer.from(JSON.stringify(data, null, 2) + "\n").toString("base64");
-  const res = await fetch(EXTRA_URL, {
+  const res = await fetch(EXTRA_API_URL, {
     method: "PUT",
     headers: { ...UA, Authorization: `Bearer ${token}` },
     body: JSON.stringify({
