@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # 贡献者管理员命令（包装网站 API，替代页面管理面板）
 #
-# 用法:
-#   ADMIN_TOKEN=你的密钥 bash scripts/contributor-admin.sh add <login> [--tags a,b,c] [--contrib N]
-#   ADMIN_TOKEN=你的密钥 bash scripts/contributor-admin.sh remove <login>
+# 用法（Windows 推荐直接传 --token，无需设环境变量）:
+#   bash scripts/contributor-admin.sh add <login> --token <ADMIN_TOKEN> [--tags a,b,c] [--contrib N]
+#   bash scripts/contributor-admin.sh remove <login> --token <ADMIN_TOKEN>
 #   bash scripts/contributor-admin.sh list
+#
+# 兼容: --token 可放在任意位置；未传时回退读取 ADMIN_TOKEN 环境变量。
+# 安全: 脚本不会保存/打印 token；请勿把 token 写进任何会被提交的文件。
 #
 # 依赖: curl（list 美化输出需要 python3 或 python）
 
@@ -12,16 +15,33 @@ set -u
 BASE="${BASE:-https://oneinit.bg4jts.cn}"
 TOKEN="${ADMIN_TOKEN:-}"
 
+# 全局参数解析：--token 可在任意位置（子命令前后均可）
+POS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --token)
+      [ $# -ge 2 ] || { echo "错误: --token 需要一个值" >&2; exit 1; }
+      TOKEN="$2"
+      shift 2
+      ;;
+    *)
+      POS+=("$1")
+      shift
+      ;;
+  esac
+done
+set -- "${POS[@]}"
+
 cmd="${1:-}"
 login="${2:-}"
 
 usage() {
   echo "用法:"
-  echo "  contributor-admin.sh add <login> [--tags a,b,c] [--contrib N]"
-  echo "  contributor-admin.sh remove <login>"
+  echo "  contributor-admin.sh add <login> --token <ADMIN_TOKEN> [--tags a,b,c] [--contrib N]"
+  echo "  contributor-admin.sh remove <login> --token <ADMIN_TOKEN>"
   echo "  contributor-admin.sh list"
   echo
-  echo "环境变量: ADMIN_TOKEN（add/remove 必填）, BASE（默认 https://oneinit.bg4jts.cn）"
+  echo "参数: --token 管理令牌（也可用 ADMIN_TOKEN 环境变量）; BASE 环境变量可改站点（默认 https://oneinit.bg4jts.cn）"
   exit 1
 }
 
@@ -43,7 +63,7 @@ build_tags() {
 case "$cmd" in
   add)
     [ -z "$login" ] && usage
-    if [ -z "$TOKEN" ]; then echo "错误: 请先设置 ADMIN_TOKEN 环境变量" >&2; exit 1; fi
+    if [ -z "$TOKEN" ]; then echo "错误: 请用 --token <ADMIN_TOKEN> 或设置 ADMIN_TOKEN 环境变量" >&2; exit 1; fi
     tags=""; contrib=""
     while [ $# -gt 2 ]; do
       case "$3" in
@@ -66,7 +86,7 @@ case "$cmd" in
     ;;
   remove)
     [ -z "$login" ] && usage
-    if [ -z "$TOKEN" ]; then echo "错误: 请先设置 ADMIN_TOKEN 环境变量" >&2; exit 1; fi
+    if [ -z "$TOKEN" ]; then echo "错误: 请用 --token <ADMIN_TOKEN> 或设置 ADMIN_TOKEN 环境变量" >&2; exit 1; fi
     curl -s -X DELETE "$BASE/api/v1/contributors/$login" -H "Authorization: Bearer $TOKEN"
     echo
     ;;
