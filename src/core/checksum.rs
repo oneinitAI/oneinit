@@ -2,7 +2,7 @@
 //!
 //! Sources tried in order: SQLite cache → official source (node SHASUMS256.txt,
 //! python.org SPDX SBOM / pinned hashes, dl.google.com `.sha256` sidecar /
-//! go.dev dl JSON, rust sha256 file) → embedded map.
+//! go.dev dl JSON) → embedded map.
 
 use super::{CoreError, Result};
 
@@ -62,7 +62,6 @@ pub async fn resolve(
         "node" => node_checksum(version, filename).await?,
         "python" => python_checksum(version, filename).await?,
         "go" => go_checksum(version, filename).await?,
-        "rust" => rust_checksum(version, filename).await?,
         _ => None,
     };
 
@@ -155,25 +154,6 @@ async fn go_checksum(version: &str, filename: &str) -> Result<Option<String>> {
         }
     }
     Ok(None)
-}
-
-/// static.rust-lang.org `rust-{version}.sha256` — one hash per line: `<hash>  <filename>`.
-async fn rust_checksum(version: &str, filename: &str) -> Result<Option<String>> {
-    // version is "stable" → resolve the concrete channel version via the
-    // channel manifest; simplest reliable path: the sha256 file is keyed by
-    // version, so map "stable" to the downloaded channel (fallback: accept
-    // whatever version string the caller resolved, e.g. "1.82.0").
-    let v = if version == "stable" {
-        "stable".to_string()
-    } else {
-        version.to_string()
-    };
-    let url = format!("https://static.rust-lang.org/dist/rust-{v}.sha256");
-    let text = match fetch_text(&url).await {
-        Ok(t) => t,
-        Err(_) => return Ok(None), // channel sha256 may not exist for "stable"
-    };
-    Ok(parse_shasums(&text, filename))
 }
 
 /// Parse `hash  filename` (shasum format) lines.

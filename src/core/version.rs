@@ -23,7 +23,12 @@ fn embedded_catalog(recipe: &str) -> Option<(&'static str, &'static str, &'stati
             &["22.11.0", "21.7.3", "20.18.1", "18.20.4"],
         )),
         "go" => Some(("1.23.4", "1.23.4", &["1.24.0", "1.23.4", "1.22.10"])),
-        "java" => Some(("17.0.20", "21.0.4", &["21.0.4", "17.0.20", "11.0.24"])),
+        // java (Temurin) — LTS lines as of 2026; refreshed from Adoptium.
+        "java" => Some((
+            "21.0.12",
+            "25.0.4",
+            &["25.0.4", "21.0.12", "17.0.20", "11.0.32"],
+        )),
         "rust" => Some(("stable", "stable", &["stable", "1.82.0"])),
         _ => None,
     }
@@ -118,7 +123,8 @@ fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
 }
 
 /// Refresh the version catalog from official APIs, caching into SQLite.
-/// Supports node (index.json) and go (go.dev JSON). Others keep embedded.
+/// Supports node (index.json), go (go.dev JSON) and java (Adoptium
+/// feature_releases for the LTS lines). Others keep embedded.
 pub async fn refresh(recipe: &str) -> Result<usize> {
     match recipe {
         "node" => {
@@ -134,6 +140,17 @@ pub async fn refresh(recipe: &str) -> Result<usize> {
             let n = versions.len();
             for v in versions {
                 super::cache_db::cache_version("go", &v, "go.dev")?;
+            }
+            Ok(n)
+        }
+        "java" => {
+            let mut n = 0;
+            for feature in ["11", "17", "21", "25"] {
+                let versions = fetch_adoptium_versions(feature).await?;
+                for v in versions {
+                    super::cache_db::cache_version("java", &v, "adoptium")?;
+                    n += 1;
+                }
             }
             Ok(n)
         }
@@ -197,6 +214,39 @@ async fn fetch_go_versions() -> Result<Vec<String>> {
     }
     if versions.is_empty() {
         return Err(CoreError::Download("no versions in go.dev index".into()));
+    }
+    Ok(versions)
+}
+
+/// Adoptium `feature_releases` — concrete semvers (e.g. `21.0.12+8`) for a
+/// feature line, newest first.
+async fn fetch_adoptium_versions(feature: &str) -> Result<Vec<String>> {
+    let client = super::self_update::http_client().map_err(|e| CoreError::Other(e.to_string()))?;
+    let url = format!("https://api.adoptium.net/v3/assets/feature_releases/{feature}/ga");
+    let resp = client
+        .get(&url)
+        .header("User-Agent", "oneinit-version-resolver")
+        .send()
+        .await
+        .map_err(|e| CoreError::Download(format!("fetch adoptium versions failed: {e}")))?;
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| CoreError::Download(format!("read adoptium versions failed: {e}")))?;
+    let json: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|e| CoreError::Download(format!("parse adoptium versions failed: {e}")))?;
+    let mut versions = Vec::new();
+    if let Some(arr) = json.as_array() {
+        for rel in arr {
+            if let Some(v) = rel["version_data"]["semver"].as_str() {
+                versions.push(v.to_string());
+            }
+        }
+    }
+    if versions.is_empty() {
+        return Err(CoreError::Download(format!(
+            "no releases in Adoptium feature_releases/{feature}"
+        )));
     }
     Ok(versions)
 }
