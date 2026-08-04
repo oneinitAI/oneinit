@@ -33,6 +33,7 @@ pub async fn run_init(
             let preset = match preset::resolve(name) {
                 Some(p) => p,
                 None => {
+                    formatter.begin_document("init");
                     formatter.output(
                         &format!("[ERROR] Preset not found: '{}'。Available presets:", name),
                         Some(serde_json::json!({
@@ -44,6 +45,7 @@ pub async fn run_init(
                         })),
                     );
                     list_available_presets(formatter);
+                    formatter.end_document();
                     return;
                 }
             };
@@ -88,6 +90,7 @@ pub async fn run_init(
         }
         None => {
             // no preset specified, listing available presets
+            formatter.begin_document("init");
             formatter.output(
                 "No preset specified. Available presets:",
                 Some(serde_json::json!({
@@ -97,6 +100,7 @@ pub async fn run_init(
                 })),
             );
             list_available_presets(formatter);
+            formatter.end_document();
         }
     }
 }
@@ -245,6 +249,7 @@ fn detect_project_toolchains(dir: &std::path::Path) -> Vec<(String, String)> {
 
 /// list all available presets
 fn list_available_presets(formatter: &OutputFormatter) {
+    formatter.begin_document("init_presets");
     let presets = preset::list_presets();
     for p in &presets {
         formatter.output(
@@ -263,6 +268,7 @@ fn list_available_presets(formatter: &OutputFormatter) {
             "usage": "oneinit init --preset <name>"
         })),
     );
+    formatter.end_document();
 }
 
 /// batch install recipe list
@@ -436,6 +442,7 @@ async fn dry_run_install(
                     "action": "install",
                     "package": name,
                     "total_ops": plan.summary.total_ops,
+                    "operations": plan.operations.iter().map(|op| op.describe()).collect::<Vec<_>>(),
                 })),
             );
         }
@@ -917,7 +924,21 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
         })
         .collect();
 
-    let total = builtin.len() + community.len() + remote.len();
+    // versioned families（动态配方：支持 name@version / @latest / @lts）
+    let families: Vec<serde_json::Value> = crate::core::version::FAMILIES
+        .iter()
+        .filter(|f| keyword.is_none_or(|kw| f.contains(&kw.to_lowercase())))
+        .map(|f| {
+            serde_json::json!({
+                "name": f,
+                "version": "@latest",
+                "display_name": format!("{} (versioned — install {}@3.x / @lts / @latest)", f, f),
+                "source": "dynamic",
+            })
+        })
+        .collect();
+
+    let total = builtin.len() + community.len() + remote.len() + families.len();
 
     let mut human = String::new();
     if total == 0 {
@@ -939,11 +960,15 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
         for r in &remote {
             human.push_str(&format!("  - {} v{} [remote]\n", r["name"], r["version"]));
         }
+        for r in &families {
+            human.push_str(&format!("  - {} v{} [dynamic]\n", r["name"], r["version"]));
+        }
     }
 
     let mut all_results = builtin.clone();
     all_results.extend(community);
     all_results.extend(remote);
+    all_results.extend(families);
 
     formatter.output(
         human.trim(),
@@ -1477,6 +1502,7 @@ pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
             let total = result.checks.len();
             let passed = result.checks.iter().filter(|(_, ok, _)| *ok).count();
 
+            formatter.begin_document("verify");
             for (name, ok, detail) in &result.checks {
                 let tag = if detail.starts_with("[WARN]") {
                     "[WARN]"
@@ -1511,6 +1537,7 @@ pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
                     "valid": result.valid,
                 })),
             );
+            formatter.end_document();
         }
         Err(e) => {
             formatter.error(&e);
@@ -1567,6 +1594,7 @@ pub async fn run_update(formatter: &OutputFormatter) {
     use crate::core::registry;
 
     let urls = registry::all_registry_urls();
+    formatter.begin_document("update");
     formatter.output(
         &format!(
             "[UPDATE] Fetching recipe index from {}  registry(s): {}",
@@ -1612,6 +1640,7 @@ pub async fn run_update(formatter: &OutputFormatter) {
             );
         }
     }
+    formatter.end_document();
 }
 
 /// oneinit issue [recipe|bug] — 打开配方仓库 issue 表单
@@ -1959,10 +1988,11 @@ pub async fn run_doctor(formatter: &OutputFormatter) {
     };
     checks.push(("registry_cache".to_string(), true, index_detail));
 
-    // 输出结果
+    // 输出结果（JSON 模式：所有检查打包为单文档）
     let total = checks.len();
     let passed = checks.iter().filter(|(_, ok, _)| *ok).count();
 
+    formatter.begin_document("doctor");
     for (name, ok, detail) in &checks {
         let tag = if *ok { "[OK]" } else { "[FAIL]" };
         formatter.output(
@@ -1994,6 +2024,7 @@ pub async fn run_doctor(formatter: &OutputFormatter) {
             "healthy": healthy,
         })),
     );
+    formatter.end_document();
 }
 
 /// oneinit freeze [-o file] — export installed tools as oneinit.yaml
@@ -2069,6 +2100,7 @@ pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
             "status": "success", "action": "freeze",
             "output": output, "count": records.len(),
             "tools": envs.keys().collect::<Vec<_>>(),
+            "envs": envs,
         })),
     );
 }
@@ -2090,6 +2122,11 @@ pub async fn run_skill_install(formatter: &OutputFormatter, target: &str) {
     } else {
         crate::skill_mgr::install_to(target, formatter);
     }
+}
+
+/// oneinit skill list -- 列出各 AI 助手的 Skill 安装情况
+pub async fn run_skill_list(formatter: &OutputFormatter) {
+    crate::skill_mgr::status(formatter);
 }
 
 /// oneinit skill status -- 查看 Skill 安装状态

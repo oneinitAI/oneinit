@@ -148,6 +148,7 @@ pub fn status(formatter: &OutputFormatter) {
         return;
     }
 
+    formatter.begin_document("skill_status");
     let mut results = Vec::new();
     for (name, skills_dir) in &agents {
         let skill_path = skills_dir.join("oneinit/SKILL.md");
@@ -177,6 +178,7 @@ pub fn status(formatter: &OutputFormatter) {
             "agents": results, "installed_count": installed_count,
         })),
     );
+    formatter.end_document();
 }
 
 /// 从所有助手卸载 Skill

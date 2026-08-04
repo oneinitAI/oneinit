@@ -354,10 +354,16 @@ pub fn status(formatter: &crate::output::OutputFormatter) {
     if cfg.team_url.is_empty() {
         formatter.output(
             "[TEAM] 未配置团队环境 — 使用 oneinit team add <url>",
-            Some(serde_json::Value::Null),
+            Some(serde_json::json!({
+                "action": "team_status",
+                "status": "not_configured",
+                "configured": false,
+                "message": "Use `oneinit team add <url>` to configure",
+            })),
         );
         return;
     }
+    formatter.begin_document("team_status");
     formatter.output(
         &format!("[TEAM] URL: {}", cfg.team_url),
         Some(serde_json::Value::Null),
@@ -402,6 +408,20 @@ pub fn status(formatter: &crate::output::OutputFormatter) {
         ),
         Some(serde_json::Value::Null),
     );
+    formatter.output(
+        "[TEAM] 团队环境已配置",
+        Some(serde_json::json!({
+            "action": "team_status",
+            "status": "configured",
+            "configured": true,
+            "team_url": cfg.team_url,
+            "team_name": cfg.team_name.clone(),
+            "signed": cfg.public_key.is_some(),
+            "last_check": cfg.last_check,
+            "last_sync": cfg.last_sync,
+        })),
+    );
+    formatter.end_document();
 }
 
 /// 检测团队环境是否有变化；有变化时返回新 team.yaml 内容

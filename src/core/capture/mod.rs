@@ -75,6 +75,7 @@ pub struct DotfileEntry {
 ///
 /// 流程：注册检测器 -> scan -> 构建 EnvironmentSnapshot -> 序列化 YAML -> 写入文件
 pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()> {
+    formatter.begin_document("capture");
     formatter.output(
         "[SCAN] 开始扫描开发环境...",
         Some(serde_json::json!({
@@ -147,12 +148,20 @@ pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()>
     };
 
     // 5. 序列化为 YAML
-    let yaml = serde_yaml::to_string(&snapshot)
-        .map_err(|e| CoreError::Capture(format!("YAML serialize failed: {}", e)))?;
+    let yaml = match serde_yaml::to_string(&snapshot) {
+        Ok(y) => y,
+        Err(e) => {
+            formatter.end_document();
+            return Err(CoreError::Capture(format!("YAML serialize failed: {}", e)));
+        }
+    };
 
     // 6. 写入文件
     let path = Path::new(output_path);
-    std::fs::write(path, &yaml)?;
+    if let Err(e) = std::fs::write(path, &yaml) {
+        formatter.end_document();
+        return Err(e.into());
+    }
 
     let detected_count = snapshot.envs.len();
     formatter.output(
@@ -168,6 +177,7 @@ pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()>
             "detected": snapshot.envs.keys().collect::<Vec<_>>(),
         })),
     );
+    formatter.end_document();
 
     Ok(())
 }
