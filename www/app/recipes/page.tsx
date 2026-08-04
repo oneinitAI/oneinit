@@ -23,6 +23,7 @@ type Contributor = {
   contributions: number;
   repos: string[];
   source: string[];
+  tags: string[];
 };
 
 export default function RecipesPage() {
@@ -243,11 +244,21 @@ export default function RecipesPage() {
                         loading="lazy"
                       />
                       <div className="leading-tight">
-                        <div className="text-sm font-semibold text-zinc-200 group-hover:text-emerald-300">
-                          {c.login}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-semibold text-zinc-200 group-hover:text-emerald-300">
+                            {c.login}
+                          </span>
+                          {c.tags?.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-400"
+                            >
+                              {tag}
+                            </span>
+                          ))}
                         </div>
                         <div className="font-mono text-[10px] text-zinc-500">
-                          {c.contributions} · {c.repos.join(" / ")}
+                          {c.contributions} · {c.repos.join(" / ") || c.source.join(" / ")}
                         </div>
                       </div>
                     </a>
