@@ -1,5 +1,16 @@
 {
   "entries": [
-    { "login": "BG4JTS", "tags": ["core"] }
+    {
+      "login": "BG4JTS",
+      "tags": [
+        "core"
+      ]
+    },
+    {
+      "login": "oneinitAI",
+      "tags": [
+        "core"
+      ]
+    }
   ]
 }
