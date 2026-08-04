@@ -31,3 +31,22 @@
 - **Recipes**: `oneinit recipe wizard <tool>` → generate → `oneinit recipe
   contribute <file>` → upload (or open a PR manually)
 - **API**: `GET https://oneinit.bg4jts.cn/api/v1/contributors`
+
+### Admin / 管理员
+
+Site admins can manually add contributions and tag contributors (stored in
+`contributors.extra.json`, merged with the GitHub-synced data):
+
+```bash
+# 新增/修改手动贡献与标签（ADMIN_TOKEN 为 Vercel 环境变量）
+curl -X POST https://oneinit.bg4jts.cn/api/v1/contributors \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H "Content-Type: application/json" \
+  -d '{"login":"someone","contributions":12,"tags":["core","recipes"]}'
+
+# 移除手动条目
+curl -X DELETE https://oneinit.bg4jts.cn/api/v1/contributors/someone \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+管理员可手动设置贡献数与标签（数据存 `contributors.extra.json`，与 GitHub
+自动数据合并展示）。
