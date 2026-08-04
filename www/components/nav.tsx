@@ -11,6 +11,11 @@ export function Nav() {
           oneinit
         </a>
         <div className="flex items-center gap-1.5 sm:gap-3">
+        <a href="/recipes"
+           className="rounded-lg border border-white/[0.06] p-2 sm:px-3 sm:py-1.5 text-sm font-medium text-zinc-400 hover:border-emerald-600/30 hover:text-emerald-400 transition-all flex items-center gap-1.5">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4"/></svg>
+          <span className="hidden sm:inline">{t("nav.recipes")}</span>
+        </a>
         <button
           onClick={toggle}
           className="rounded-lg border border-white/[0.06] px-2 py-1.5 font-mono text-xs font-medium text-zinc-400 hover:border-emerald-600/30 hover:text-emerald-400 transition-all"

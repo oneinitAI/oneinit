@@ -333,6 +333,7 @@ pub fn git_contribution_instructions(recipe: &CommunityRecipe) -> String {
 ///   POST {UPLOAD_ENDPOINT}
 ///   Content-Type: application/yaml
 ///   body: 配方 YAML
+/// 成功时后端返回 `{ ok, pull_request_url }`（配方进入 GitHub 审核 PR）。
 pub async fn upload_recipe(recipe: &CommunityRecipe) -> Result<()> {
     let yaml = serde_yaml::to_string(recipe)
         .map_err(|e| CoreError::Other(format!("YAML serialize failed: {}", e)))?;
@@ -344,9 +345,19 @@ pub async fn upload_recipe(recipe: &CommunityRecipe) -> Result<()> {
         .send()
         .await;
     match resp {
-        Ok(r) if r.status().is_success() => Ok(()),
+        Ok(r) if r.status().is_success() => {
+            let text = r.text().await.unwrap_or_default();
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text)
+                && let Some(url) = json["pull_request_url"].as_str()
+            {
+                println!("[WIZARD] 上传成功！配方已提交审核，PR: {}", url);
+            } else {
+                println!("[WIZARD] 上传成功，配方已提交审核");
+            }
+            Ok(())
+        }
         _ => Err(CoreError::Other(format!(
-            "上传服务（{}）尚未就绪，暂时无法在线提交",
+            "上传服务（{}）暂时无法提交，配方保留在本地可稍后重试",
             UPLOAD_ENDPOINT
         ))),
     }
