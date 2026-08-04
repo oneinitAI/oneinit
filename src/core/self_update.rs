@@ -133,7 +133,7 @@ fn platform_asset(tag: &str) -> Result<String> {
     Ok(format!("oneinit-{tag}-{os}-{arch}.{ext}"))
 }
 
-fn http_client() -> Result<reqwest::Client> {
+pub(crate) fn http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
         .redirect(reqwest::redirect::Policy::none())

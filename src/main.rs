@@ -63,10 +63,10 @@ enum Commands {
         project: Option<String>,
     },
 
-    /// Install a tool（如 python3.7, node18）
+    /// Install a tool（如 python3.7, node18, python@3.11, node@lts）
     #[command(visible_alias = "i")]
     Install {
-        /// 要安装的工具包名称
+        /// 要安装的工具包名称（支持 name@version，如 python@3.11 / node@lts）
         package: String,
         /// 允许执行远程配方声明的命令 / 安装器（默认拒绝）
         #[arg(
@@ -77,6 +77,12 @@ enum Commands {
         /// 只预览将要执行的操作，不实际安装
         #[arg(long)]
         dry_run: bool,
+        /// 强制刷新版本 / 校验哈希缓存
+        #[arg(long)]
+        refresh: bool,
+        /// 跳过校验哈希验证（风险自负）
+        #[arg(long)]
+        no_checksum: bool,
     },
 
     /// Uninstall a tool
@@ -89,12 +95,20 @@ enum Commands {
         dry_run: bool,
     },
 
-    /// List installed tools
+    /// List installed tools / available versions
     #[command(visible_alias = "ls")]
     List {
-        /// 输出格式: table / csv（默认 table；json 用全局 --json）
+        /// 输出格式: table / csv（installed 列表）
         #[arg(long, value_parser = ["table", "csv"])]
         format: Option<String>,
+        #[command(subcommand)]
+        action: Option<ListAction>,
+    },
+
+    /// 查看配方版本信息（如 oneinit info python@3.11）
+    Info {
+        /// 包名（支持 name@version）
+        package: String,
     },
 
     /// Search available tools
@@ -221,6 +235,15 @@ enum Commands {
         /// 跳过全局包扫描（快速模式）
         #[arg(long)]
         no_scan: bool,
+    },
+}
+
+#[derive(clap::Subcommand)]
+enum ListAction {
+    /// 列出配方的可用版本（如 oneinit list versions python）
+    Versions {
+        /// 配方名（python / node / go / java / rust）
+        recipe: String,
     },
 }
 
@@ -359,11 +382,29 @@ async fn main() {
             package,
             allow_exec,
             dry_run,
-        } => cli::run_install(&formatter, &package, allow_exec, dry_run).await,
+            refresh,
+            no_checksum,
+        } => {
+            cli::run_install(
+                &formatter,
+                &package,
+                allow_exec,
+                dry_run,
+                refresh,
+                no_checksum,
+            )
+            .await
+        }
         Commands::Uninstall { package, dry_run } => {
             cli::run_uninstall(&formatter, &package, dry_run).await
         }
-        Commands::List { format } => cli::run_list(&formatter, format.as_deref()).await,
+        Commands::List { format, action } => match action {
+            Some(ListAction::Versions { recipe }) => {
+                cli::run_list_versions(&formatter, &recipe).await
+            }
+            None => cli::run_list(&formatter, format.as_deref()).await,
+        },
+        Commands::Info { package } => cli::run_info(&formatter, &package).await,
         Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()).await,
         Commands::Sync { dry_run } => cli::run_sync(&formatter, dry_run).await,
         Commands::Capture { output } => {

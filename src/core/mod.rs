@@ -1,7 +1,10 @@
+pub mod cache_db;
 pub mod capture;
+pub mod checksum;
 pub mod community_recipe;
 pub mod config_gen;
 pub mod downloader;
+pub mod dynamic;
 pub mod manifest;
 pub mod migration;
 pub mod operation;
@@ -13,6 +16,7 @@ pub mod registry;
 pub mod self_update;
 pub mod sync;
 pub mod team;
+pub mod version;
 pub mod viz;
 
 use std::path::PathBuf;
