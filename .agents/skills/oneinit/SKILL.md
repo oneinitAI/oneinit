@@ -351,6 +351,10 @@ maintainer:
 
 ## Generating Recipes (recipe authoring guide)
 
+> **No recipe exists yet?** Follow the **`recipe-wizard` 分 skill** (AI-driven):
+> the AI writes a step-by-step tutorial, or generates a recipe YAML, installs it
+> with oneinit, then offers the contribution flow (website upload / git PR).
+
 When the user asks to create a recipe, follow this workflow:
 
 ### 1. Gather facts (never guess checksums)

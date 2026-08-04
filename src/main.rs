@@ -138,12 +138,6 @@ enum Commands {
         file: String,
     },
 
-    /// 配方向导：无现成配方时生成/教程/贡献
-    Recipe {
-        #[command(subcommand)]
-        action: RecipeAction,
-    },
-
     /// Update remote recipe index (like apt update)
     Update,
 
@@ -304,33 +298,6 @@ enum SkillAction {
 }
 
 #[derive(clap::Subcommand)]
-enum RecipeAction {
-    /// 交互式配方向导：教程 / 生成配方+安装 / 贡献
-    Wizard {
-        /// 工具名
-        tool: String,
-        /// 允许执行安装脚本（配方含 post-install 命令时必需）
-        #[arg(long)]
-        allow_exec: bool,
-    },
-    /// 查看手动安装教程
-    Tutorial {
-        /// 工具名
-        tool: String,
-    },
-    /// 生成一个配方并保存到 ~/.oneinit/recipes/（不安装）
-    Create {
-        /// 工具名
-        tool: String,
-    },
-    /// 贡献已生成的配方（上传 oneinit.bg4jts.cn / git）
-    Contribute {
-        /// 配方 YAML 文件路径
-        file: String,
-    },
-}
-
-#[derive(clap::Subcommand)]
 enum RegistryAction {
     /// 添加自定义订阅 URL（可多个）
     Add {
@@ -446,16 +413,6 @@ async fn main() {
             cli::run_capture(&formatter, output.as_deref().unwrap_or("oneinit.yaml")).await
         }
         Commands::Verify { file } => cli::run_verify(&formatter, &file).await,
-        Commands::Recipe { action } => match action {
-            RecipeAction::Wizard { tool, allow_exec } => {
-                cli::run_recipe_wizard(&formatter, &tool, allow_exec).await
-            }
-            RecipeAction::Tutorial { tool } => cli::run_recipe_tutorial(&formatter, &tool).await,
-            RecipeAction::Create { tool } => cli::run_recipe_create(&formatter, &tool).await,
-            RecipeAction::Contribute { file } => {
-                cli::run_recipe_contribute(&formatter, &file).await
-            }
-        },
         Commands::Update => cli::run_update(&formatter).await,
         Commands::Registry { action } => match action {
             RegistryAction::Add { url } => cli::run_registry_add(&formatter, &url),

@@ -10,7 +10,8 @@ import { NextResponse } from "next/server";
  *     贡献数与标签（manual）
  * 按登录名合并、去重，按贡献数排序。
  *
- * GET 缓存 1 小时；POST（管理员）写入 extra 文件后即时生效。
+ * GET 缓存 5 分钟（每 5 分钟刷新，管理员修改后最多 5 分钟生效）；
+ * POST（管理员）写入 extra 文件后即时生效。
  */
 
 const MAIN_REPO = "oneinitAI/oneinit";
@@ -46,7 +47,7 @@ type ExtraFile = { entries: ExtraEntry[] };
  *  不存在/失败时降级为空文件 */
 async function readExtraRaw(): Promise<ExtraFile> {
   try {
-    const res = await fetch(EXTRA_RAW_URL, { next: { revalidate: 60 } });
+    const res = await fetch(EXTRA_RAW_URL, { next: { revalidate: 300 } });
     if (res.status === 404) return { entries: [] };
     if (!res.ok) return { entries: [] };
     return (await res.json()) as ExtraFile;
@@ -104,7 +105,7 @@ function isAdmin(req: Request): boolean {
   return auth === `Bearer ${token}`;
 }
 
-export const revalidate = 3600;
+export const revalidate = 300;
 
 export async function GET() {
   const merged: Record<string, Contributor> = {};
@@ -131,7 +132,7 @@ export async function GET() {
       try {
         const res = await fetch(`${GH}/repos/${repo}/contributors?per_page=100`, {
           headers: { ...UA, ...ghAuth() },
-          next: { revalidate: 3600 },
+          next: { revalidate: 300 },
         });
         if (!res.ok) return;
         const list: any[] = await res.json();
@@ -146,7 +147,7 @@ export async function GET() {
 
   // 2. 配方仓库 INDEX maintainers（配方贡献者）
   try {
-    const idxRes = await fetch(INDEX_URL, { next: { revalidate: 3600 } });
+    const idxRes = await fetch(INDEX_URL, { next: { revalidate: 300 } });
     if (idxRes.ok) {
       const index = await idxRes.json();
       for (const p of Object.values(index.packages || {}) as any[]) {

@@ -12,7 +12,6 @@ pub mod path_mgr;
 pub mod planner;
 pub mod preset;
 pub mod recipe;
-pub mod recipe_wizard;
 pub mod registry;
 pub mod self_update;
 pub mod sync;
