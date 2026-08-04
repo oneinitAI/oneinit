@@ -21,7 +21,12 @@ export async function GET() {
       .then((r) => r.ok)
       .catch(() => false),
     fetch(`https://api.github.com/repos/${REPO}`, {
-      headers: UA,
+      headers: {
+        ...UA,
+        ...(process.env.GITHUB_TOKEN
+          ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
+          : {}),
+      },
       signal: AbortSignal.timeout(8000),
     })
       .then((r) => r.ok)
