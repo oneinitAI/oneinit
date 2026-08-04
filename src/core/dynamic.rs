@@ -197,8 +197,9 @@ async fn go_recipe(version: &str) -> Result<CommunityRecipe> {
     })
 }
 
-/// python — Windows embeddable zip (mirrors the builtin python3.11 recipe).
-/// Linux/macOS dynamic python is not supported yet (needs build toolchain).
+/// python — Windows embeddable zip + pip bootstrap (mirrors the builtin
+/// python3.11 recipe). Linux/macOS dynamic python is not supported yet
+/// (needs build toolchain).
 async fn python_recipe(version: &str) -> Result<CommunityRecipe> {
     if !cfg!(target_os = "windows") {
         return Err(CoreError::Other(
@@ -212,10 +213,26 @@ async fn python_recipe(version: &str) -> Result<CommunityRecipe> {
     let filename = format!("python-{version}-embed-{a}.zip");
     let url = format!("https://www.python.org/ftp/python/{version}/{filename}");
 
+    // major.minor without dots ("3.11.9" → "311"), used for the ._pth file
+    let short_version: String = version.split('.').take(2).collect::<Vec<_>>().join("");
+    // pip bootstrap (same semantics as the builtin python3.11 recipe):
+    // 1) uncomment `import site` in the ._pth — pip needs site-packages
+    // 2) download + run get-pip.py from the official PyPI bootstrap source
+    let uncomment_site = format!(
+        "powershell -NoProfile -Command \"(Get-Content '{{{{install_dir}}}}\\python{s}.pth') \
+         -replace '^#import site','import site' | Set-Content '{{{{install_dir}}}}\\python{s}.pth'\"",
+        s = short_version,
+    );
+    let bootstrap_pip =
+        "curl -fsSL https://bootstrap.pypa.io/get-pip.py -o \"{{install_dir}}\\get-pip.py\" \
+         && \"{{install_dir}}\\python.exe\" \"{{install_dir}}\\get-pip.py\" \
+         --index-url https://pypi.org/simple && del \"{{install_dir}}\\get-pip.py\""
+            .to_string();
+
     Ok(CommunityRecipe {
         name: format!("python@{version}"),
         version: version.to_string(),
-        description: format!("Python {version} (embeddable)"),
+        description: format!("Python {version} (embeddable + pip)"),
         license: Some("PSF-2.0".into()),
         license_url: Some("https://docs.python.org/3/license.html".into()),
         platforms: Platforms {
@@ -236,7 +253,7 @@ async fn python_recipe(version: &str) -> Result<CommunityRecipe> {
                 path: "{{install_dir}}/pip.conf".into(),
                 template: "[global]\nindex-url = https://pypi.tuna.tsinghua.edu.cn/simple\ntrusted-host = pypi.tuna.tsinghua.edu.cn\n".into(),
             }]),
-            commands: None,
+            commands: Some(vec![uncomment_site, bootstrap_pip]),
         }),
         depends: None,
         tags: Some(vec!["runtime".into(), "python".into()]),
