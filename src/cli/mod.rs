@@ -589,8 +589,11 @@ async fn resolve_recipe_with_deps(
         }
     }
 
-    // 3. 远程注册表
-    if let Some(entry) = registry::resolve(name) {
+    // 3. 远程注册表（versioned families 交给动态配方系统处理，避免注册表
+    //    版本回退覆盖 @version 语义）
+    if !crate::core::version::is_versioned(name)
+        && let Some(entry) = registry::resolve(name)
+    {
         let target_version = match version_spec {
             Some("latest") | None => entry.latest.clone(),
             Some(v) => {
