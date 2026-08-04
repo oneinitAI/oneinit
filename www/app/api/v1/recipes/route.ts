@@ -192,7 +192,7 @@ export async function GET() {
     const packages: Record<string, any> = index?.packages || {};
 
     const prRes = await fetch(`${GH}/repos/${REPO}/pulls?state=open&per_page=50`, {
-      headers: ghHeaders(),
+      headers: ghHeaders(process.env.GITHUB_TOKEN),
       next: { revalidate: 300 },
     });
     const prs: any[] = prRes.ok ? await prRes.json() : [];

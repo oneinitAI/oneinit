@@ -13,6 +13,12 @@ const INDEX_URL = `https://raw.githubusercontent.com/${REPO}/main/INDEX.json`;
 
 const UA = { "User-Agent": "oneinit-bg4jts-cn" };
 
+/** GitHub API 读取统一带 GITHUB_TOKEN 认证（避免未认证限流 60/时） */
+function ghAuth(): Record<string, string> {
+  const token = process.env.GITHUB_TOKEN;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export const revalidate = 300;
 
 export async function GET() {
@@ -24,14 +30,14 @@ export async function GET() {
 
     // 2. 平台覆盖 — recipes/<name>/<version>.yaml（限量 60 个配方）
     const platformCoverage = { windows: 0, linux: 0, darwin: 0 };
-    const listRes = await fetch(`${GH}/repos/${REPO}/contents/recipes`, { headers: UA, next: { revalidate: 300 } });
+    const listRes = await fetch(`${GH}/repos/${REPO}/contents/recipes`, { headers: { ...UA, ...ghAuth() }, next: { revalidate: 300 } });
     if (listRes.ok) {
       const dirs: any[] = await listRes.json();
       const recipeDirs = dirs.filter((d) => d.type === "dir").slice(0, 60);
       await Promise.all(
         recipeDirs.map(async (d) => {
           try {
-            const innerRes = await fetch(d.url, { headers: UA, next: { revalidate: 300 } });
+            const innerRes = await fetch(d.url, { headers: { ...UA, ...ghAuth() }, next: { revalidate: 300 } });
             if (!innerRes.ok) return;
             const inner: any[] = await innerRes.json();
             const yamlFile = inner.find((f) => f.name.endsWith(".yaml"));
