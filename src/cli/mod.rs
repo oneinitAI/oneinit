@@ -1891,136 +1891,69 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
 
 /// oneinit doctor — environment health check
 pub async fn run_doctor(formatter: &OutputFormatter) {
-    use crate::core::manifest::Manifest;
-    use std::path::Path;
+    use crate::core::doctor::{Severity, category_order, is_healthy, run_all, warning_count};
 
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
     }
 
-    let mut checks: Vec<(String, bool, String)> = Vec::new();
-
-    // 1. 数据目录
-    let data_dir = crate::core::data_dir();
-    let ok = data_dir.exists();
-    checks.push((
-        "data_dir".to_string(),
-        ok,
-        if ok {
-            data_dir.display().to_string()
-        } else {
-            "不exists".to_string()
-        },
-    ));
-
-    // 2. SQLite manifest readable
-    let manifest_ok = Manifest::open().is_ok();
-    checks.push((
-        "manifest_db".to_string(),
-        manifest_ok,
-        if manifest_ok {
-            "readable".to_string()
-        } else {
-            "cannot open".to_string()
-        },
-    ));
-
-    // 3. manifest vs 实际安装目录一致性
-    if manifest_ok
-        && let Ok(manifest) = Manifest::open()
-        && let Ok(records) = manifest.list()
-    {
-        let mut orphan_paths = 0;
-        let mut orphan_path_entries = 0;
-        for record in &records {
-            let install_path = Path::new(&record.install_path);
-            if !install_path.exists() {
-                orphan_paths += 1;
-            }
-            for entry in &record.path_entries {
-                if !Path::new(entry).exists() {
-                    orphan_path_entries += 1;
-                }
-            }
-        }
-        let ok = orphan_paths == 0 && orphan_path_entries == 0;
-        let detail = if ok {
-            format!("{} records all consistent", records.len())
-        } else {
-            format!(
-                "{} install directories missing, {} PATH entries point to non-existent paths",
-                orphan_paths, orphan_path_entries
-            )
-        };
-        checks.push(("consistency".to_string(), ok, detail));
-    }
-
-    // 4. PATH 中是否有 oneinit 条目（正常情况）
-    let path_var = std::env::var("PATH").unwrap_or_default();
-    let has_oneinit = path_var.contains(".oneinit");
-    checks.push((
-        "path_entries".to_string(),
-        true, // 信息性检查，不算错误
-        if has_oneinit {
-            "PATH contains oneinit-managed entries".to_string()
-        } else {
-            "No oneinit entries in PATH (normal if no tools installed)".to_string()
-        },
-    ));
-
-    // 5. 磁盘空间
-    let envs_dir = crate::core::envs_dir();
-    let disk_ok = envs_dir.exists();
-    checks.push((
-        "envs_dir".to_string(),
-        disk_ok,
-        envs_dir.display().to_string(),
-    ));
-
-    // 6. 缓存索引
-    let cache_index = crate::core::registry::load_cached_index();
-    let index_ok = cache_index.is_some();
-    let index_detail = if index_ok {
-        format!("cached ({} packages)", cache_index.unwrap().packages.len())
-    } else {
-        "not cached (run oneinit update to fetch)".to_string()
-    };
-    checks.push(("registry_cache".to_string(), true, index_detail));
-
-    // 输出结果（JSON 模式：所有检查打包为单文档）
-    let total = checks.len();
-    let passed = checks.iter().filter(|(_, ok, _)| *ok).count();
+    let results = run_all().await;
 
     formatter.begin_document("doctor");
-    for (name, ok, detail) in &checks {
-        let tag = if *ok { "[OK]" } else { "[FAIL]" };
-        formatter.output(
-            &format!("  {} {} - {}", tag, name, detail),
-            Some(serde_json::json!({
-                "check": name, "passed": *ok, "detail": detail,
-            })),
-        );
+
+    // Group by category, in the engine's canonical order.
+    for &cat in category_order() {
+        let rows: Vec<_> = results.iter().filter(|r| r.category == cat).collect();
+        if rows.is_empty() {
+            continue;
+        }
+        formatter.output(&format!("== {} ==", cat), Some(serde_json::Value::Null));
+        for r in rows {
+            let tag = match (r.passed, r.severity) {
+                (_, Severity::Info) => "[INFO]",
+                (true, _) => "[OK]",
+                (false, Severity::Critical) => "[FAIL]",
+                (false, Severity::Warning) => "[WARN]",
+            };
+            // Multi-line detail (e.g. license list) indents nicely under the tag.
+            let indented = r.detail.replace('\n', "\n        ");
+            formatter.output(
+                &format!("  {}   {}", tag, indented),
+                Some(serde_json::json!({
+                    "category": r.category,
+                    "check": r.name,
+                    "passed": r.passed,
+                    "severity": r.severity,
+                    "detail": r.detail,
+                })),
+            );
+        }
+        formatter.output("", Some(serde_json::Value::Null));
     }
 
-    let healthy = passed == total;
+    let healthy = is_healthy(&results);
+    let warnings = warning_count(&results);
+    let critical_failures = results
+        .iter()
+        .filter(|r| !r.passed && r.severity == Severity::Critical)
+        .count();
+    let total = results.len();
+
     formatter.output(
         &format!(
-            "\n[{}] {} 项检查: {}/{} 通过",
+            "[{}] 环境: {} 项检查, {} 警告, {} 严重问题",
             if healthy { "OK" } else { "FAIL" },
-            if healthy {
-                "环境健康"
-            } else {
-                "发现问题"
-            },
-            passed,
-            total
+            total,
+            warnings,
+            critical_failures,
         ),
         Some(serde_json::json!({
             "status": if healthy { "healthy" } else { "issues" },
             "action": "doctor",
             "total_checks": total,
-            "passed": passed,
+            "warnings": warnings,
+            "critical_failures": critical_failures,
             "healthy": healthy,
         })),
     );
