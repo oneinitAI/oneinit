@@ -3,6 +3,7 @@ pub mod capture;
 pub mod checksum;
 pub mod community_recipe;
 pub mod config_gen;
+pub mod doctor;
 pub mod downloader;
 pub mod dynamic;
 pub mod manifest;
