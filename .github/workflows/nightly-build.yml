@@ -1,0 +1,72 @@
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: "30 19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os_arch }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            os_arch: linux-x86_64
+            ext: tar.gz
+            binary: oneinit
+          - os: windows-latest
+            os_arch: windows-x86_64
+            ext: zip
+            binary: oneinit.exe
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@stable # 分支引用，无法 pin SHA
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+      - run: cargo build --release
+      - name: Package
+        shell: bash
+        run: |
+          DIR="oneinit-nightly-${{ matrix.os_arch }}"
+          mkdir -p "$DIR"
+          cp "target/release/${{ matrix.binary }}" "$DIR/"
+          if [ "${{ matrix.ext }}" = "zip" ]; then
+            powershell -NoProfile -Command "Compress-Archive -Path '$DIR' -DestinationPath '$DIR.zip'"
+          else
+            tar -czf "$DIR.tar.gz" "$DIR"
+          fi
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nightly-${{ matrix.os_arch }}
+          path: "oneinit-nightly-*"
+
+  publish:
+    name: Publish nightly pre-release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: nightly
+          name: "Nightly Build (main)"
+          body: "Auto-built from main daily. For CI verification (配方仓库 nightly)."
+          prerelease: true
+          draft: false
+          update-existing: true
+          files: artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
