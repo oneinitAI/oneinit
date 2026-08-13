@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      publish_npm:
+        description: "Publish to npm (manual — CI never auto-publishes npm)"
+        required: false
+        default: "false"
+        type: boolean
 
 permissions:
   contents: write
@@ -56,7 +62,16 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME:-$(git describe --tags --always)}"
-          ARCHIVE_NAME="oneinit-${VERSION}-${{ matrix.target }}"
+          # 资产命名与 self_update.rs::platform_asset / 配方 CI 一致：
+          #   oneinit-<tag>-<os>-<arch>.<ext>
+          case "${{ matrix.target }}" in
+            x86_64-pc-windows-msvc)   OS_ARCH="windows-x86_64"; EXT="zip" ;;
+            x86_64-unknown-linux-gnu) OS_ARCH="linux-x86_64";   EXT="tar.gz" ;;
+            x86_64-apple-darwin)       OS_ARCH="macos-x86_64";   EXT="tar.gz" ;;
+            aarch64-apple-darwin)      OS_ARCH="macos-aarch64";  EXT="tar.gz" ;;
+            *) echo "::error::unsupported target: ${{ matrix.target }}"; exit 1 ;;
+          esac
+          ARCHIVE_NAME="oneinit-${VERSION}-${OS_ARCH}"
           BINARY="target/${{ matrix.target }}/release/${{ matrix.binary }}"
 
           mkdir -p "$ARCHIVE_NAME"
@@ -64,13 +79,13 @@ jobs:
           cp README.md "$ARCHIVE_NAME/" 2>/dev/null || true
           cp LICENSE "$ARCHIVE_NAME/" 2>/dev/null || true
 
-          if [ "${{ matrix.archive }}" = "zip" ]; then
+          if [ "$EXT" = "zip" ]; then
             7z a -tzip "${ARCHIVE_NAME}.zip" "$ARCHIVE_NAME"
           else
             tar -czf "${ARCHIVE_NAME}.tar.gz" "$ARCHIVE_NAME"
           fi
 
-          echo "ARCHIVE_FILE=${ARCHIVE_NAME}.${{ matrix.archive }}" >> $GITHUB_ENV
+          echo "ARCHIVE_FILE=${ARCHIVE_NAME}.${EXT}" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

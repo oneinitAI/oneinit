@@ -95,7 +95,15 @@ pub async fn run_init(
                 .await;
                 return;
             }
-            batch_install(&preset.packages, formatter, allow_exec, false, false).await;
+            batch_install(
+                &preset.packages,
+                formatter,
+                InstallOptions {
+                    allow_exec,
+                    ..Default::default()
+                },
+            )
+            .await;
         }
         None => {
             // no preset specified, listing available presets
@@ -338,7 +346,14 @@ async fn run_init_project(formatter: &OutputFormatter, dir: &str, dry_run: bool,
     let mut stack = Vec::new();
     for pkg in &packages {
         install_recursive(
-            pkg, None, formatter, &mut stack, allow_exec, false, false, false,
+            pkg,
+            None,
+            formatter,
+            &mut stack,
+            InstallOptions {
+                allow_exec,
+                ..Default::default()
+            },
         )
         .await;
     }
@@ -402,30 +417,15 @@ fn list_available_presets(formatter: &OutputFormatter) {
 }
 
 /// batch install recipe list（与单包 install 一致的四级解析）
-async fn batch_install(
-    packages: &[String],
-    formatter: &OutputFormatter,
-    allow_exec: bool,
-    refresh: bool,
-    no_checksum: bool,
-) {
+async fn batch_install(packages: &[String], formatter: &OutputFormatter, options: InstallOptions) {
     let mut succeeded: Vec<&str> = Vec::new();
     let mut skipped: Vec<&str> = Vec::new();
     let mut failed: Vec<(&str, String)> = Vec::new();
 
     let mut installing_stack = Vec::new();
     for pkg_name in packages {
-        let outcome = install_recursive(
-            pkg_name,
-            None,
-            formatter,
-            &mut installing_stack,
-            allow_exec,
-            refresh,
-            no_checksum,
-            false,
-        )
-        .await;
+        let outcome =
+            install_recursive(pkg_name, None, formatter, &mut installing_stack, options).await;
         match outcome {
             InstallOutcome::Installed => succeeded.push(pkg_name),
             InstallOutcome::AlreadyInstalled | InstallOutcome::Skipped(_) => skipped.push(pkg_name),
@@ -493,10 +493,12 @@ pub async fn run_install(
         version_spec.as_deref(),
         formatter,
         &mut Vec::new(),
-        allow_exec,
-        refresh,
-        no_checksum,
-        no_rollback,
+        InstallOptions {
+            allow_exec,
+            refresh,
+            no_checksum,
+            no_rollback,
+        },
     )
     .await;
 }
@@ -564,6 +566,19 @@ pub enum InstallOutcome {
     Failed(String),
 }
 
+/// 安装选项（避免 install_recursive 参数过长）
+#[derive(Debug, Clone, Copy, Default)]
+pub struct InstallOptions {
+    /// 允许执行含命令/安装器的配方（默认拒绝，安全 H-4）
+    pub allow_exec: bool,
+    /// 强制刷新版本/校验和缓存
+    pub refresh: bool,
+    /// 跳过校验和验证（风险自负）
+    pub no_checksum: bool,
+    /// 安装失败时跳过自动回滚（调试用）
+    pub no_rollback: bool,
+}
+
 /// recursive install (handle dependencies)
 ///
 /// installing_stack prevents circular dependencies.
@@ -573,10 +588,7 @@ fn install_recursive<'a>(
     version_spec: Option<&'a str>,
     formatter: &'a OutputFormatter,
     installing_stack: &'a mut Vec<String>,
-    allow_exec: bool,
-    refresh: bool,
-    no_checksum: bool,
-    no_rollback: bool,
+    options: InstallOptions,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = InstallOutcome> + 'a>> {
     Box::pin(async move {
         // 防止循环依赖
@@ -609,12 +621,18 @@ fn install_recursive<'a>(
         }
 
         // find recipe（内置 -> 本地社区 -> 远程 -> 动态非完全匹配），同时获取依赖信息
-        let recipe_info =
-            resolve_recipe_with_deps(name, version_spec, formatter, refresh, no_checksum).await;
+        let recipe_info = resolve_recipe_with_deps(
+            name,
+            version_spec,
+            formatter,
+            options.refresh,
+            options.no_checksum,
+        )
+        .await;
 
         let outcome = match recipe_info {
             RecipeResolution::Builtin(rec) => {
-                match recipe::install(&rec, formatter, no_rollback).await {
+                match recipe::install(&rec, formatter, options.no_rollback).await {
                     Ok(()) => InstallOutcome::Installed,
                     Err(e) => {
                         formatter.error(&e);
@@ -636,21 +654,20 @@ fn install_recursive<'a>(
                     return InstallOutcome::AlreadyInstalled;
                 }
                 // 先安装依赖；依赖失败则中止主包安装
-                let deps_ok = install_dependencies(
-                    &rec,
-                    formatter,
-                    installing_stack,
-                    allow_exec,
-                    refresh,
-                    no_checksum,
-                    no_rollback,
-                )
-                .await;
+                let deps_ok =
+                    install_dependencies(&rec, formatter, installing_stack, options).await;
                 if !deps_ok {
                     installing_stack.pop();
                     return InstallOutcome::Failed(format!("依赖安装失败: {}", rec.name));
                 }
-                match community_recipe::install(&rec, formatter, allow_exec, no_rollback).await {
+                match community_recipe::install(
+                    &rec,
+                    formatter,
+                    options.allow_exec,
+                    options.no_rollback,
+                )
+                .await
+                {
                     Ok(()) => InstallOutcome::Installed,
                     Err(e) => {
                         formatter.error(&e);
@@ -839,10 +856,7 @@ async fn install_dependencies(
     recipe: &crate::core::community_recipe::CommunityRecipe,
     formatter: &OutputFormatter,
     installing_stack: &mut Vec<String>,
-    allow_exec: bool,
-    refresh: bool,
-    no_checksum: bool,
-    no_rollback: bool,
+    options: InstallOptions,
 ) -> bool {
     let Some(ref deps) = recipe.depends else {
         return true;
@@ -855,17 +869,7 @@ async fn install_dependencies(
         Some(serde_json::Value::Null),
     );
     for dep in deps {
-        let outcome = install_recursive(
-            dep,
-            None,
-            formatter,
-            installing_stack,
-            allow_exec,
-            refresh,
-            no_checksum,
-            no_rollback,
-        )
-        .await;
+        let outcome = install_recursive(dep, None, formatter, installing_stack, options).await;
         if matches!(outcome, InstallOutcome::Failed(_)) {
             formatter.output(
                 &format!("[ERROR] 依赖 '{}' 安装失败，中止安装主包", dep),
@@ -1166,7 +1170,15 @@ pub async fn run_sync(formatter: &OutputFormatter, dry_run: bool, allow_exec: bo
         dry_run_packages(formatter, "sync", &recipe_names, allow_exec, false, false).await;
         return;
     }
-    batch_install(&recipe_names, formatter, allow_exec, false, false).await;
+    batch_install(
+        &recipe_names,
+        formatter,
+        InstallOptions {
+            allow_exec,
+            ..Default::default()
+        },
+    )
+    .await;
 
     // 4. 应用镜像配置（记录日志，未来扩展覆盖默认镜像）
     if let Some(ref mirrors) = config.mirrors {
@@ -1441,10 +1453,10 @@ async fn apply_team_env(formatter: &OutputFormatter, content: &str, allow_exec: 
                 None,
                 formatter,
                 &mut installing_stack,
-                allow_exec,
-                false,
-                false,
-                false,
+                InstallOptions {
+                    allow_exec,
+                    ..Default::default()
+                },
             )
             .await;
         }
