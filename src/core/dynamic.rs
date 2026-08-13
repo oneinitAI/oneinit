@@ -123,6 +123,7 @@ async fn node_recipe(version: &str) -> Result<CommunityRecipe> {
         tags: Some(vec!["runtime".into(), "javascript".into()]),
         maintainer: None,
         verified: Some(false),
+        dynamic: None,
     })
 }
 
@@ -192,6 +193,7 @@ async fn go_recipe(version: &str) -> Result<CommunityRecipe> {
         tags: Some(vec!["runtime".into(), "go".into()]),
         maintainer: None,
         verified: Some(false),
+        dynamic: None,
     })
 }
 
@@ -257,6 +259,7 @@ async fn python_recipe(version: &str) -> Result<CommunityRecipe> {
         tags: Some(vec!["runtime".into(), "python".into()]),
         maintainer: None,
         verified: Some(false),
+        dynamic: None,
     })
 }
 
@@ -325,6 +328,7 @@ async fn java_recipe(version: &str) -> Result<CommunityRecipe> {
         tags: Some(vec!["runtime".into(), "java".into()]),
         maintainer: None,
         verified: Some(false),
+        dynamic: None,
     })
 }
 
@@ -414,6 +418,7 @@ fn rust_recipe(version: &str) -> Result<CommunityRecipe> {
         tags: Some(vec!["runtime".into(), "rust".into()]),
         maintainer: None,
         verified: Some(false),
+        dynamic: None,
     })
 }
 
@@ -446,6 +451,109 @@ fn checksum_os() -> &'static str {
     } else {
         "linux"
     }
+}
+
+/// 去掉归档扩展名（.zip / .tar.gz），用于推断解压顶层目录名
+fn strip_archive_ext(name: &str) -> String {
+    name.strip_suffix(".tar.gz")
+        .or_else(|| name.strip_suffix(".zip"))
+        .unwrap_or(name)
+        .to_string()
+}
+
+/// 构建 GitHub Release 动态配方（`dynamic` 字段声明的通用模式）
+///
+/// `name` 为配方名（与 YAML `name` 一致）；版本从 GitHub releases API 实时解析。
+pub async fn build_github_release(
+    name: &str,
+    spec: &super::community_recipe::DynamicSpec,
+    version_spec: Option<&str>,
+    no_checksum: bool,
+) -> Result<CommunityRecipe> {
+    use super::community_recipe::{PlatformConfig, Platforms};
+    use super::github_release as gr;
+
+    // 1. 解析版本（latest 或指定 tag）
+    let release = gr::fetch_release(&spec.repo, version_spec).await?;
+    let version = release.tag_name.trim_start_matches('v').to_string();
+
+    // 2. 三平台资产匹配
+    let mut windows = None;
+    let mut linux = None;
+    let mut darwin = None;
+    let mut matched_any = false;
+
+    for (os, ext) in [
+        ("windows", "zip"),
+        ("linux", "tar.gz"),
+        ("darwin", "tar.gz"),
+    ] {
+        let Some((asset_name, url)) =
+            gr::find_asset(&release, &spec.asset_pattern, &version, os, ext)
+        else {
+            continue;
+        };
+        matched_any = true;
+
+        // 校验和（--no-checksum 或空 spec 时跳过）
+        let sha256 = if no_checksum || spec.checksum.is_empty() {
+            String::new()
+        } else {
+            gr::resolve_checksum(&spec.checksum, &release, &asset_name).await?
+        };
+
+        let top_dir = strip_archive_ext(&asset_name);
+        let bin_path = if spec.bin_subdir.is_empty() {
+            format!("{{{{install_dir}}}}/{top_dir}")
+        } else {
+            format!("{{{{install_dir}}}}/{top_dir}/{}", spec.bin_subdir)
+        };
+
+        let cfg = PlatformConfig {
+            url,
+            sha256,
+            install_type: if os == "windows" {
+                "zip_extract"
+            } else {
+                "tar_extract"
+            }
+            .to_string(),
+            install_args: None,
+            install_path: format!("{name}"),
+            path_add: vec![bin_path],
+        };
+        match os {
+            "windows" => windows = Some(cfg),
+            "linux" => linux = Some(cfg),
+            _ => darwin = Some(cfg),
+        }
+    }
+
+    if !matched_any {
+        return Err(CoreError::Other(format!(
+            "无法匹配 {name} 的任何平台资产（pattern: {}）",
+            spec.asset_pattern
+        )));
+    }
+
+    Ok(CommunityRecipe {
+        name: name.to_string(),
+        version: version.clone(),
+        description: format!("{name} {version}（GitHub release 动态配方）"),
+        license: None,
+        license_url: None,
+        platforms: Platforms {
+            windows,
+            linux,
+            darwin,
+        },
+        post_install: None,
+        depends: None,
+        tags: Some(vec!["dynamic".into(), "github-release".into()]),
+        maintainer: None,
+        verified: None,
+        dynamic: None,
+    })
 }
 
 #[cfg(test)]

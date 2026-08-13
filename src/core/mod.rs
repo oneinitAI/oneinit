@@ -6,6 +6,7 @@ pub mod config_gen;
 pub mod doctor;
 pub mod downloader;
 pub mod dynamic;
+pub mod github_release;
 pub mod install;
 pub mod manifest;
 pub mod migration;

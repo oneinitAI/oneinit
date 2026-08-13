@@ -31,6 +31,9 @@ pub struct CommunityRecipe {
     /// 是否经 CI 真实安装验证（作者自标 + CI 复核）
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verified: Option<bool>,
+    /// GitHub Release 动态配方声明（版本实时解析，配方永不过期）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dynamic: Option<DynamicSpec>,
     /// 许可证详情 URL，安装前展示
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
@@ -100,6 +103,27 @@ pub struct Maintainer {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub email: Option<String>,
+}
+
+/// GitHub Release 动态配方声明
+///
+/// 版本不再固定写死，而是从 GitHub releases API 实时解析：
+/// `oneinit install rg` → 最新 release；`oneinit install rg@14.1.0` → 指定 tag。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DynamicSpec {
+    /// GitHub owner/repo，如 "BurntSushi/ripgrep"
+    pub repo: String,
+    /// 资产名模板，占位符：{version} {os} {arch} {ext}
+    /// 例："ripgrep-{version}-{os}-{arch}.{ext}"
+    pub asset_pattern: String,
+    /// 校验和来源："asset.sha256"（哈希在 {资产名}.sha256）|
+    /// "checksums.txt"（哈希清单，匹配文件名）| ""（跳过，需 --no-checksum）
+    #[serde(default)]
+    pub checksum: String,
+    /// 解压后二进制所在目录（相对解压顶层目录）。
+    /// 空 = 二进制在解压根目录（如 rg）；"bin" = 在 {顶层}/bin（如 gh）。
+    #[serde(default)]
+    pub bin_subdir: String,
 }
 
 /// valid install_type values
@@ -405,6 +429,42 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
             true, // does not affect validity
             "[WARN] 未填写维护者信息，社区配方建议填写".to_string(),
         ));
+    }
+
+    // 8. dynamic 字段校验（GitHub Release 动态配方）
+    if let Some(dyn_spec) = &recipe.dynamic {
+        let repo_ok = !dyn_spec.repo.is_empty() && dyn_spec.repo.contains('/');
+        checks.push((
+            "dynamic.repo".to_string(),
+            repo_ok,
+            if repo_ok {
+                dyn_spec.repo.clone()
+            } else {
+                "需要 owner/repo 格式".to_string()
+            },
+        ));
+        let pattern_ok = dyn_spec.asset_pattern.contains("{version}");
+        checks.push((
+            "dynamic.asset_pattern".to_string(),
+            pattern_ok,
+            if pattern_ok {
+                dyn_spec.asset_pattern.clone()
+            } else {
+                "必须包含 {version} 占位符".to_string()
+            },
+        ));
+        if !dyn_spec.checksum.is_empty() {
+            let cs_ok = dyn_spec.checksum == "asset.sha256" || dyn_spec.checksum == "checksums.txt";
+            checks.push((
+                "dynamic.checksum".to_string(),
+                cs_ok,
+                if cs_ok {
+                    dyn_spec.checksum.clone()
+                } else {
+                    "支持: asset.sha256 / checksums.txt / 空".to_string()
+                },
+            ));
+        }
     }
 
     let valid = checks.iter().all(|(_, ok, _)| *ok);
