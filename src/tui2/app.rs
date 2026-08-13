@@ -69,7 +69,7 @@ async fn install_from_tui(name: &str, formatter: &OutputFormatter) -> String {
 
     // 1. 内置
     if let Some(r) = recipe::resolve(name) {
-        return match recipe::install(&r, formatter).await {
+        return match recipe::install(&r, formatter, false).await {
             Ok(()) => format!("[OK] {} installation complete", r.display_name),
             Err(e) => format!("[ERROR] installation failed: {}", e),
         };
@@ -78,7 +78,7 @@ async fn install_from_tui(name: &str, formatter: &OutputFormatter) -> String {
     // 2. 本地社区
     if let Some(r) = community_recipe::resolve(name) {
         // TUI 默认拒绝执行类配方（安全），提示用 CLI --allow-exec
-        return match community_recipe::install(&r, formatter, false).await {
+        return match community_recipe::install(&r, formatter, false, false).await {
             Ok(()) => format!("[OK] {} installation complete", r.name),
             Err(e) => format!(
                 "[ERROR] installation failed: {}\n       Hint: 含命令的配方请在 CLI 用 `oneinit install --allow-exec {}`",
@@ -89,10 +89,7 @@ async fn install_from_tui(name: &str, formatter: &OutputFormatter) -> String {
 
     // 3. 远程注册表（先确保有缓存索引，缺失则拉取）
     if registry::load_cached_index().is_none() {
-        formatter.output(
-            "[REMOTE] Fetching recipe index...",
-            Some(serde_json::Value::Null),
-        );
+        formatter.output("[REMOTE] 拉取配方索引...", Some(serde_json::Value::Null));
         if let Err(e) = registry::fetch_index().await {
             return format!("[ERROR] index refresh failed: {}", e);
         }
@@ -101,11 +98,11 @@ async fn install_from_tui(name: &str, formatter: &OutputFormatter) -> String {
     if let Some(entry) = registry::resolve(name) {
         let target_version = entry.latest.clone();
         formatter.output(
-            &format!("[REMOTE] Fetching {} v{}...", name, target_version),
+            &format!("[REMOTE] 拉取 {} v{}...", name, target_version),
             Some(serde_json::Value::Null),
         );
         return match registry::fetch_recipe(name, &target_version).await {
-            Ok(r) => match community_recipe::install(&r, formatter, false).await {
+            Ok(r) => match community_recipe::install(&r, formatter, false, false).await {
                 Ok(()) => format!("[OK] {} installation complete", r.name),
                 Err(e) => format!(
                     "[ERROR] installation failed: {}\n       Hint: 含命令的配方请在 CLI 用 `oneinit install --allow-exec {}`",

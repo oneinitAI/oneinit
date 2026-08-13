@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      publish_npm:
+        description: "Publish to npm (manual — CI never auto-publishes npm)"
+        required: false
+        default: "false"
+        type: boolean
 
 permissions:
   contents: write
@@ -42,10 +48,10 @@ jobs:
             binary: oneinit
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable # 分支引用，无法 pin SHA
         with:
           targets: ${{ matrix.target }}
 
@@ -56,7 +62,16 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME:-$(git describe --tags --always)}"
-          ARCHIVE_NAME="oneinit-${VERSION}-${{ matrix.target }}"
+          # 资产命名与 self_update.rs::platform_asset / 配方 CI 一致：
+          #   oneinit-<tag>-<os>-<arch>.<ext>
+          case "${{ matrix.target }}" in
+            x86_64-pc-windows-msvc)   OS_ARCH="windows-x86_64"; EXT="zip" ;;
+            x86_64-unknown-linux-gnu) OS_ARCH="linux-x86_64";   EXT="tar.gz" ;;
+            x86_64-apple-darwin)       OS_ARCH="macos-x86_64";   EXT="tar.gz" ;;
+            aarch64-apple-darwin)      OS_ARCH="macos-aarch64";  EXT="tar.gz" ;;
+            *) echo "::error::unsupported target: ${{ matrix.target }}"; exit 1 ;;
+          esac
+          ARCHIVE_NAME="oneinit-${VERSION}-${OS_ARCH}"
           BINARY="target/${{ matrix.target }}/release/${{ matrix.binary }}"
 
           mkdir -p "$ARCHIVE_NAME"
@@ -64,35 +79,38 @@ jobs:
           cp README.md "$ARCHIVE_NAME/" 2>/dev/null || true
           cp LICENSE "$ARCHIVE_NAME/" 2>/dev/null || true
 
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            7z a -tzip "${ARCHIVE_NAME}.zip" "$ARCHIVE_NAME"
+          if [ "$EXT" = "zip" ]; then
+            # windows-latest 自带 PowerShell；Compress-Archive 比 7z 更稳定
+            powershell -NoProfile -Command "Compress-Archive -Path '$ARCHIVE_NAME' -DestinationPath '$ARCHIVE_NAME.zip'"
           else
             tar -czf "${ARCHIVE_NAME}.tar.gz" "$ARCHIVE_NAME"
           fi
 
-          echo "ARCHIVE_FILE=${ARCHIVE_NAME}.${{ matrix.archive }}" >> $GITHUB_ENV
+          echo "ARCHIVE_FILE=${ARCHIVE_NAME}.${EXT}" >> $GITHUB_ENV
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: oneinit-${{ matrix.target }}
           path: oneinit-*.${{ matrix.archive }}
 
   # ============================================================
-  # Create GitHub Release with all binaries
+  # Create GitHub Release with all binaries（仅 tag 触发；手动触发只构建不发布）
   # ============================================================
   release:
     name: GitHub Release
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # 需要完整历史以生成 changelog
           fetch-depth: 0
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
           merge-multiple: true
@@ -156,7 +174,7 @@ jobs:
           cat SHA256SUMS.txt
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           body_path: RELEASE_BODY.md
           draft: false
@@ -166,41 +184,43 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ============================================================
-  # Publish to npm
+  # Publish to npm（仅 tag 触发）
   # ============================================================
   npm:
     name: Publish to npm
     needs: build
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
       - name: Download Windows binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: oneinit-x86_64-pc-windows-msvc
           path: npm/bin/native/
 
       - name: Download Linux binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: oneinit-x86_64-unknown-linux-gnu
           path: npm/bin/native/
 
       - name: Download macOS x86_64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: oneinit-x86_64-apple-darwin
           path: npm/bin/native/
 
       - name: Download macOS aarch64 binary
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: oneinit-aarch64-apple-darwin
           path: npm/bin/native/

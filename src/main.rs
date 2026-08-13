@@ -61,6 +61,9 @@ enum Commands {
         /// Cargo.toml / go.mod），自动识别并安装对应工具链（默认当前目录）
         #[arg(long, num_args = 0..=1, default_missing_value = ".")]
         project: Option<String>,
+        /// 允许执行含命令的配方（默认拒绝）
+        #[arg(long)]
+        allow_exec: bool,
     },
 
     /// Install a tool（如 python3.7, node18, python@3.11, node@lts）
@@ -83,6 +86,9 @@ enum Commands {
         /// 跳过校验哈希验证（风险自负）
         #[arg(long)]
         no_checksum: bool,
+        /// 安装失败时跳过自动回滚（便于调试）
+        #[arg(long)]
+        no_rollback: bool,
     },
 
     /// Uninstall a tool
@@ -123,6 +129,9 @@ enum Commands {
         /// 只预览将要安装的工具，不实际安装
         #[arg(long)]
         dry_run: bool,
+        /// 允许执行含命令的配方（默认拒绝）
+        #[arg(long)]
+        allow_exec: bool,
     },
 
     /// Capture environment to oneinit.yaml
@@ -136,12 +145,6 @@ enum Commands {
     Verify {
         /// recipe文件路径
         file: String,
-    },
-
-    /// 配方向导：无现成配方时生成/教程/贡献
-    Recipe {
-        #[command(subcommand)]
-        action: RecipeAction,
     },
 
     /// Update remote recipe index (like apt update)
@@ -164,6 +167,15 @@ enum Commands {
     Publish {
         /// recipe文件路径
         file: String,
+        /// 自动提交配方到 oneinit-recipes 并创建 PR（需要 gh CLI）
+        #[arg(long)]
+        pr: bool,
+    },
+
+    /// 配方脚手架工具
+    Recipe {
+        #[command(subcommand)]
+        action: RecipeAction,
     },
 
     /// Export environment as tar.gz
@@ -305,29 +317,8 @@ enum SkillAction {
 
 #[derive(clap::Subcommand)]
 enum RecipeAction {
-    /// 交互式配方向导：教程 / 生成配方+安装 / 贡献
-    Wizard {
-        /// 工具名
-        tool: String,
-        /// 允许执行安装脚本（配方含 post-install 命令时必需）
-        #[arg(long)]
-        allow_exec: bool,
-    },
-    /// 查看手动安装教程
-    Tutorial {
-        /// 工具名
-        tool: String,
-    },
-    /// 生成一个配方并保存到 ~/.oneinit/recipes/（不安装）
-    Create {
-        /// 工具名
-        tool: String,
-    },
-    /// 贡献已生成的配方（上传 oneinit.bg4jts.cn / git）
-    Contribute {
-        /// 配方 YAML 文件路径
-        file: String,
-    },
+    /// 在当前目录生成配方模板文件 <name>.yaml
+    New { name: String },
 }
 
 #[derive(clap::Subcommand)]
@@ -412,13 +403,24 @@ async fn main() {
             preset,
             dry_run,
             project,
-        } => cli::run_init(&formatter, preset.as_deref(), dry_run, project.as_deref()).await,
+            allow_exec,
+        } => {
+            cli::run_init(
+                &formatter,
+                preset.as_deref(),
+                dry_run,
+                allow_exec,
+                project.as_deref(),
+            )
+            .await
+        }
         Commands::Install {
             package,
             allow_exec,
             dry_run,
             refresh,
             no_checksum,
+            no_rollback,
         } => {
             cli::run_install(
                 &formatter,
@@ -427,6 +429,7 @@ async fn main() {
                 dry_run,
                 refresh,
                 no_checksum,
+                no_rollback,
             )
             .await
         }
@@ -441,21 +444,14 @@ async fn main() {
         },
         Commands::Info { package } => cli::run_info(&formatter, &package).await,
         Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()).await,
-        Commands::Sync { dry_run } => cli::run_sync(&formatter, dry_run).await,
+        Commands::Sync {
+            dry_run,
+            allow_exec,
+        } => cli::run_sync(&formatter, dry_run, allow_exec).await,
         Commands::Capture { output } => {
             cli::run_capture(&formatter, output.as_deref().unwrap_or("oneinit.yaml")).await
         }
         Commands::Verify { file } => cli::run_verify(&formatter, &file).await,
-        Commands::Recipe { action } => match action {
-            RecipeAction::Wizard { tool, allow_exec } => {
-                cli::run_recipe_wizard(&formatter, &tool, allow_exec).await
-            }
-            RecipeAction::Tutorial { tool } => cli::run_recipe_tutorial(&formatter, &tool).await,
-            RecipeAction::Create { tool } => cli::run_recipe_create(&formatter, &tool).await,
-            RecipeAction::Contribute { file } => {
-                cli::run_recipe_contribute(&formatter, &file).await
-            }
-        },
         Commands::Update => cli::run_update(&formatter).await,
         Commands::Registry { action } => match action {
             RegistryAction::Add { url } => cli::run_registry_add(&formatter, &url),
@@ -463,7 +459,7 @@ async fn main() {
             RegistryAction::List => cli::run_registry_list(&formatter),
         },
         Commands::Issue { kind } => cli::run_issue(&kind),
-        Commands::Publish { file } => cli::run_publish(&formatter, &file).await,
+        Commands::Publish { file, pr } => cli::run_publish(&formatter, &file, pr).await,
         Commands::Export {
             output,
             include_envs,
@@ -507,6 +503,9 @@ async fn main() {
             SkillAction::Status => cli::run_skill_status(&formatter).await,
             SkillAction::Uninstall => cli::run_skill_uninstall(&formatter).await,
         },
+        Commands::Recipe { action } => match action {
+            RecipeAction::New { name } => cli::run_recipe_new(&formatter, &name),
+        },
         Commands::Team { action } => match action {
             TeamAction::Add {
                 url,
@@ -536,6 +535,11 @@ async fn main() {
             cli::run_viz(&formatter, html, issue, output.as_deref(), open, no_scan).await;
         }
     }
+
+    // 任何命令输出过错误 → 非零退出码（AI 自动化依赖失败信号）
+    if formatter.had_errors() {
+        std::process::exit(1);
+    }
 }
 
 /// 每次使用自动拉取配方索引
@@ -556,7 +560,7 @@ async fn maybe_auto_update(formatter: &output::OutputFormatter) {
     if let Err(e) = registry::fetch_index().await {
         // 静默失败，不阻塞主命令；JSON 模式下输出错误供 AI 参考
         formatter.output(
-            &format!("[WARN] Recipe index refresh failed: {}", e),
+            &format!("[WARN] 配方索引刷新失败: {}", e),
             Some(serde_json::json!({
                 "status": "warning",
                 "action": "auto_update",

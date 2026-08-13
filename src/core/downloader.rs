@@ -16,8 +16,47 @@ pub struct DownloadResult {
     pub sha256: String,
 }
 
+/// 网络下载重试次数（指数退避 1s/2s/4s）
+const MAX_DOWNLOAD_RETRIES: u32 = 3;
+
 /// 异步download文件到指定路径，带进度条
+///
+/// 网络错误 / HTTP 5xx 自动重试 [`MAX_DOWNLOAD_RETRIES`] 次（指数退避），
+/// 4xx 与校验类错误不重试。
 pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
+    let mut last_err: Option<CoreError> = None;
+    for attempt in 0..=MAX_DOWNLOAD_RETRIES {
+        match download_attempt(url, dest).await {
+            Ok(result) => return Ok(result),
+            Err(e) => {
+                let retryable =
+                    matches!(e, CoreError::Download(_)) || matches!(e, CoreError::Io(_));
+                if attempt < MAX_DOWNLOAD_RETRIES && retryable {
+                    let wait = std::time::Duration::from_secs(1 << attempt);
+                    eprintln!(
+                        "[WARN] 下载失败（{} 秒后第 {} 次重试）: {}",
+                        wait.as_secs(),
+                        attempt + 1,
+                        e
+                    );
+                    tokio::time::sleep(wait).await;
+                    last_err = Some(e);
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+    }
+    Err(last_err.unwrap_or_else(|| {
+        CoreError::Download(format!(
+            "download failed after {} retries: {url}",
+            MAX_DOWNLOAD_RETRIES
+        ))
+    }))
+}
+
+/// 单次下载尝试（不重试）
+async fn download_attempt(url: &str, dest: &Path) -> Result<DownloadResult> {
     // 确保目标目录exists
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
@@ -38,11 +77,16 @@ pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
     let pb = ProgressBar::new(total_size);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("{spinner:.green} download {msg} {bytes}/{total_bytes} {eta:>3}")
+            .template("{spinner:.green} 下载 {msg} {bytes}/{total_bytes} {eta:>3}")
             .unwrap()
             .progress_chars("█▓░"),
     );
     pb.set_message(file_name);
+
+    // 先清理可能存在的半下载文件（覆盖写）
+    if dest.exists() {
+        let _ = std::fs::remove_file(dest);
+    }
 
     let mut file = tokio::fs::File::create(dest).await.map_err(CoreError::Io)?;
 
@@ -58,7 +102,7 @@ pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
     }
 
     file.flush().await.map_err(CoreError::Io)?;
-    pb.finish_with_message("download完成");
+    pb.finish_with_message("下载完成");
 
     let sha256 = compute_sha256(dest)?;
     let file_size = std::fs::metadata(dest)?.len();

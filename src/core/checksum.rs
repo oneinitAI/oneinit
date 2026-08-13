@@ -136,7 +136,7 @@ async fn go_checksum(version: &str, filename: &str) -> Result<Option<String>> {
     // 2. dl JSON index (recent releases only)
     let bytes = fetch_bytes("https://go.dev/dl/?mode=json").await?;
     let json: serde_json::Value = serde_json::from_slice(&bytes)
-        .map_err(|e| CoreError::Download(format!("parse go dl failed: {e}")))?;
+        .map_err(|e| CoreError::Download(format!("解析 go dl 失败: {e}")))?;
     let target = format!("go{version}");
     if let Some(arr) = json.as_array() {
         for rel in arr {

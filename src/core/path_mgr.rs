@@ -104,17 +104,42 @@ fn set_path(new_path: &str) -> Result<()> {
 }
 
 /// Windows: 写入注册表 + 广播 WM_SETTINGCHANGE
+///
+/// 保持原有值类型（REG_EXPAND_SZ / REG_SZ），避免 `%VAR%` 被字面化；
+/// PATH 超过传统 2047 字符上限时给出警告（注册表可存更长，但部分旧程序会截断）。
 #[cfg(target_os = "windows")]
 fn set_path_windows(new_path: &str) -> Result<()> {
     use winreg::RegKey;
     use winreg::enums::*;
 
+    // 软限制：旧程序按 2047 字符截断 PATH
+    const WINDOWS_PATH_LIMIT: usize = 2047;
+    if new_path.len() > WINDOWS_PATH_LIMIT {
+        eprintln!(
+            "[WARN] PATH 长度 {} 超过传统上限 {} 字符 — 部分旧程序可能无法读取完整 PATH",
+            new_path.len(),
+            WINDOWS_PATH_LIMIT
+        );
+    }
+
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let env = hkcu
-        .open_subkey_with_flags("Environment", KEY_WRITE)
+        .open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)
         .map_err(|e| CoreError::PathOp(format!("cannot open registry: {}", e)))?;
 
-    env.set_value("PATH", &new_path)
+    // 保持原有值类型：PATH 若为 REG_EXPAND_SZ（含 %VAR%），写成 REG_SZ 会导致变量字面化
+    let vtype = match env.get_raw_value("PATH") {
+        Ok(v) => v.vtype,
+        Err(_) => REG_SZ,
+    };
+    // UTF-16LE 编码 + null 结尾（REG_SZ / REG_EXPAND_SZ 需要）
+    let mut bytes: Vec<u8> = new_path
+        .encode_utf16()
+        .flat_map(|u| u.to_le_bytes())
+        .collect();
+    bytes.extend_from_slice(&[0u8, 0u8]);
+    let value = winreg::RegValue { bytes, vtype };
+    env.set_raw_value("PATH", &value)
         .map_err(|e| CoreError::PathOp(format!("cannot write PATH registry: {}", e)))?;
 
     // 广播 WM_SETTINGCHANGE 通知其他进程
@@ -151,34 +176,29 @@ fn broadcast_setting_change() {
 }
 
 /// Unix: 写入 shell 配置文件
+///
+/// 只写检测到的默认 shell 对应的 profile（`$SHELL` 决定；缺失时兜底 .bashrc），
+/// 避免多 shell 文件内容不一致。
 #[cfg(not(target_os = "windows"))]
 fn set_path_unix(new_path: &str) -> Result<()> {
     let home = dirs::home_dir()
         .ok_or_else(|| CoreError::PathOp("Cannot determine home directory".to_string()))?;
 
-    // 检测可用的 shell 并写入对应配置文件
-    let mut written = false;
+    let shell = std::env::var("SHELL").unwrap_or_default();
+    let shell_lower = shell.to_ascii_lowercase();
 
-    let bashrc = home.join(".bashrc");
-    if bashrc.exists() {
-        write_path_to_shell_file(&bashrc)?;
-        written = true;
-    }
-
-    let zshrc = home.join(".zshrc");
-    if zshrc.exists() {
-        write_path_to_shell_file(&zshrc)?;
-        written = true;
-    }
-
-    let fish_config = home.join(".config/fish/config.fish");
-    if fish_config.exists() {
+    if shell_lower.contains("fish") {
+        let fish_config = home.join(".config/fish/config.fish");
+        if let Some(parent) = fish_config.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
         write_path_to_fish_file(&fish_config)?;
-        written = true;
-    }
-
-    if !written {
-        // 如果都没找到，尝试创建 .bashrc
+    } else if shell_lower.contains("zsh") {
+        // zsh 兼容 bash 的 export 语法
+        let zshrc = home.join(".zshrc");
+        write_path_to_shell_file(&zshrc)?;
+    } else {
+        // 默认 bash（含 $SHELL 为空 / 未知）
         let bashrc = home.join(".bashrc");
         write_path_to_shell_file(&bashrc)?;
     }

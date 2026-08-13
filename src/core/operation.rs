@@ -69,65 +69,65 @@ impl Operation {
                 let sz = size
                     .map(|s| format!(" ({})", crate::core::viz::human_bytes(s)))
                     .unwrap_or_default();
-                format!("📥 Download {url} → {}{sz}", dest.display())
+                format!("[DL] 下载 {url} → {}{sz}", dest.display())
             }
             Operation::Extract { source, dest } => {
-                format!("📦 Extract {} → {}", source.display(), dest.display())
+                format!("[EXTRACT] 解压 {} → {}", source.display(), dest.display())
             }
             Operation::CreateDir { path, mode } => {
-                format!("📁 Create dir {} (mode {:#o})", path.display(), mode)
+                format!("[DIR] 创建目录 {} (mode {:#o})", path.display(), mode)
             }
             Operation::WriteFile {
                 path,
                 content,
                 overwrite,
             } => {
-                let action = if *overwrite { "write" } else { "create" };
+                let action = if *overwrite { "写入" } else { "新建" };
                 format!(
-                    "📝 {action} file {} ({} bytes)",
+                    "[WRITE] {action}文件 {} ({} 字节)",
                     path.display(),
                     content.len()
                 )
             }
             Operation::AppendToFile { path, .. } => {
-                format!("📎 Append to {}", path.display())
+                format!("[APPEND] 追加到 {}", path.display())
             }
             Operation::Delete { path, recursive } => {
-                let flag = if *recursive { " (recursive)" } else { "" };
-                format!("🗑️  Delete {}{flag}", path.display())
+                let flag = if *recursive { " (递归)" } else { "" };
+                format!("[DEL] 删除 {}{flag}", path.display())
             }
             Operation::Exec { cmd, args, cwd } => {
                 let cwd_str = cwd
                     .as_ref()
-                    .map(|p| format!(" (in {})", p.display()))
+                    .map(|p| format!(" (于 {})", p.display()))
                     .unwrap_or_default();
                 let arg_str = if args.is_empty() {
                     String::new()
                 } else {
                     format!(" {}", args.join(" "))
                 };
-                format!("▶️  Run {cmd}{arg_str}{cwd_str}")
+                format!("[RUN] 运行 {cmd}{arg_str}{cwd_str}")
             }
             Operation::SetEnv { key, value } => {
-                format!("🔧 Set env {key} = {value}")
+                format!("[ENV] 设置环境变量 {key} = {value}")
             }
             Operation::UnsetEnv { key } => {
-                format!("🔧 Unset env {key}")
+                format!("[ENV] 取消环境变量 {key}")
             }
             Operation::ShellCommand { script, shell } => {
-                format!("📜 Run {shell} script ({} lines)", script.lines().count())
+                format!("[SCRIPT] 运行 {shell} 脚本 ({} 行)", script.lines().count())
             }
             Operation::PathAdd { dir } => {
-                format!("➕ PATH += {}", dir.display())
+                format!("[PATH+] PATH 添加 {}", dir.display())
             }
             Operation::PathRemove { dir } => {
-                format!("➖ PATH -= {}", dir.display())
+                format!("[PATH-] PATH 移除 {}", dir.display())
             }
             Operation::CopyFile { from, to } => {
-                format!("📋 Copy {} → {}", from.display(), to.display())
+                format!("[COPY] 复制 {} → {}", from.display(), to.display())
             }
             Operation::ModifyFile { path, .. } => {
-                format!("✏️  Modify file {}", path.display())
+                format!("[MODIFY] 修改文件 {}", path.display())
             }
         }
     }
@@ -206,7 +206,7 @@ mod tests {
             path: PathBuf::from("/tmp/x"),
             recursive: true,
         };
-        assert!(del.describe().contains("recursive"));
+        assert!(del.describe().contains("递归"));
     }
 
     #[test]

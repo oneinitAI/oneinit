@@ -85,7 +85,7 @@ fn resolve_with(
             .iter()
             .max_by(|a, b| compare_versions(a, b))
             .cloned()
-            .ok_or_else(|| CoreError::Other(format!("no versions known for '{recipe}'"))),
+            .ok_or_else(|| CoreError::Other(format!("没有 '{recipe}' 的已知版本"))),
         "lts" => Ok(lts_v.to_string()),
         partial => {
             // Prefix match on the catalog: "3.11" → newest "3.11.x",
@@ -99,7 +99,7 @@ fn resolve_with(
                 .cloned()
                 .ok_or_else(|| {
                     CoreError::Other(format!(
-                        "version '{partial}' not found for '{recipe}' — try `oneinit list versions {recipe}`"
+                        "未找到 '{recipe}' 的版本 '{partial}' — 试试 `oneinit list versions {recipe}`"
                     ))
                 })
         }
@@ -155,7 +155,7 @@ pub async fn refresh(recipe: &str) -> Result<usize> {
             Ok(n)
         }
         other => Err(CoreError::Other(format!(
-            "live version refresh not supported for '{other}' (embedded catalog only)"
+            "'{other}' 不支持在线版本刷新（仅内置目录）"
         ))),
     }
 }
@@ -167,13 +167,13 @@ async fn fetch_node_versions() -> Result<Vec<String>> {
         .header("User-Agent", "oneinit-version-resolver")
         .send()
         .await
-        .map_err(|e| CoreError::Download(format!("fetch node versions failed: {e}")))?;
+        .map_err(|e| CoreError::Download(format!("拉取 node 版本失败: {e}")))?;
     let bytes = resp
         .bytes()
         .await
         .map_err(|e| CoreError::Download(format!("read node versions failed: {e}")))?;
     let json: serde_json::Value = serde_json::from_slice(&bytes)
-        .map_err(|e| CoreError::Download(format!("parse node versions failed: {e}")))?;
+        .map_err(|e| CoreError::Download(format!("解析 node 版本失败: {e}")))?;
     let mut versions = Vec::new();
     if let Some(arr) = json.as_array() {
         for item in arr {
@@ -183,9 +183,7 @@ async fn fetch_node_versions() -> Result<Vec<String>> {
         }
     }
     if versions.is_empty() {
-        return Err(CoreError::Download(
-            "no versions in nodejs.org index".into(),
-        ));
+        return Err(CoreError::Download("nodejs.org 索引中没有版本".into()));
     }
     Ok(versions)
 }
@@ -197,13 +195,13 @@ async fn fetch_go_versions() -> Result<Vec<String>> {
         .header("User-Agent", "oneinit-version-resolver")
         .send()
         .await
-        .map_err(|e| CoreError::Download(format!("fetch go versions failed: {e}")))?;
+        .map_err(|e| CoreError::Download(format!("拉取 go 版本失败: {e}")))?;
     let bytes = resp
         .bytes()
         .await
         .map_err(|e| CoreError::Download(format!("read go versions failed: {e}")))?;
     let json: serde_json::Value = serde_json::from_slice(&bytes)
-        .map_err(|e| CoreError::Download(format!("parse go versions failed: {e}")))?;
+        .map_err(|e| CoreError::Download(format!("解析 go 版本失败: {e}")))?;
     let mut versions = Vec::new();
     if let Some(arr) = json.as_array() {
         for item in arr {
@@ -213,7 +211,7 @@ async fn fetch_go_versions() -> Result<Vec<String>> {
         }
     }
     if versions.is_empty() {
-        return Err(CoreError::Download("no versions in go.dev index".into()));
+        return Err(CoreError::Download("go.dev 索引中没有版本".into()));
     }
     Ok(versions)
 }
@@ -228,13 +226,13 @@ async fn fetch_adoptium_versions(feature: &str) -> Result<Vec<String>> {
         .header("User-Agent", "oneinit-version-resolver")
         .send()
         .await
-        .map_err(|e| CoreError::Download(format!("fetch adoptium versions failed: {e}")))?;
+        .map_err(|e| CoreError::Download(format!("拉取 adoptium 版本失败: {e}")))?;
     let bytes = resp
         .bytes()
         .await
         .map_err(|e| CoreError::Download(format!("read adoptium versions failed: {e}")))?;
     let json: serde_json::Value = serde_json::from_slice(&bytes)
-        .map_err(|e| CoreError::Download(format!("parse adoptium versions failed: {e}")))?;
+        .map_err(|e| CoreError::Download(format!("解析 adoptium 版本失败: {e}")))?;
     let mut versions = Vec::new();
     if let Some(arr) = json.as_array() {
         for rel in arr {

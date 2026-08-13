@@ -34,7 +34,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ login
   }
 
   try {
-    const res = await fetch(EXTRA_URL, { headers: UA, next: { revalidate: 0 } });
+    const ghAuth = { Authorization: `Bearer ${token}` };
+    const res = await fetch(EXTRA_URL, { headers: { ...UA, ...ghAuth }, next: { revalidate: 0 } });
     if (res.status === 404) {
       return NextResponse.json({ ok: true, removed: false, login });
     }

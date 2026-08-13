@@ -3,8 +3,10 @@ pub mod capture;
 pub mod checksum;
 pub mod community_recipe;
 pub mod config_gen;
+pub mod doctor;
 pub mod downloader;
 pub mod dynamic;
+pub mod install;
 pub mod manifest;
 pub mod migration;
 pub mod operation;
@@ -12,7 +14,6 @@ pub mod path_mgr;
 pub mod planner;
 pub mod preset;
 pub mod recipe;
-pub mod recipe_wizard;
 pub mod registry;
 pub mod self_update;
 pub mod sync;
@@ -22,14 +23,19 @@ pub mod viz;
 
 use std::path::PathBuf;
 
-/// 获取 OneInit 数据根目录 ~/.oneinit/
+/// 获取 OneInit 数据根目录（默认 ~/.oneinit/）
 ///
+/// 若设置了 `ONEINIT_HOME` 环境变量则直接使用（测试隔离 / 便携部署）。
 /// 如果Cannot determine home directory（$HOME 未设置），返回当前目录下的 .oneinit 作为回退。
 #[allow(dead_code)]
 pub fn data_dir() -> PathBuf {
+    // ONEINIT_HOME 覆盖默认数据目录（集成测试用它隔离，避免触碰真实 ~/.oneinit）
+    if let Ok(dir) = std::env::var("ONEINIT_HOME") {
+        return PathBuf::from(dir);
+    }
     let home = dirs::home_dir().unwrap_or_else(|| {
         // 回退：使用当前工作目录
-        eprintln!("[WARN] Cannot determine home directory，falling back to current dir");
+        eprintln!("[WARN] 无法确定主目录，回退到当前目录");
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
     });
     home.join(".oneinit")

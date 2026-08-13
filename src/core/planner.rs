@@ -124,11 +124,10 @@ pub fn plan_community_install(
     let needs_exec = has_commands || exec_type;
     if needs_exec && !allow_exec {
         return Err(CoreError::Other(format!(
-            "recipe '{}' requires executing commands/installers ({}{}). \
-             Refused for security. Re-run with --allow-exec to accept.",
+            "配方 '{}' 需要执行命令/安装器（{}{}）。出于安全已拒绝，使用 --allow-exec 重试以接受。",
             recipe.name,
             if has_commands {
-                "post_install commands"
+                "post_install 命令"
             } else {
                 ""
             },
@@ -291,21 +290,19 @@ pub fn default_shell() -> String {
 /// pre-install preview). Returns the rendered string.
 pub fn render_plan(plan: &OperationPlan, title: &str) -> String {
     let mut s = String::new();
-    s.push_str(&format!(
-        "🔍 {title} — operations that will be executed:\n\n"
-    ));
+    s.push_str(&format!("[PLAN] {title} — 将要执行的操作:\n\n"));
     for (i, op) in plan.operations.iter().enumerate() {
         s.push_str(&format!("  {}. {}\n", i + 1, op.describe()));
     }
     let sm = &plan.summary;
-    s.push_str(&format!("\n📊 Total: {} operations\n", sm.total_ops));
-    s.push_str(&format!("   ├── 📥 download: {}\n", sm.downloads));
-    s.push_str(&format!("   ├── 📦 extract: {}\n", sm.extracts));
-    s.push_str(&format!("   ├── 📁 create dir: {}\n", sm.dirs_created));
-    s.push_str(&format!("   ├── 📝 files written: {}\n", sm.files_written));
-    s.push_str(&format!("   ├── 🗑️  delete: {}\n", sm.files_deleted));
-    s.push_str(&format!("   ├── 🔧 env changes: {}\n", sm.env_changes));
-    s.push_str(&format!("   └── ▶️  run scripts: {}\n", sm.execs));
+    s.push_str(&format!("\n[SUMMARY] 共 {} 个操作\n", sm.total_ops));
+    s.push_str(&format!("   ├── [DL] 下载: {}\n", sm.downloads));
+    s.push_str(&format!("   ├── [EXTRACT] 解压: {}\n", sm.extracts));
+    s.push_str(&format!("   ├── [DIR] 创建目录: {}\n", sm.dirs_created));
+    s.push_str(&format!("   ├── [WRITE] 写入文件: {}\n", sm.files_written));
+    s.push_str(&format!("   ├── [DEL] 删除: {}\n", sm.files_deleted));
+    s.push_str(&format!("   ├── [ENV] 环境变量变更: {}\n", sm.env_changes));
+    s.push_str(&format!("   └── [RUN] 运行脚本: {}\n", sm.execs));
     s
 }
 
@@ -320,20 +317,30 @@ pub async fn execute_plan(
                 url, dest, sha256, ..
             } => {
                 formatter.debug_line(&format!("download {url} → {}", dest.display()));
+                // 缓存命中：目标文件已存在且校验和匹配 → 跳过下载（失败重试场景复用）
+                let cache_hit = match sha256 {
+                    Some(expected) if dest.exists() => {
+                        super::downloader::verify_sha256(dest, expected).unwrap_or(false)
+                    }
+                    _ => false,
+                };
+                if cache_hit {
+                    formatter.output(
+                        &format!("[OK] 缓存命中，跳过下载: {}", dest.display()),
+                        None::<serde_json::Value>,
+                    );
+                    continue;
+                }
                 let dl = super::downloader::download(url, dest).await?;
                 if let Some(expected) = sha256 {
                     super::downloader::verify_sha256(dest, expected)?;
                     formatter.output(
-                        &format!("[OK] SHA256 verified: {}", dest.display()),
+                        &format!("[OK] SHA256 校验通过: {}", dest.display()),
                         None::<serde_json::Value>,
                     );
                 } else {
                     formatter.output(
-                        &format!(
-                            "[OK] downloaded: {} ({} bytes)",
-                            dest.display(),
-                            dl.file_size
-                        ),
+                        &format!("[OK] 已下载: {} ({} 字节)", dest.display(), dl.file_size),
                         None::<serde_json::Value>,
                     );
                 }
@@ -341,7 +348,7 @@ pub async fn execute_plan(
             Operation::Extract { source, dest } => {
                 let files = super::downloader::extract(source, dest)?;
                 formatter.output(
-                    &format!("[OK] extracted {} files → {}", files.len(), dest.display()),
+                    &format!("[OK] 已解压 {} 个文件 → {}", files.len(), dest.display()),
                     None::<serde_json::Value>,
                 );
             }
@@ -358,7 +365,7 @@ pub async fn execute_plan(
                 }
                 std::fs::write(path, content)?;
                 formatter.output(
-                    &format!("[OK] wrote {}", path.display()),
+                    &format!("[OK] 已写入 {}", path.display()),
                     None::<serde_json::Value>,
                 );
             }
@@ -391,7 +398,7 @@ pub async fn execute_plan(
                 }
                 let status = c
                     .status()
-                    .map_err(|e| CoreError::Other(format!("exec {cmd} failed: {e}")))?;
+                    .map_err(|e| CoreError::Other(format!("执行 {cmd} 失败: {e}")))?;
                 if !status.success() {
                     return Err(CoreError::Other(format!(
                         "command exited with {:?}",
@@ -522,6 +529,6 @@ platforms:
         let plan = plan_builtin_install(&recipe).unwrap();
         let text = render_plan(&plan, "Install node20");
         assert!(text.contains("Install node20"));
-        assert!(text.contains("📊 Total:"));
+        assert!(text.contains("[SUMMARY] 共 "));
     }
 }

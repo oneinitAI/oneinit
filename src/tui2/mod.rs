@@ -170,7 +170,7 @@ fn handle_key(
         }
         KeyCode::Char('c') => {
             // Run capture
-            state.message = Some("[SCAN] Scanning...".to_string());
+            state.message = Some("[SCAN] 正在扫描...".to_string());
             run_capture_to_state(state);
         }
         KeyCode::Char('r') => {

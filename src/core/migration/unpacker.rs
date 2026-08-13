@@ -27,7 +27,7 @@ pub fn import(
     std::fs::create_dir_all(&extract_dir)?;
 
     formatter.output(
-        &format!("[IMPORT] extracting {}...", archive),
+        &format!("[IMPORT] 正在解压 {}...", archive),
         Some(serde_json::Value::Null),
     );
 
@@ -38,7 +38,7 @@ pub fn import(
     let manifest_content = std::fs::read_to_string(&manifest_path)
         .map_err(|e| CoreError::Migration(format!("read manifest.json failed: {}", e)))?;
     let manifest: MigrationManifest = serde_json::from_str(&manifest_content)
-        .map_err(|e| CoreError::Migration(format!("parse manifest.json failed: {}", e)))?;
+        .map_err(|e| CoreError::Migration(format!("解析 manifest.json 失败: {}", e)))?;
 
     formatter.output(
         &format!(
@@ -68,7 +68,7 @@ pub fn import(
                             } else {
                                 failed += 1;
                                 formatter.output(
-                                    &format!("[WARN] verification failed: {}", entry.filename),
+                                    &format!("[WARN] 校验失败: {}", entry.filename),
                                     Some(serde_json::Value::Null),
                                 );
                             }
@@ -80,12 +80,12 @@ pub fn import(
                 }
             }
             formatter.output(
-                &format!("[IMPORT] SHA256: {} passed, {} failed", verified, failed),
+                &format!("[IMPORT] SHA256: {} 个通过, {} 个失败", verified, failed),
                 Some(serde_json::Value::Null),
             );
             if failed > 0 && !force {
                 return Err(CoreError::Migration(format!(
-                    "{}  filesverification failed，使用 --force 跳过",
+                    "{} 个文件校验失败，使用 --force 跳过",
                     failed
                 )));
             }
@@ -100,13 +100,13 @@ pub fn import(
     if !dry_run && recipe_src.exists() {
         if recipe_dest.exists() && !force {
             formatter.output(
-                "[WARN] imported.yaml 已exists，使用 --force 覆盖",
+                "[WARN] imported.yaml 已存在，使用 --force 覆盖",
                 Some(serde_json::Value::Null),
             );
         } else {
             std::fs::copy(&recipe_src, &recipe_dest)?;
             formatter.output(
-                &format!("[OK] recipe restored: {}", recipe_dest.display()),
+                &format!("[OK] 配方已恢复: {}", recipe_dest.display()),
                 Some(serde_json::Value::Null),
             );
         }
@@ -122,7 +122,7 @@ pub fn import(
             cache_restored = count_files_recursive(&envs_src);
             formatter.output(
                 &format!(
-                    "[PREVIEW] 将恢复 {}  files到 {}",
+                    "[PREVIEW] 将恢复 {} 个文件到 {}",
                     cache_restored,
                     envs_dest.display()
                 ),
@@ -132,7 +132,7 @@ pub fn import(
             std::fs::create_dir_all(&envs_dest)?;
             cache_restored = copy_dir_recursive(&envs_src, &envs_dest, force)?;
             formatter.output(
-                &format!("[OK] restored {} files to envs/", cache_restored),
+                &format!("[OK] 已恢复 {} 个文件到 envs/", cache_restored),
                 Some(serde_json::Value::Null),
             );
         }

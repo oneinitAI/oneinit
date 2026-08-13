@@ -1,0 +1,9 @@
+# Keep GitHub Actions pinned to known-good versions.
+# Updates arrive as PRs; merge to refresh the pinned SHAs.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
