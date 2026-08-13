@@ -86,6 +86,9 @@ enum Commands {
         /// 跳过校验哈希验证（风险自负）
         #[arg(long)]
         no_checksum: bool,
+        /// 安装失败时跳过自动回滚（便于调试）
+        #[arg(long)]
+        no_rollback: bool,
     },
 
     /// Uninstall a tool
@@ -400,6 +403,7 @@ async fn main() {
             dry_run,
             refresh,
             no_checksum,
+            no_rollback,
         } => {
             cli::run_install(
                 &formatter,
@@ -408,6 +412,7 @@ async fn main() {
                 dry_run,
                 refresh,
                 no_checksum,
+                no_rollback,
             )
             .await
         }

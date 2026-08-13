@@ -319,6 +319,20 @@ pub async fn execute_plan(
                 url, dest, sha256, ..
             } => {
                 formatter.debug_line(&format!("download {url} → {}", dest.display()));
+                // 缓存命中：目标文件已存在且校验和匹配 → 跳过下载（失败重试场景复用）
+                let cache_hit = match sha256 {
+                    Some(expected) if dest.exists() => {
+                        super::downloader::verify_sha256(dest, expected).unwrap_or(false)
+                    }
+                    _ => false,
+                };
+                if cache_hit {
+                    formatter.output(
+                        &format!("[OK] 缓存命中，跳过下载: {}", dest.display()),
+                        None::<serde_json::Value>,
+                    );
+                    continue;
+                }
                 let dl = super::downloader::download(url, dest).await?;
                 if let Some(expected) = sha256 {
                     super::downloader::verify_sha256(dest, expected)?;

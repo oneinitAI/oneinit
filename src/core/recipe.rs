@@ -128,7 +128,13 @@ pub fn list_recipes() -> Vec<Recipe> {
 // ============================================================
 
 /// 执行recipe安装（完整流程）
-pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()> {
+///
+/// `no_rollback`：安装失败时跳过自动回滚（恢复 PATH + 清理安装目录），便于调试。
+pub async fn install(
+    recipe: &Recipe,
+    formatter: &OutputFormatter,
+    no_rollback: bool,
+) -> Result<()> {
     let start = Instant::now();
     let install_dir = envs_dir().join(&recipe.name);
 
@@ -166,7 +172,18 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
         fs::remove_dir_all(&install_dir)?;
     }
 
-    crate::core::planner::execute_plan(&plan, formatter).await?;
+    // 执行失败时自动回滚（恢复 PATH + 清理半装目录）
+    if let Err(e) = crate::core::planner::execute_plan(&plan, formatter).await {
+        if no_rollback {
+            formatter.output(
+                &format!("[WARN] 安装失败（--no-rollback 已跳过回滚）: {}", e),
+                Some(serde_json::Value::Null),
+            );
+        } else {
+            crate::core::install::rollback_install(formatter, &install_dir, &path_backup);
+        }
+        return Err(e);
+    }
 
     // 记录到清单
     let bin_path = install_dir.join(&recipe.bin_dir);
@@ -187,6 +204,9 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
         path_backup,
     )?;
 
+    // 安装后二进制可用性验证
+    let verified = crate::core::install::verify_installed_binary(&path_entries, &recipe.name);
+
     let duration = start.elapsed();
     formatter.output(
         &format!(
@@ -204,9 +224,23 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
             "path_entries": path_entries,
             "config_files": config_files,
             "manifest_id": record_id,
+            "verified": verified.is_some(),
+            "verified_version": verified,
             "duration_ms": duration.as_millis() as u64,
         })),
     );
+
+    if let Some(version_line) = &verified {
+        formatter.output(
+            &format!("[OK] 二进制验证: {}", version_line),
+            Some(serde_json::Value::Null),
+        );
+    } else {
+        formatter.output(
+            "[WARN] 未能验证安装的二进制（找不到可执行文件或 --version 失败）",
+            Some(serde_json::Value::Null),
+        );
+    }
 
     Ok(())
 }

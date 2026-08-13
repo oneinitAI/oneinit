@@ -265,7 +265,7 @@ async fn run_init_project(
     }
     let mut stack = Vec::new();
     for pkg in &packages {
-        install_recursive(pkg, None, formatter, &mut stack, allow_exec, false, false).await;
+        install_recursive(pkg, None, formatter, &mut stack, allow_exec, false, false, false).await;
     }
     formatter.output(
         "[PROJECT] 项目环境就绪 ✓",
@@ -348,6 +348,7 @@ async fn batch_install(
             allow_exec,
             refresh,
             no_checksum,
+            false,
         )
         .await;
         match outcome {
@@ -389,6 +390,7 @@ pub async fn run_install(
     dry_run: bool,
     refresh: bool,
     no_checksum: bool,
+    no_rollback: bool,
 ) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
@@ -421,6 +423,7 @@ pub async fn run_install(
         allow_exec,
         refresh,
         no_checksum,
+        no_rollback,
     )
     .await;
 }
@@ -491,6 +494,7 @@ fn install_recursive<'a>(
     allow_exec: bool,
     refresh: bool,
     no_checksum: bool,
+    no_rollback: bool,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = InstallOutcome> + 'a>> {
     Box::pin(async move {
         // 防止循环依赖
@@ -527,13 +531,15 @@ fn install_recursive<'a>(
             resolve_recipe_with_deps(name, version_spec, formatter, refresh, no_checksum).await;
 
         let outcome = match recipe_info {
-            RecipeResolution::Builtin(rec) => match recipe::install(&rec, formatter).await {
-                Ok(()) => InstallOutcome::Installed,
-                Err(e) => {
-                    formatter.error(&e);
-                    InstallOutcome::Failed(e.to_string())
+            RecipeResolution::Builtin(rec) => {
+                match recipe::install(&rec, formatter, no_rollback).await {
+                    Ok(()) => InstallOutcome::Installed,
+                    Err(e) => {
+                        formatter.error(&e);
+                        InstallOutcome::Failed(e.to_string())
+                    }
                 }
-            },
+            }
             RecipeResolution::Community(rec) => {
                 // 动态配方可能以 family@version 命名 — 检查是否已装
                 if rec.name != name
@@ -555,9 +561,10 @@ fn install_recursive<'a>(
                     allow_exec,
                     refresh,
                     no_checksum,
+                    no_rollback,
                 )
                 .await;
-                match community_recipe::install(&rec, formatter, allow_exec).await {
+                match community_recipe::install(&rec, formatter, allow_exec, no_rollback).await {
                     Ok(()) => InstallOutcome::Installed,
                     Err(e) => {
                         formatter.error(&e);
@@ -750,6 +757,7 @@ async fn install_dependencies(
     allow_exec: bool,
     refresh: bool,
     no_checksum: bool,
+    no_rollback: bool,
 ) {
     if let Some(ref deps) = recipe.depends {
         if deps.is_empty() {
@@ -768,6 +776,7 @@ async fn install_dependencies(
                 allow_exec,
                 refresh,
                 no_checksum,
+                no_rollback,
             )
             .await;
         }
@@ -1332,6 +1341,7 @@ async fn apply_team_env(formatter: &OutputFormatter, content: &str, allow_exec: 
                 formatter,
                 &mut installing_stack,
                 allow_exec,
+                false,
                 false,
                 false,
             )
