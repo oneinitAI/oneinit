@@ -744,9 +744,17 @@ async fn resolve_recipe_with_deps(
     refresh: bool,
     no_checksum: bool,
 ) -> RecipeResolution {
-    // 1. 内置recipe（@latest 或无版本时尝试）
-    if (version_spec.is_none() || version_spec == Some("latest"))
-        && let Some(rec) = resolve(name)
+    // 1. 内置recipe（@latest/无版本，或显式版本匹配内置配方名）
+    let ver = version_spec.unwrap_or("latest");
+    if let Some(rec) = resolve(name) {
+        // 显式版本：内置配方版本前缀匹配（go@1.23 → go 1.23.4）
+        if ver == "latest" || rec.version.starts_with(ver) {
+            return RecipeResolution::Builtin(rec);
+        }
+    }
+    // name+version 拼法（python@3.11 → python3.11）
+    if ver != "latest"
+        && let Some(rec) = resolve(&format!("{name}{ver}"))
     {
         return RecipeResolution::Builtin(rec);
     }
