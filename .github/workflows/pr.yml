@@ -1,11 +1,26 @@
 name: PR Check
 
+# 触发：PR（社区贡献）+ 直推 main（作者流程，见下方豁免说明）
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+
+# 作者豁免：BG4JTS（本项目作者/维护者账号）的提交（直推或自提 PR）跳过检查，
+# 加速单人维护节奏；其他贡献者的 PR 执行全量检查。
+# 注意：status 总闸保持 always()，被跳过的 job 视为通过（result = skipped）。
 
 env:
   CARGO_TERM_COLOR: always
+
+# 同一 ref 的新提交取消旧 run，避免并行浪费
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   # ============================================================
@@ -14,6 +29,7 @@ jobs:
   meta:
     name: Classify PR
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       tier: ${{ steps.meta.outputs.tier }}
       docs_only: ${{ steps.meta.outputs.docs_only }}
@@ -56,14 +72,15 @@ jobs:
   lint-test:
     name: Lint + Test (Tier ${{ needs.meta.outputs.tier }})
     needs: meta
-    if: needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false'
+    if: github.actor != 'BG4JTS' && needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@stable # 官方设计为分支引用（@stable），无法 pin SHA
         with:
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
       - name: rustfmt
         run: cargo fmt --all -- --check
       - name: clippy
@@ -77,12 +94,13 @@ jobs:
   build:
     name: Release Build (Tier ${{ needs.meta.outputs.tier }})
     needs: meta
-    if: needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false' && (needs.meta.outputs.tier == 'M' || needs.meta.outputs.tier == 'L')
+    if: github.actor != 'BG4JTS' && needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false' && (needs.meta.outputs.tier == 'M' || needs.meta.outputs.tier == 'L')
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@stable # 分支引用，无法 pin SHA
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
       - run: cargo build --release
 
   # ============================================================
@@ -91,8 +109,9 @@ jobs:
   cross-check:
     name: Cross-Check ${{ matrix.target }}
     needs: meta
-    if: needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false' && needs.meta.outputs.tier == 'L'
+    if: github.actor != 'BG4JTS' && needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false' && needs.meta.outputs.tier == 'L'
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -101,11 +120,11 @@ jobs:
           - x86_64-apple-darwin
           - aarch64-apple-darwin
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@stable # 分支引用，无法 pin SHA
         with:
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
       - run: cargo check --target ${{ matrix.target }}
 
   # ============================================================
@@ -114,11 +133,12 @@ jobs:
   workflow-check:
     name: Workflow YAML Check
     needs: meta
-    if: needs.meta.outputs.ci_only == 'true'
+    if: github.actor != 'BG4JTS' && needs.meta.outputs.ci_only == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
       - run: pip install pyyaml
@@ -137,10 +157,11 @@ jobs:
   docs-check:
     name: Docs Link Check
     needs: meta
-    if: needs.meta.outputs.docs_only == 'true'
+    if: github.actor != 'BG4JTS' && needs.meta.outputs.docs_only == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: |
           python - <<'EOF'
           import pathlib, re, sys
@@ -160,13 +181,14 @@ jobs:
           EOF
 
   # ============================================================
-  # 总闸：所有 applicable 检查通过才合并（跳过视为通过）
+  # 总闸：所有 applicable 检查通过才合并（跳过视为通过——作者豁免依赖此逻辑）
   # ============================================================
   status:
     name: All Checks Passed
     needs: [meta, lint-test, build, cross-check, workflow-check, docs-check]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Evaluate
         env:
