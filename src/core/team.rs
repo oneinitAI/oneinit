@@ -684,15 +684,22 @@ pub fn apply_config_files(
         );
     }
 
-    // 确认（与工具安装一致的交互安全模型）
-    use std::io::Write;
-    print!("[SECURITY] 确认写入以上配置文件? (y/N): ");
-    std::io::stdout().flush()?;
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
-    if input.trim().to_lowercase() != "y" {
-        formatter.output("[CANCEL] 已取消配置文件写入", Some(serde_json::Value::Null));
-        return Ok(());
+    // 确认（--yes 显式授权跳过）
+    if formatter.auto_yes {
+        formatter.output(
+            "[SECURITY] 已显式授权（--yes），跳过配置文件确认",
+            Some(serde_json::Value::Null),
+        );
+    } else {
+        use std::io::Write;
+        print!("[SECURITY] 确认写入以上配置文件? (y/N): ");
+        std::io::stdout().flush()?;
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        if input.trim().to_lowercase() != "y" {
+            formatter.output("[CANCEL] 已取消配置文件写入", Some(serde_json::Value::Null));
+            return Ok(());
+        }
     }
 
     for f in files {

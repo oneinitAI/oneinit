@@ -139,6 +139,9 @@ enum Commands {
         /// 输出文件路径（默认 oneinit.yaml）
         #[arg(short, long)]
         output: Option<String>,
+        /// 输出 SyncConfig 兼容格式（envs: {name: major.minor}），可直接被 sync 解析
+        #[arg(long)]
+        sync_format: bool,
     },
 
     /// Validate community recipe YAML
@@ -448,8 +451,16 @@ async fn main() {
             dry_run,
             allow_exec,
         } => cli::run_sync(&formatter, dry_run, allow_exec).await,
-        Commands::Capture { output } => {
-            cli::run_capture(&formatter, output.as_deref().unwrap_or("oneinit.yaml")).await
+        Commands::Capture {
+            output,
+            sync_format,
+        } => {
+            cli::run_capture(
+                &formatter,
+                output.as_deref().unwrap_or("oneinit.yaml"),
+                sync_format,
+            )
+            .await
         }
         Commands::Verify { file } => cli::run_verify(&formatter, &file).await,
         Commands::Update => cli::run_update(&formatter).await,

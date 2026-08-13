@@ -131,6 +131,29 @@ pub fn run_import(
         })),
     );
 
+    // 交互确认（--yes 显式授权跳过；--dry-run 仅预览不询问）
+    if !dry_run && !formatter.auto_yes {
+        use std::io::Write;
+        print!("[SECURITY] 输入 y 确认导入，其他任意键取消: ");
+        std::io::stdout().flush()?;
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        if input.trim().to_lowercase() != "y" {
+            formatter.output(
+                "[CANCEL] 导入已取消",
+                Some(serde_json::json!({
+                    "status": "cancelled", "action": "import",
+                })),
+            );
+            return Ok(ImportResult {
+                recipe_path: String::new(),
+                cache_restored: 0,
+                packages_restored: 0,
+                dry_run: false,
+            });
+        }
+    }
+
     let result = unpacker::import(formatter, archive, dry_run, force, skip_checksum)?;
 
     if dry_run {

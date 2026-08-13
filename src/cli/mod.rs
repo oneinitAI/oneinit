@@ -257,15 +257,25 @@ async fn dry_run_packages(
     let mut skipped = 0usize;
     let mut planned = 0usize;
     let mut rendered = String::new();
-    for name in packages {
+    for pkg in packages {
+        let (name, version_spec) = parse_package_spec(pkg);
         // already installed → skip
         if let Ok(manifest) = Manifest::open()
-            && let Ok(Some(_)) = manifest.get(name)
+            && let Ok(Some(_)) = manifest.get(&name)
         {
             skipped += 1;
             continue;
         }
-        match dry_run_single(formatter, name, None, allow_exec, refresh, no_checksum).await {
+        match dry_run_single(
+            formatter,
+            &name,
+            version_spec.as_deref(),
+            allow_exec,
+            refresh,
+            no_checksum,
+        )
+        .await
+        {
             Some(result) => {
                 rendered.push_str(&result.text);
                 rendered.push('\n');
@@ -424,8 +434,15 @@ async fn batch_install(packages: &[String], formatter: &OutputFormatter, options
 
     let mut installing_stack = Vec::new();
     for pkg_name in packages {
-        let outcome =
-            install_recursive(pkg_name, None, formatter, &mut installing_stack, options).await;
+        let (name, version_spec) = parse_package_spec(pkg_name);
+        let outcome = install_recursive(
+            &name,
+            version_spec.as_deref(),
+            formatter,
+            &mut installing_stack,
+            options,
+        )
+        .await;
         match outcome {
             InstallOutcome::Installed => succeeded.push(pkg_name),
             InstallOutcome::AlreadyInstalled | InstallOutcome::Skipped(_) => skipped.push(pkg_name),
@@ -605,6 +622,26 @@ fn install_recursive<'a>(
         if let Ok(manifest) = Manifest::open()
             && let Ok(Some(record)) = manifest.get(name)
         {
+            let installed_v = record.version.as_deref().unwrap_or("?");
+            // 显式请求了不同版本 → 提示需升级（动态/版本化配方）
+            if let Some(spec) = version_spec
+                && spec != "latest"
+                && spec != installed_v
+            {
+                formatter.output(
+                    &format!(
+                        "[INFO] '{}' 已安装 v{}，请求 v{} — 需先 `oneinit uninstall {}` 再安装",
+                        name, installed_v, spec, name
+                    ),
+                    Some(serde_json::json!({
+                        "status": "info", "action": "install",
+                        "package": name, "installed": installed_v,
+                        "requested": spec, "upgrade_hint": true,
+                    })),
+                );
+                installing_stack.pop();
+                return InstallOutcome::Skipped(format!("已安装 v{installed_v}，需升级"));
+            }
             formatter.output(
                 &format!(
                     "[OK] '{}' 已安装 v{}",
@@ -716,6 +753,34 @@ async fn resolve_recipe_with_deps(
 
     // 2. 本地社区recipe
     if let Some(rec) = community_recipe::resolve(name) {
+        // dynamic 配方：版本从 GitHub releases 实时解析（latest / 指定版本）
+        if let Some(dyn_spec) = &rec.dynamic {
+            return match crate::core::dynamic::build_github_release(
+                name,
+                dyn_spec,
+                version_spec,
+                no_checksum,
+            )
+            .await
+            {
+                Ok(dyn_recipe) => RecipeResolution::Community(Box::new(dyn_recipe)),
+                Err(e) => {
+                    // A4 降级：指定了精确版本且静态配方恰好匹配时回退静态；
+                    // 否则报告动态解析失败
+                    if let Some(ver) = version_spec
+                        && ver != "latest"
+                        && ver == rec.version
+                    {
+                        return RecipeResolution::Community(Box::new(rec));
+                    }
+                    formatter.output(
+                        &format!("[ERROR] 动态配方解析失败: {}", e),
+                        None::<serde_json::Value>,
+                    );
+                    RecipeResolution::NotFound(format!(" 动态配方失败: {}", e))
+                }
+            };
+        }
         // 如果指定了版本且不匹配，跳过
         if let Some(ver) = version_spec {
             if ver != "latest" && ver != rec.version {
@@ -1180,14 +1245,18 @@ pub async fn run_sync(formatter: &OutputFormatter, dry_run: bool, allow_exec: bo
     )
     .await;
 
-    // 4. 应用镜像配置（记录日志，未来扩展覆盖默认镜像）
-    if let Some(ref mirrors) = config.mirrors {
+    // 4. 应用镜像配置（幂等，带 OneInit 标记——与 team sync 同机制）
+    if let Some(ref mirrors) = config.mirrors
+        && !mirrors.is_empty()
+    {
         formatter.output(
-            &format!("[CONF] 镜像配置: {:?}", mirrors),
-            Some(serde_json::json!({
-                "mirrors_applied": mirrors,
-            })),
+            &format!("[CONF] 应用镜像配置: {:?}", mirrors),
+            Some(serde_json::json!({ "mirrors_applying": mirrors })),
         );
+        if let Err(e) = team::apply_mirrors(mirrors, formatter) {
+            formatter.error(&e);
+            return;
+        }
     }
 
     // 5. execute post_install 命令
@@ -1314,13 +1383,15 @@ fn dry_run_team_env(formatter: &OutputFormatter, content: &str, allow_exec: bool
     // 1. missing tools (builtin-only plan for preview)
     let names = sync::envs_to_recipe_names(&config);
     for name in &names {
+        // P0-6: 可能产生 name@version — 已装检查/resolve 用基础名
+        let (pkg, _ver) = parse_package_spec(name);
         if let Ok(manifest) = Manifest::open()
-            && let Ok(Some(_)) = manifest.get(name)
+            && let Ok(Some(_)) = manifest.get(&pkg)
         {
             skipped += 1;
             continue;
         }
-        match recipe::resolve(name) {
+        match recipe::resolve(&pkg) {
             Some(recipe) => match crate::core::planner::plan_builtin_install(&recipe) {
                 Ok(plan) => {
                     lines.push_str(&format!("  [EXTRACT] Install {name}: {} operations\n", plan.summary.total_ops));
@@ -1448,9 +1519,11 @@ async fn apply_team_env(formatter: &OutputFormatter, content: &str, allow_exec: 
             Some(serde_json::Value::Null),
         );
         for name in &names {
+            // P0-6: envs_to_recipe_names 可能产生 name@version — 拆出后传递
+            let (pkg, ver) = parse_package_spec(name);
             install_recursive(
-                name,
-                None,
+                &pkg,
+                ver.as_deref(),
                 formatter,
                 &mut installing_stack,
                 InstallOptions {
@@ -1690,14 +1763,14 @@ pub async fn run_verify(formatter: &OutputFormatter, file: &str) {
     }
 }
 
-/// oneinit capture [--output <file>] — capture current dev environment
-pub async fn run_capture(formatter: &OutputFormatter, output: &str) {
+/// oneinit capture [--output <file>] [--sync-format] — capture current dev environment
+pub async fn run_capture(formatter: &OutputFormatter, output: &str, sync_format: bool) {
     if let Err(e) = ensure_dirs() {
         formatter.error(&e);
         return;
     }
 
-    if let Err(e) = crate::core::capture::run_capture(formatter, output) {
+    if let Err(e) = crate::core::capture::run_capture(formatter, output, sync_format) {
         formatter.error(&e);
     }
 }

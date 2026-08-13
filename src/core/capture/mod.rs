@@ -74,7 +74,13 @@ pub struct DotfileEntry {
 /// 执行环境捕获，生成 oneinit.yaml
 ///
 /// 流程：注册检测器 -> scan -> 构建 EnvironmentSnapshot -> 序列化 YAML -> 写入文件
-pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()> {
+/// `sync_format=true` 时输出 SyncConfig 兼容格式（`envs: {name: major.minor}`），
+/// 可直接被 `oneinit sync` 解析。
+pub fn run_capture(
+    formatter: &OutputFormatter,
+    output_path: &str,
+    sync_format: bool,
+) -> Result<()> {
     formatter.begin_document("capture");
     formatter.output(
         "[SCAN] 开始扫描开发环境...",
@@ -147,12 +153,16 @@ pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()>
         dotfiles: Vec::new(),
     };
 
-    // 5. 序列化为 YAML
-    let yaml = match serde_yaml::to_string(&snapshot) {
-        Ok(y) => y,
-        Err(e) => {
-            formatter.end_document();
-            return Err(CoreError::Capture(format!("YAML serialize failed: {}", e)));
+    // 5. 序列化为 YAML（--sync-format 输出 SyncConfig 兼容格式）
+    let yaml = if sync_format {
+        render_sync_yaml(&snapshot)
+    } else {
+        match serde_yaml::to_string(&snapshot) {
+            Ok(y) => y,
+            Err(e) => {
+                formatter.end_document();
+                return Err(CoreError::Capture(format!("YAML serialize failed: {}", e)));
+            }
         }
     };
 
@@ -180,6 +190,36 @@ pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()>
     formatter.end_document();
 
     Ok(())
+}
+
+/// 将 EnvironmentSnapshot 渲染为 SyncConfig 兼容格式：
+///
+/// ```yaml
+/// envs:
+///   python: "3.11"
+///   node: "20.18"
+/// ```
+///
+/// 每个 RuntimeEnv 映射为 `envs: {name: "major.minor"}`（版本取 `major.minor`，
+/// 如 "3.11.9" -> "3.11"）；版本为空的条目跳过。
+pub fn render_sync_yaml(snapshot: &EnvironmentSnapshot) -> String {
+    let mut envs = serde_yaml::Mapping::new();
+    for env in snapshot.envs.values() {
+        if env.version.trim().is_empty() {
+            continue;
+        }
+        let major_minor = env.version.split('.').take(2).collect::<Vec<_>>().join(".");
+        envs.insert(
+            serde_yaml::Value::String(env.name.clone()),
+            serde_yaml::Value::String(major_minor),
+        );
+    }
+    let mut root = serde_yaml::Mapping::new();
+    root.insert(
+        serde_yaml::Value::String("envs".to_string()),
+        serde_yaml::Value::Mapping(envs),
+    );
+    serde_yaml::to_string(&serde_yaml::Value::Mapping(root)).unwrap_or_default()
 }
 
 /// 获取主机名

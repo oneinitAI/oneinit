@@ -77,6 +77,23 @@ async fn install_from_tui(name: &str, formatter: &OutputFormatter) -> String {
 
     // 2. 本地社区
     if let Some(r) = community_recipe::resolve(name) {
+        // dynamic 配方：从 GitHub releases 实时构建后安装
+        if let Some(dyn_spec) = &r.dynamic {
+            return match crate::core::dynamic::build_github_release(name, dyn_spec, None, false)
+                .await
+            {
+                Ok(dyn_recipe) => {
+                    match community_recipe::install(&dyn_recipe, formatter, false, false).await {
+                        Ok(()) => format!("[OK] {} installation complete", dyn_recipe.name),
+                        Err(e) => format!(
+                            "[ERROR] installation failed: {}\n       Hint: 含命令的配方请在 CLI 用 `oneinit install --allow-exec {}`",
+                            e, name
+                        ),
+                    }
+                }
+                Err(e) => format!("[ERROR] dynamic resolve failed: {}", e),
+            };
+        }
         // TUI 默认拒绝执行类配方（安全），提示用 CLI --allow-exec
         return match community_recipe::install(&r, formatter, false, false).await {
             Ok(()) => format!("[OK] {} installation complete", r.name),

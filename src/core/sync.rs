@@ -59,7 +59,8 @@ pub fn parse_config(content: &str) -> crate::core::Result<SyncConfig> {
 }
 
 /// 将 envs 中的键值对转换为recipe名
-/// 例如: "python" + "3.11" → "python3.11"
+/// 例如: "python" + "3.11" → "python@3.11"（含点 → 动态/社区配方语义）
+///       "node" + 18 → "node18"（不含点 → 内置语义）
 pub fn envs_to_recipe_names(config: &SyncConfig) -> Vec<String> {
     config
         .envs
@@ -70,7 +71,11 @@ pub fn envs_to_recipe_names(config: &SyncConfig) -> Vec<String> {
                 serde_yaml::Value::Number(n) => n.to_string(),
                 other => format!("{:?}", other),
             };
-            format!("{}{}", name, ver_str)
+            if ver_str.contains('.') {
+                format!("{name}@{ver_str}") // 完整版本 → 动态/社区配方
+            } else {
+                format!("{name}{ver_str}") // 简短 major/minor → 内置
+            }
         })
         .collect()
 }
@@ -143,6 +148,11 @@ mod tests {
             "node".to_string(),
             serde_yaml::Value::Number(serde_yaml::Number::from(18)),
         );
+        // 完整 semver → name@version（动态/社区配方语义）
+        envs.insert(
+            "rg".to_string(),
+            serde_yaml::Value::String("15.2.0".to_string()),
+        );
 
         let config = SyncConfig {
             envs,
@@ -150,8 +160,10 @@ mod tests {
         };
 
         let names = envs_to_recipe_names(&config);
-        assert!(names.contains(&"python3.11".to_string()));
+        // 含点 → @version；不含点 → name+version
+        assert!(names.contains(&"python@3.11".to_string()));
         assert!(names.contains(&"node18".to_string()));
+        assert!(names.contains(&"rg@15.2.0".to_string()));
     }
 
     #[test]

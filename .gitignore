@@ -47,3 +47,4 @@ www/tsconfig.tsbuildinfo
 
 # Next.js
 .next/
+.omo/ 
