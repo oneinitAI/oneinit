@@ -7,8 +7,8 @@ on:
   push:
     branches: [main]
 
-# 作者豁免：BG4JTS（本项目作者/维护者账号）的提交（直推或自提 PR）跳过检查，
-# 加速单人维护节奏；其他贡献者的 PR 执行全量检查。
+# 作者豁免：BG4JTS（作者/维护者）与 oneinitAI（组织/机器人账号）的提交
+# （直推或自提 PR）跳过检查，加速单人维护节奏；其他贡献者的 PR 执行全量检查。
 # 注意：status 总闸保持 always()，被跳过的 job 视为通过（result = skipped）。
 
 env:
@@ -72,7 +72,7 @@ jobs:
   lint-test:
     name: Lint + Test (Tier ${{ needs.meta.outputs.tier }})
     needs: meta
-    if: github.actor != 'BG4JTS' && needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false'
+    if: github.actor != 'BG4JTS' && github.actor != 'oneinitAI' && needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -94,7 +94,7 @@ jobs:
   build:
     name: Release Build (Tier ${{ needs.meta.outputs.tier }})
     needs: meta
-    if: github.actor != 'BG4JTS' && needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false' && (needs.meta.outputs.tier == 'M' || needs.meta.outputs.tier == 'L')
+    if: github.actor != 'BG4JTS' && github.actor != 'oneinitAI' && needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false' && (needs.meta.outputs.tier == 'M' || needs.meta.outputs.tier == 'L')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -109,7 +109,7 @@ jobs:
   cross-check:
     name: Cross-Check ${{ matrix.target }}
     needs: meta
-    if: github.actor != 'BG4JTS' && needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false' && needs.meta.outputs.tier == 'L'
+    if: github.actor != 'BG4JTS' && github.actor != 'oneinitAI' && needs.meta.outputs.docs_only == 'false' && needs.meta.outputs.ci_only == 'false' && needs.meta.outputs.tier == 'L'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
@@ -133,7 +133,7 @@ jobs:
   workflow-check:
     name: Workflow YAML Check
     needs: meta
-    if: github.actor != 'BG4JTS' && needs.meta.outputs.ci_only == 'true'
+    if: github.actor != 'BG4JTS' && github.actor != 'oneinitAI' && needs.meta.outputs.ci_only == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -157,7 +157,7 @@ jobs:
   docs-check:
     name: Docs Link Check
     needs: meta
-    if: github.actor != 'BG4JTS' && needs.meta.outputs.docs_only == 'true'
+    if: github.actor != 'BG4JTS' && github.actor != 'oneinitAI' && needs.meta.outputs.docs_only == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
