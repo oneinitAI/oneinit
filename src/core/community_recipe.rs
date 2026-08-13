@@ -28,6 +28,9 @@ pub struct CommunityRecipe {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
     pub license: Option<String>,
+    /// 是否经 CI 真实安装验证（作者自标 + CI 复核）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verified: Option<bool>,
     /// 许可证详情 URL，安装前展示
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[allow(dead_code)]
@@ -122,24 +125,69 @@ pub fn recipes_dir() -> PathBuf {
 // load and lookup
 // ============================================================
 
-/// 从 ~/.oneinit/recipes/*.yaml load all community recipes
-pub fn load_all() -> Vec<CommunityRecipe> {
-    let dir = recipes_dir();
-    let mut recipes = Vec::new();
+/// 生成配方模板 YAML（`oneinit recipe new` 用），带 TODO 占位符与 `verified: false`。
+pub fn recipe_template(name: &str) -> String {
+    format!(
+        r#"name: {name}
+version: "1.0.0"
+description: "TODO: 描述 {name}"
+license: "MIT"
+platforms:
+  windows:
+    url: "https://example.com/{name}-1.0.0-win-x64.zip"
+    sha256: "TODO: 64 位十六进制校验和（从官方源获取，勿编造）"
+    install_type: "zip_extract"
+    install_path: "{name}"
+    path_add: ["{{{{install_dir}}}}/bin"]
+  linux:
+    url: "https://example.com/{name}-1.0.0-linux-x64.tar.gz"
+    sha256: "TODO"
+    install_type: "tar_extract"
+    install_path: "{name}"
+    path_add: ["{{{{install_dir}}}}/bin"]
+  darwin:
+    url: "https://example.com/{name}-1.0.0-darwin-x64.tar.gz"
+    sha256: "TODO"
+    install_type: "tar_extract"
+    install_path: "{name}"
+    path_add: ["{{{{install_dir}}}}/bin"]
+maintainer:
+  name: "TODO: 你的名字"
+  github: "TODO: 你的 GitHub 用户名"
+tags:
+  - "utility"
+verified: false
+"#,
+        name = name
+    )
+}
 
-    if let Ok(entries) = std::fs::read_dir(&dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("yaml")
-                && let Ok(content) = std::fs::read_to_string(&path)
-                && let Ok(recipe) = serde_yaml::from_str::<CommunityRecipe>(&content)
-            {
-                recipes.push(recipe);
-            }
+/// 从 ~/.oneinit/recipes/*.yaml load all community recipes
+///
+/// 递归扫描：既支持单层 `recipes/<name>.yaml`（本地/注册表缓存），
+/// 也支持配方仓库的两层结构 `recipes/<name>/<version>.yaml`。
+pub fn load_all() -> Vec<CommunityRecipe> {
+    let mut recipes = Vec::new();
+    load_dir_recursive(&recipes_dir(), &mut recipes);
+    recipes
+}
+
+/// 递归扫描目录下的所有 YAML 配方
+fn load_dir_recursive(dir: &std::path::Path, out: &mut Vec<CommunityRecipe>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            load_dir_recursive(&path, out);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("yaml")
+            && let Ok(content) = std::fs::read_to_string(&path)
+            && let Ok(recipe) = serde_yaml::from_str::<CommunityRecipe>(&content)
+        {
+            out.push(recipe);
         }
     }
-
-    recipes
 }
 
 /// 按名称find community recipe by name

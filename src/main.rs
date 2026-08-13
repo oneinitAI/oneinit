@@ -167,6 +167,15 @@ enum Commands {
     Publish {
         /// recipe文件路径
         file: String,
+        /// 自动提交配方到 oneinit-recipes 并创建 PR（需要 gh CLI）
+        #[arg(long)]
+        pr: bool,
+    },
+
+    /// 配方脚手架工具
+    Recipe {
+        #[command(subcommand)]
+        action: RecipeAction,
     },
 
     /// Export environment as tar.gz
@@ -307,6 +316,12 @@ enum SkillAction {
 }
 
 #[derive(clap::Subcommand)]
+enum RecipeAction {
+    /// 在当前目录生成配方模板文件 <name>.yaml
+    New { name: String },
+}
+
+#[derive(clap::Subcommand)]
 enum RegistryAction {
     /// 添加自定义订阅 URL（可多个）
     Add {
@@ -444,7 +459,7 @@ async fn main() {
             RegistryAction::List => cli::run_registry_list(&formatter),
         },
         Commands::Issue { kind } => cli::run_issue(&kind),
-        Commands::Publish { file } => cli::run_publish(&formatter, &file).await,
+        Commands::Publish { file, pr } => cli::run_publish(&formatter, &file, pr).await,
         Commands::Export {
             output,
             include_envs,
@@ -487,6 +502,9 @@ async fn main() {
             SkillAction::List => cli::run_skill_list(&formatter).await,
             SkillAction::Status => cli::run_skill_status(&formatter).await,
             SkillAction::Uninstall => cli::run_skill_uninstall(&formatter).await,
+        },
+        Commands::Recipe { action } => match action {
+            RecipeAction::New { name } => cli::run_recipe_new(&formatter, &name),
         },
         Commands::Team { action } => match action {
             TeamAction::Add {

@@ -90,6 +90,7 @@ const CATEGORY_ORDER: &[&str] = &[
     "PATH 环境",
     "环境变量",
     "系统资源",
+    "注册表",
     "许可合规",
     "AI 友好性",
 ];
@@ -112,6 +113,7 @@ pub async fn run_all() -> Vec<CheckResult> {
     out.extend(check_env_pollution());
     out.extend(check_disk_space());
     out.extend(check_licenses(&manifest_records));
+    out.extend(check_registry_health());
     out.extend(check_json_selftest(&manifest_records));
     out
 }
@@ -602,6 +604,61 @@ fn check_disk_space() -> Vec<CheckResult> {
             "无法确定磁盘剩余空间（跳过）",
         )],
     }
+}
+
+// ---------------------------------------------------------------------------
+// 注册表健康
+// ---------------------------------------------------------------------------
+
+fn check_registry_health() -> Vec<CheckResult> {
+    use crate::core::registry;
+
+    let mut results = Vec::new();
+    let index = registry::load_cached_index();
+    match index {
+        Some(idx) => {
+            let stale = registry::is_index_stale(24);
+            let detail = format!(
+                "已缓存 {} 个包，更新于 {}（{}）",
+                idx.packages.len(),
+                idx.last_updated,
+                if stale { "已过期" } else { "新鲜" }
+            );
+            if stale {
+                results.push(CheckResult::fail(
+                    "注册表",
+                    "index_cached",
+                    Severity::Warning,
+                    detail + " — 建议运行 oneinit update",
+                ));
+            } else {
+                results.push(CheckResult::ok(
+                    "注册表",
+                    "index_cached",
+                    Severity::Info,
+                    detail,
+                ));
+            }
+        }
+        None => results.push(CheckResult::fail(
+            "注册表",
+            "index_cached",
+            Severity::Warning,
+            "配方索引未缓存 — 运行 oneinit update 拉取",
+        )),
+    }
+
+    let subs = registry::list_subscriptions();
+    results.push(CheckResult::info(
+        "注册表",
+        "subscriptions",
+        format!(
+            "{} 个注册表订阅（默认: {}）",
+            subs.len(),
+            registry::load_config().registry_url
+        ),
+    ));
+    results
 }
 
 // ---------------------------------------------------------------------------

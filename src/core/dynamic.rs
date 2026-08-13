@@ -122,6 +122,7 @@ async fn node_recipe(version: &str) -> Result<CommunityRecipe> {
         depends: None,
         tags: Some(vec!["runtime".into(), "javascript".into()]),
         maintainer: None,
+        verified: Some(false),
     })
 }
 
@@ -190,6 +191,7 @@ async fn go_recipe(version: &str) -> Result<CommunityRecipe> {
         depends: None,
         tags: Some(vec!["runtime".into(), "go".into()]),
         maintainer: None,
+        verified: Some(false),
     })
 }
 
@@ -254,6 +256,7 @@ async fn python_recipe(version: &str) -> Result<CommunityRecipe> {
         depends: None,
         tags: Some(vec!["runtime".into(), "python".into()]),
         maintainer: None,
+        verified: Some(false),
     })
 }
 
@@ -321,6 +324,7 @@ async fn java_recipe(version: &str) -> Result<CommunityRecipe> {
         depends: None,
         tags: Some(vec!["runtime".into(), "java".into()]),
         maintainer: None,
+        verified: Some(false),
     })
 }
 
@@ -409,6 +413,7 @@ fn rust_recipe(version: &str) -> Result<CommunityRecipe> {
         depends: None,
         tags: Some(vec!["runtime".into(), "rust".into()]),
         maintainer: None,
+        verified: Some(false),
     })
 }
 

@@ -1032,6 +1032,8 @@ pub async fn run_search(formatter: &OutputFormatter, keyword: Option<&str>) {
                 "version": r.version,
                 "display_name": r.description,
                 "source": "community",
+                "verified": r.verified.unwrap_or(false),
+                "license": r.license,
             })
         })
         .collect();
@@ -1909,8 +1911,61 @@ pub fn run_registry_list(formatter: &OutputFormatter) {
     );
 }
 
+/// oneinit recipe new <name> — 生成配方模板文件
+pub fn run_recipe_new(formatter: &OutputFormatter, name: &str) {
+    let valid = !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if !valid {
+        formatter.output(
+            &format!("[ERROR] 无效的配方名: '{}'（仅允许字母/数字/-/_）", name),
+            Some(serde_json::json!({
+                "status": "error", "action": "recipe_new", "name": name,
+                "message": "Invalid recipe name",
+            })),
+        );
+        return;
+    }
+
+    let path = format!("{name}.yaml");
+    if std::path::Path::new(&path).exists() {
+        formatter.output(
+            &format!("[ERROR] 文件已存在: {path}"),
+            Some(serde_json::json!({
+                "status": "error", "action": "recipe_new", "name": name,
+                "message": "File already exists",
+            })),
+        );
+        return;
+    }
+
+    let template = crate::core::community_recipe::recipe_template(name);
+    if let Err(e) = std::fs::write(&path, template) {
+        formatter.output(
+            &format!("[ERROR] 写入失败: {}", e),
+            Some(serde_json::json!({
+                "status": "error", "action": "recipe_new", "name": name,
+                "message": e.to_string(),
+            })),
+        );
+        return;
+    }
+
+    formatter.output(
+        &format!(
+            "[OK] 配方模板已生成: {}（填写 TODO 后运行 `oneinit verify {}` 校验）",
+            path, path
+        ),
+        Some(serde_json::json!({
+            "status": "success", "action": "recipe_new", "name": name,
+            "file": path,
+        })),
+    );
+}
+
 /// oneinit publish <file> — publish recipe to remote registry
-pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
+pub async fn run_publish(formatter: &OutputFormatter, file: &str, pr: bool) {
     use crate::core::community_recipe;
     use crate::core::registry;
 
@@ -2015,6 +2070,220 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
             "registry_url": config.registry_url,
         })),
     );
+
+    // --pr：自动提交配方到 oneinit-recipes 并创建 PR
+    if pr {
+        publish_with_pr(
+            formatter,
+            file,
+            &recipe.name,
+            &recipe.version,
+            &recipe.description,
+        );
+    }
+}
+
+/// publish --pr：在临时目录 clone oneinit-recipes，复制配方、更新 INDEX.json、
+/// 提交并 `gh pr create`。gh 不可用或任一步骤失败时给出明确提示（不静默失败）。
+fn publish_with_pr(
+    formatter: &OutputFormatter,
+    file: &str,
+    name: &str,
+    version: &str,
+    description: &str,
+) {
+    use crate::core::registry::{Index, IndexEntry};
+
+    // 0. 前置检查：gh CLI
+    let gh_ok = std::process::Command::new("gh")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !gh_ok {
+        formatter.output(
+            "[ERROR] 未检测到 gh CLI。请安装 GitHub CLI（https://cli.github.com）后重试，或按上面的手动步骤操作。",
+            Some(serde_json::json!({
+                "status": "error", "action": "publish_pr", "message": "gh CLI not found",
+            })),
+        );
+        return;
+    }
+
+    // 1. temp 目录 clone
+    let work = std::env::temp_dir().join(format!("oneinit-publish-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&work).unwrap();
+    let clone_ok = std::process::Command::new("git")
+        .args([
+            "clone",
+            "--depth",
+            "1",
+            "https://github.com/oneinitAI/oneinit-recipes.git",
+        ])
+        .current_dir(&work)
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !clone_ok {
+        formatter.output(
+            "[ERROR] clone oneinit-recipes 失败（网络或权限）。请按手动步骤操作。",
+            Some(serde_json::json!({
+                "status": "error", "action": "publish_pr", "message": "git clone failed",
+            })),
+        );
+        let _ = std::fs::remove_dir_all(&work);
+        return;
+    }
+    let repo = work.join("oneinit-recipes");
+
+    // 2. 复制配方
+    let recipe_dest = repo
+        .join("recipes")
+        .join(name)
+        .join(format!("{version}.yaml"));
+    if let Some(parent) = recipe_dest.parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
+    if std::fs::copy(file, &recipe_dest).is_err() {
+        formatter.output(
+            "[ERROR] 复制配方失败。",
+            Some(serde_json::json!({
+                "status": "error", "action": "publish_pr", "message": "copy failed",
+            })),
+        );
+        let _ = std::fs::remove_dir_all(&work);
+        return;
+    }
+
+    // 3. 更新 INDEX.json（保持 BTreeMap 排序）
+    let index_path = repo.join("INDEX.json");
+    if let Ok(content) = std::fs::read_to_string(&index_path)
+        && let Ok(mut index) = serde_json::from_str::<Index>(&content)
+    {
+        let entry = index
+            .packages
+            .entry(name.to_string())
+            .or_insert_with(|| IndexEntry {
+                description: description.to_string(),
+                latest: version.to_string(),
+                versions: Vec::new(),
+                tags: Vec::new(),
+                maintainers: Vec::new(),
+                source: String::new(),
+            });
+        if !entry.versions.contains(&version.to_string()) {
+            entry.versions.push(version.to_string());
+            entry.versions.sort();
+        }
+        if version > entry.latest.as_str() {
+            entry.latest = version.to_string();
+        }
+        if !description.is_empty() {
+            entry.description = description.to_string();
+        }
+        if let Ok(json) = serde_json::to_string_pretty(&index) {
+            let _ = std::fs::write(&index_path, format!("{json}\n"));
+        }
+    }
+
+    // 4. 提交 + 推分支 + gh pr create
+    let branch = format!("recipes/{name}-{version}");
+    let steps_ok = [
+        std::process::Command::new("git")
+            .args(["checkout", "-b", &branch])
+            .current_dir(&repo)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false),
+        std::process::Command::new("git")
+            .args(["add", "-A"])
+            .current_dir(&repo)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false),
+        std::process::Command::new("git")
+            .args([
+                "commit",
+                "-m",
+                &format!("feat: add {name} {version} recipe"),
+            ])
+            .current_dir(&repo)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false),
+        std::process::Command::new("git")
+            .args(["push", "origin", &branch])
+            .current_dir(&repo)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false),
+    ]
+    .iter()
+    .all(|ok| *ok);
+
+    if !steps_ok {
+        formatter.output(
+            &format!(
+                "[ERROR] 提交/推送失败（可能需要 fork 或写权限）。分支保留在: {}，请手动 `gh pr create --repo oneinitAI/oneinit-recipes --head {branch}`",
+                repo.display()
+            ),
+            Some(serde_json::json!({
+                "status": "error", "action": "publish_pr", "message": "git push failed",
+                "branch": branch,
+            })),
+        );
+        return;
+    }
+
+    // 5. gh pr create
+    let pr_title = format!("feat: add {name} {version} recipe");
+    let pr_body = format!(
+        "Add `{name}` {version} community recipe.\n\n- source: {}\n- description: {}",
+        name, description
+    );
+    let pr = std::process::Command::new("gh")
+        .args([
+            "pr",
+            "create",
+            "--repo",
+            "oneinitAI/oneinit-recipes",
+            "--base",
+            "main",
+            "--head",
+            &branch,
+            "--title",
+            &pr_title,
+            "--body",
+            &pr_body,
+        ])
+        .current_dir(&repo)
+        .output();
+    match pr {
+        Ok(out) if out.status.success() => {
+            let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            formatter.output(
+                &format!("[OK] PR 已创建: {url}"),
+                Some(serde_json::json!({
+                    "status": "success", "action": "publish_pr",
+                    "pr_url": url, "branch": branch,
+                })),
+            );
+        }
+        _ => {
+            formatter.output(
+                &format!(
+                    "[WARN] 分支已推送但 PR 创建失败。手动执行: gh pr create --repo oneinitAI/oneinit-recipes --head {branch} --base main --title \"{pr_title}\""
+                ),
+                Some(serde_json::json!({
+                    "status": "warning", "action": "publish_pr",
+                    "message": "PR creation failed", "branch": branch,
+                })),
+            );
+        }
+    }
+
+    // 清理临时 clone
+    let _ = std::fs::remove_dir_all(&work);
 }
 
 /// oneinit doctor — environment health check
