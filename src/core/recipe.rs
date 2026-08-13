@@ -1,11 +1,9 @@
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use std::time::Instant;
 
 use super::config_gen::{AppConfig, remove_configs};
-use super::downloader;
-use super::manifest::{InstallRecord, Manifest};
+use super::manifest::Manifest;
 use super::path_mgr;
 use super::{CoreError, Result, envs_dir};
 use crate::output::OutputFormatter;
@@ -172,31 +170,27 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
 
     // 记录到清单
     let bin_path = install_dir.join(&recipe.bin_dir);
+    let path_entries = vec![bin_path.to_string_lossy().to_string()];
     let config_files = recipe
         .configs
         .iter()
         .map(|c| install_dir.join(&c.rel_path).to_string_lossy().to_string())
         .collect::<Vec<_>>();
-    let manifest = Manifest::open()?;
-    let record = InstallRecord {
-        id: uuid::Uuid::new_v4().to_string(),
-        name: recipe.name.clone(),
-        version: Some(recipe.version.clone()),
-        install_path: install_dir.to_string_lossy().to_string(),
-        archive_url: Some(recipe.download_url.clone()),
-        sha256: Some(recipe.sha256.clone()),
-        path_entries: vec![bin_path.to_string_lossy().to_string()],
-        config_files,
-        installed_at: chrono::Utc::now().to_rfc3339(),
-        original_path: Some(path_backup),
-        env_vars_backup: serde_json::json!({}),
-    };
-    let record_id = manifest.add(&record)?;
+    let record_id = crate::core::install::add_manifest_record(
+        &recipe.name,
+        Some(recipe.version.clone()),
+        &install_dir,
+        Some(recipe.download_url.clone()),
+        Some(recipe.sha256.clone()),
+        path_entries.clone(),
+        config_files.clone(),
+        path_backup,
+    )?;
 
     let duration = start.elapsed();
     formatter.output(
         &format!(
-            "🎉 {} installation complete！\n  路径: {}\n  耗时: {:.1}s",
+            "[OK] {} 安装完成！\n  路径: {}\n  耗时: {:.1}s",
             recipe.display_name,
             install_dir.display(),
             duration.as_secs_f64()
@@ -207,8 +201,8 @@ pub async fn install(recipe: &Recipe, formatter: &OutputFormatter) -> Result<()>
             "package": recipe.name,
             "version": recipe.version,
             "install_path": install_dir.to_string_lossy(),
-            "path_entries": record.path_entries,
-            "config_files": record.config_files,
+            "path_entries": path_entries,
+            "config_files": config_files,
             "manifest_id": record_id,
             "duration_ms": duration.as_millis() as u64,
         })),
@@ -261,90 +255,6 @@ pub async fn uninstall(package: &str, formatter: &OutputFormatter) -> Result<()>
         })),
     );
 
-    Ok(())
-}
-
-// ============================================================
-// 安装后处理执行
-// ============================================================
-
-/// execute install后处理步骤（异步，因为可能需要download）
-async fn execute_post_install(
-    post: &PostInstall,
-    install_dir: &Path,
-    formatter: &OutputFormatter,
-) -> Result<()> {
-    for step in &post.steps {
-        match step {
-            PostInstallStep::DownloadAndRun { url, args } => {
-                execute_download_and_run(url, args, install_dir, formatter).await?;
-            }
-            PostInstallStep::ModifyFile { rel_path, action } => {
-                execute_modify_file(rel_path, action, install_dir)?;
-            }
-        }
-    }
-    Ok(())
-}
-
-/// download文件并执行
-async fn execute_download_and_run(
-    url: &str,
-    args: &[String],
-    install_dir: &Path,
-    formatter: &OutputFormatter,
-) -> Result<()> {
-    let file_name = url.rsplit('/').next().unwrap_or("script");
-    let dest = install_dir.join(file_name);
-
-    // download脚本
-    downloader::download(url, &dest).await?;
-
-    formatter.output(
-        &format!("[OK] script downloaded: {}", file_name),
-        Some(serde_json::json!({"message": "script_downloaded"})),
-    );
-
-    // 构建命令
-    let python_exe = install_dir.join("python.exe");
-    let mut cmd = Command::new(&python_exe);
-    cmd.arg(&dest);
-    cmd.args(args);
-    cmd.current_dir(install_dir);
-
-    formatter.output(
-        &format!("[WAIT] running: python {} {}", file_name, args.join(" ")),
-        Some(serde_json::Value::Null),
-    );
-
-    let output = cmd
-        .output()
-        .map_err(|e| CoreError::Other(format!("script execution failed: {}", e)))?;
-
-    if output.status.success() {
-        formatter.output("[OK] script completed", Some(serde_json::Value::Null));
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(CoreError::Other(format!(
-            "script execution failed: {}",
-            stderr
-        )));
-    }
-
-    // 清理脚本文件
-    let _ = fs::remove_file(&dest);
-
-    Ok(())
-}
-
-/// 执行文件修改操作
-fn execute_modify_file(rel_path: &str, action: &ModifyAction, install_dir: &Path) -> Result<()> {
-    let file_path = install_dir.join(rel_path);
-
-    let content = fs::read_to_string(&file_path)?;
-    let new_content = apply_modify_action(action, &content);
-
-    fs::write(&file_path, new_content)?;
     Ok(())
 }
 

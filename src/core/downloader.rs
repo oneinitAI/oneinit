@@ -38,7 +38,7 @@ pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
     let pb = ProgressBar::new(total_size);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("{spinner:.green} download {msg} {bytes}/{total_bytes} {eta:>3}")
+            .template("{spinner:.green} 下载 {msg} {bytes}/{total_bytes} {eta:>3}")
             .unwrap()
             .progress_chars("█▓░"),
     );
@@ -58,7 +58,7 @@ pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
     }
 
     file.flush().await.map_err(CoreError::Io)?;
-    pb.finish_with_message("download完成");
+    pb.finish_with_message("下载完成");
 
     let sha256 = compute_sha256(dest)?;
     let file_size = std::fs::metadata(dest)?.len();

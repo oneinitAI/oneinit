@@ -234,7 +234,7 @@ async fn fetch_index_from(client: &reqwest::Client, base_url: &str) -> Result<In
         .get(&url)
         .send()
         .await
-        .map_err(|e| CoreError::Registry(format!("fetch {url} failed: {e}")))?;
+        .map_err(|e| CoreError::Registry(format!("拉取 {url} 失败: {e}")))?;
 
     if !response.status().is_success() {
         return Err(CoreError::Registry(format!(
@@ -258,23 +258,22 @@ async fn fetch_index_from(client: &reqwest::Client, base_url: &str) -> Result<In
                 .map_err(|e| CoreError::Registry(format!("read {sig_url} failed: {e}")))?;
             let sig = sig_text.trim().to_string();
             if verify_index_signature(body.as_bytes(), &sig) {
-                eprintln!("[OK] INDEX.json signature verified for {base_url}");
+                eprintln!("[OK] INDEX.json 签名已验证: {base_url}");
             } else {
                 return Err(CoreError::Registry(format!(
-                    "INDEX.json signature verification FAILED for {base_url} — \
-                     registry may be tampered. Refusing to use this index."
+                    "INDEX.json 签名验证失败（{base_url}）— 注册表可能被篡改，已拒绝使用该索引。"
                 )));
             }
         }
         Ok(_) => {
             eprintln!(
-                "[WARN] {} has no INDEX.json.sig — skipping signature check",
+                "[WARN] {} 没有 INDEX.json.sig — 跳过签名校验",
                 base_url
             );
         }
         Err(e) => {
             eprintln!(
-                "[WARN] could not fetch {}: {} — skipping signature check",
+                "[WARN] 无法获取 {} 的签名: {} — 跳过签名校验",
                 sig_url, e
             );
         }
@@ -356,7 +355,7 @@ pub async fn fetch_index() -> Result<Index> {
 
     if !errors.is_empty() {
         eprintln!(
-            "[WARN] {} registry(s) failed: {}",
+            "[WARN] {} 个注册表拉取失败: {}",
             errors.len(),
             errors.join("; ")
         );
@@ -402,7 +401,7 @@ pub async fn fetch_recipe(
         .get(&url)
         .send()
         .await
-        .map_err(|e| CoreError::Registry(format!("fetch recipe failed: {e}")))?;
+        .map_err(|e| CoreError::Registry(format!("拉取配方失败: {e}")))?;
 
     if !response.status().is_success() {
         return Err(CoreError::Registry(format!(

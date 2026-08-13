@@ -122,7 +122,7 @@ pub fn run_capture(formatter: &OutputFormatter, output_path: &str) -> Result<()>
             envs.insert(name.clone(), env.clone());
         } else {
             formatter.output(
-                &format!("  [--] {} not detected", name),
+                &format!("  [--] {} 未检测到", name),
                 Some(serde_json::json!({
                     "detector": name,
                     "found": false,

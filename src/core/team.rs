@@ -297,7 +297,7 @@ pub async fn add_team(
 
     let client = http_client()?;
     formatter.output(
-        &format!("[TEAM] Fetching {} ...", base),
+        &format!("[TEAM] 拉取 {} ...", base),
         Some(serde_json::Value::Null),
     );
     let (content, sig) = fetch_team_file(&client, &base).await?;
@@ -444,7 +444,7 @@ pub async fn fetch_if_changed(
 
     let client = http_client()?;
     formatter.output(
-        &format!("[TEAM] Checking {} ...", cfg.team_url),
+        &format!("[TEAM] 检查 {} ...", cfg.team_url),
         Some(serde_json::Value::Null),
     );
     let (content, sig) = fetch_team_file(&client, &cfg.team_url).await?;
@@ -577,7 +577,7 @@ pub fn apply_env_vars(
                 .args([key, value])
                 .output()?;
             formatter.output(
-                &format!("[TEAM] env {} setx -> {:?}", key, out.status.code()),
+                &format!("[TEAM] 环境变量 {} setx -> {:?}", key, out.status.code()),
                 Some(serde_json::Value::Null),
             );
         }
@@ -616,7 +616,7 @@ fn append_env_to_profiles(
         let mut f = std::fs::OpenOptions::new().append(true).open(&rc)?;
         write!(f, "\n{marker}\nexport {key}=\"{value}\"\n")?;
         formatter.output(
-            &format!("[TEAM] env {key} -> {}", rc.display()),
+            &format!("[TEAM] 环境变量 {key} -> {}", rc.display()),
             Some(serde_json::Value::Null),
         );
         written_any = true;
@@ -630,7 +630,7 @@ fn append_env_to_profiles(
             .open(&rc)?;
         write!(f, "\n{marker}\nexport {key}=\"{value}\"\n")?;
         formatter.output(
-            &format!("[TEAM] env {key} -> {}", rc.display()),
+            &format!("[TEAM] 环境变量 {key} -> {}", rc.display()),
             Some(serde_json::Value::Null),
         );
     }
@@ -656,7 +656,7 @@ pub fn apply_path_entries(
         }
         super::path_mgr::add(p)?;
         formatter.output(
-            &format!("[TEAM] PATH += {rendered}"),
+            &format!("[TEAM] PATH 添加 {rendered}"),
             Some(serde_json::Value::Null),
         );
     }

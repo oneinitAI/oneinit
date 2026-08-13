@@ -86,7 +86,7 @@ pub fn run_post_install(
 
     for (i, cmd_str) in commands.iter().enumerate() {
         formatter.output(
-            &format!("[RUN] [{}] run: {}", i + 1, cmd_str),
+            &format!("[RUN] [{}] 执行: {}", i + 1, cmd_str),
             Some(serde_json::json!({
                 "step": i + 1,
                 "command": cmd_str,
@@ -112,7 +112,7 @@ pub fn run_post_install(
         } else {
             formatter.output(
                 &format!(
-                    "   [ERROR] command failed (exit code {:?})",
+                    "   [ERROR] 命令执行失败（退出码 {:?}）",
                     output.status.code()
                 ),
                 Some(serde_json::json!({

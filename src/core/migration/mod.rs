@@ -109,7 +109,7 @@ pub fn run_import(
             if force {
                 "[SECURITY]   模式: --force 已启用，将覆盖现有文件"
             } else {
-                "[SECURITY]   模式: 已exists文件将被跳过（使用 --force 覆盖）"
+                "[SECURITY]   模式: 已存在文件将被跳过（使用 --force 覆盖）"
             },
             Some(serde_json::Value::Null),
         );
@@ -120,7 +120,7 @@ pub fn run_import(
     }
 
     formatter.output(
-        &format!("[IMPORT] importing: {} (dry_run={})", archive, dry_run),
+        &format!("[IMPORT] 正在导入: {} (dry_run={})", archive, dry_run),
         Some(serde_json::json!({
             "status": "importing",
             "action": "import",
@@ -136,7 +136,7 @@ pub fn run_import(
     if dry_run {
         formatter.output(
             &format!(
-                "[OK] 预览完成: 将恢复 {} 个缓存, {} 个包 (dry run)",
+                "[OK] 预览完成: 将恢复 {} 个缓存, {} 个包（dry run）",
                 result.cache_restored, result.packages_restored,
             ),
             Some(serde_json::json!({

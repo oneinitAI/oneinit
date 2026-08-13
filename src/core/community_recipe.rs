@@ -6,7 +6,6 @@
 use std::collections::BTreeMap;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -249,11 +248,11 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
     // 1. YAML syntax
     let recipe: CommunityRecipe = match serde_yaml::from_str(&content) {
         Ok(r) => {
-            checks.push(("YAML syntax".to_string(), true, "parse success".to_string()));
+            checks.push(("YAML 语法".to_string(), true, "解析成功".to_string()));
             r
         }
         Err(e) => {
-            checks.push(("YAML syntax".to_string(), false, e.to_string()));
+            checks.push(("YAML 语法".to_string(), false, e.to_string()));
             return Ok(VerifyResult {
                 valid: false,
                 checks,
@@ -264,7 +263,7 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
     // 2. name 非空
     let ok = !recipe.name.is_empty();
     checks.push((
-        "name field".to_string(),
+        "名称字段".to_string(),
         ok,
         if ok {
             recipe.name.clone()
@@ -276,7 +275,7 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
     // 3. version 非空
     let ok = !recipe.version.is_empty();
     checks.push((
-        "version field".to_string(),
+        "版本字段".to_string(),
         ok,
         if ok {
             recipe.version.clone()
@@ -288,7 +287,7 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
     // 4. description 非空
     let ok = !recipe.description.is_empty();
     checks.push((
-        "description field".to_string(),
+        "描述字段".to_string(),
         ok,
         if ok {
             "exists".to_string()
@@ -309,7 +308,7 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
     checks.push((
         "平台覆盖".to_string(),
         platform_count > 0,
-        format!("{}  platforms", platform_count),
+        format!("{} 个平台", platform_count),
     ));
 
     // 6. per-platform check url/sha256/install_type
@@ -354,9 +353,9 @@ pub fn verify(yaml_path: &Path) -> Result<VerifyResult> {
     // 7. maintainer warning (non-blocking)
     if recipe.maintainer.is_none() {
         checks.push((
-            "maintainer".to_string(),
+            "维护者".to_string(),
             true, // does not affect validity
-            "[WARN] 未填写maintainer information，社区recipe建议填写".to_string(),
+            "[WARN] 未填写维护者信息，社区配方建议填写".to_string(),
         ));
     }
 
@@ -408,11 +407,10 @@ pub async fn install(
 
     if needs_exec && !allow_exec {
         return Err(CoreError::Other(format!(
-            "recipe '{}' requires executing commands/installers ({}{}). \
-             Refused for security. Re-run with --allow-exec to accept.",
+            "配方 '{}' 需要执行命令/安装器（{}{}）。出于安全已拒绝，使用 --allow-exec 重试以接受。",
             recipe.name,
             if has_commands {
-                "post_install commands"
+                "post_install 命令"
             } else {
                 ""
             },
@@ -473,7 +471,7 @@ pub async fn install(
             for cmd in cmds {
                 let rendered = render_template(cmd, &install_dir);
                 formatter.output(
-                    &format!("[SECURITY] Will run:   {}", rendered),
+                    &format!("[SECURITY] 将执行:   {}", rendered),
                     Some(serde_json::Value::Null),
                 );
             }
@@ -485,12 +483,12 @@ pub async fn install(
                 let rendered = render_template(&cf.path, &install_dir);
                 let escaped = path_escapes_install_dir(&rendered, &install_dir);
                 let warning = if escaped {
-                    "  ⚠️ ESCAPES install dir"
+                    "  [WARN] ESCAPES install dir"
                 } else {
                     ""
                 };
                 formatter.output(
-                    &format!("[SECURITY] Will write:   {}{}", rendered, warning),
+                    &format!("[SECURITY] 将写入:   {}{}", rendered, warning),
                     Some(serde_json::Value::Null),
                 );
             }
@@ -517,16 +515,16 @@ pub async fn install(
     // wait for user confirmation（--allow-exec / --yes 已显式授权，跳过交互）
     if allow_exec || formatter.auto_yes {
         formatter.output(
-            "[SECURITY] skipping interactive confirm (--allow-exec / --yes)",
+            "[SECURITY] 已显式授权（--allow-exec / --yes），跳过交互确认",
             Some(serde_json::Value::Null),
         );
     } else {
-        print!("[SECURITY] Type y to confirm, any other key to cancel: ");
+        print!("[SECURITY] 输入 y 确认，其他任意键取消: ");
         io::stdout().flush()?;
         let confirmed = wait_for_confirmation();
         if !confirmed {
             formatter.output(
-                "[CANCEL] Installation cancelled",
+                "[CANCEL] 安装已取消",
                 Some(serde_json::Value::Null),
             );
             return Ok(());
@@ -549,31 +547,26 @@ pub async fn install(
     crate::core::planner::execute_plan(&plan, formatter).await?;
 
     // 5. record to Manifest
-    let manifest = super::manifest::Manifest::open()?;
-    let path_entries = platform_cfg
+    let path_entries: Vec<String> = platform_cfg
         .path_add
         .iter()
         .map(|p| render_template(p, &install_dir))
         .collect();
-    let record = super::manifest::InstallRecord {
-        id: uuid::Uuid::new_v4().to_string(),
-        name: recipe.name.clone(),
-        version: Some(recipe.version.clone()),
-        install_path: install_dir.to_string_lossy().to_string(),
-        archive_url: Some(platform_cfg.url.clone()),
-        sha256: Some(platform_cfg.sha256.clone()),
+    let record_id = crate::core::install::add_manifest_record(
+        &recipe.name,
+        Some(recipe.version.clone()),
+        &install_dir,
+        Some(platform_cfg.url.clone()),
+        Some(platform_cfg.sha256.clone()),
         path_entries,
-        config_files: vec![],
-        installed_at: chrono::Utc::now().to_rfc3339(),
-        original_path: Some(path_backup),
-        env_vars_backup: serde_json::json!({}),
-    };
-    let record_id = manifest.add(&record)?;
+        vec![],
+        path_backup,
+    )?;
 
     let duration = start.elapsed();
     formatter.output(
         &format!(
-            "[SUCCESS] {} v{} installation complete ({:.1}s)",
+            "[SUCCESS] {} v{} 安装完成 ({:.1}s)",
             recipe.name,
             recipe.version,
             duration.as_secs_f64()
@@ -583,7 +576,7 @@ pub async fn install(
             "action": "install",
             "package": recipe.name,
             "version": recipe.version,
-            "install_path": record.install_path,
+            "install_path": install_dir.to_string_lossy(),
             "manifest_id": record_id,
             "duration_ms": duration.as_millis() as u64,
         })),
@@ -622,82 +615,6 @@ pub async fn uninstall(name: &str, formatter: &OutputFormatter) -> Result<()> {
             "removed_path": record.install_path,
         })),
     );
-
-    Ok(())
-}
-
-// ============================================================
-// post_install 执行
-// ============================================================
-
-fn execute_post_install(
-    post: &PostInstallConfig,
-    install_dir: &Path,
-    formatter: &OutputFormatter,
-) -> Result<()> {
-    // 1. generate config files
-    if let Some(ref configs) = post.config_files {
-        for cf in configs {
-            // 安全 H-3：渲染模板后再校验，禁止写入 install_dir 之外的任意绝对路径
-            // （防止 {{user_home}}/.ssh/authorized_keys 等越界写入）
-            let rendered_path = render_template(&cf.path, install_dir);
-            let full_path = install_dir.join(&rendered_path);
-            if path_escapes_install_dir(&rendered_path, install_dir) {
-                return Err(CoreError::Other(format!(
-                    "config_files path escapes install directory (security): {}",
-                    full_path.display()
-                )));
-            }
-            if let Some(parent) = full_path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            let content = render_template(&cf.template, install_dir);
-            std::fs::write(&full_path, &content)?;
-            formatter.output(
-                &format!("[OK] config file: {}", full_path.display()),
-                Some(serde_json::Value::Null),
-            );
-        }
-    }
-
-    // 2. execute commands
-    if let Some(ref commands) = post.commands {
-        for cmd in commands {
-            let rendered = render_template(cmd, install_dir);
-            formatter.output(
-                &format!("[RUN] {}", rendered),
-                Some(serde_json::Value::Null),
-            );
-
-            let output = if cfg!(target_os = "windows") {
-                Command::new("cmd").args(["/C", &rendered]).output()
-            } else {
-                Command::new("sh").args(["-c", &rendered]).output()
-            };
-
-            match output {
-                Ok(out) => {
-                    if !out.status.success() {
-                        let stderr = String::from_utf8_lossy(&out.stderr);
-                        formatter.output(
-                            &format!(
-                                "  [WARN] 命令退出码: {:?} {}",
-                                out.status.code(),
-                                stderr.trim()
-                            ),
-                            Some(serde_json::Value::Null),
-                        );
-                    }
-                }
-                Err(e) => {
-                    formatter.output(
-                        &format!("  [WARN] execution failed: {}", e),
-                        Some(serde_json::Value::Null),
-                    );
-                }
-            }
-        }
-    }
 
     Ok(())
 }

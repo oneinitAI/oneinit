@@ -52,7 +52,7 @@ pub fn export(
 
     let env_count = snapshot.envs.len();
     formatter.output(
-        &format!("[EXPORT] {} environments detected", env_count),
+        &format!("[EXPORT] 检测到 {} 个环境", env_count),
         Some(serde_json::Value::Null),
     );
 
@@ -85,7 +85,7 @@ pub fn export(
                 &mut total_size,
             )?;
             formatter.output(
-                &format!("[EXPORT] packing {} cache files", cache_files.len()),
+                &format!("[EXPORT] 打包 {} 个缓存文件", cache_files.len()),
                 Some(serde_json::Value::Null),
             );
         }

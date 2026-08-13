@@ -28,7 +28,7 @@ pub async fn build(
         "rust" => rust_recipe(version)?,
         other => {
             return Err(CoreError::Other(format!(
-                "dynamic install not supported for '{other}' yet"
+                "暂不支持 '{other}' 的动态安装"
             )));
         }
     };
@@ -55,8 +55,8 @@ pub async fn build(
             }
             None => {
                 return Err(CoreError::Other(format!(
-                    "cannot resolve checksum for {family}@{version} ({filename}). \
-                     Re-run with --no-checksum to skip verification (risky)."
+                     "无法解析 {family}@{version} ({filename}) 的校验和。\
+                     使用 --no-checksum 重试可跳过校验（有风险）。"
                 )));
             }
         }
@@ -139,7 +139,7 @@ async fn go_recipe(version: &str) -> Result<CommunityRecipe> {
         ("darwin", "aarch64") => ("darwin", "arm64", "tar.gz", "tar_extract"),
         (o, a) => {
             return Err(CoreError::Other(format!(
-                "unsupported platform for go: {o}/{a}"
+                "不支持 go 的平台: {o}/{a}"
             )));
         }
     };
@@ -203,8 +203,8 @@ async fn go_recipe(version: &str) -> Result<CommunityRecipe> {
 async fn python_recipe(version: &str) -> Result<CommunityRecipe> {
     if !cfg!(target_os = "windows") {
         return Err(CoreError::Other(
-            "dynamic python install currently supports Windows only \
-             (embeddable zip); use the builtin python3.11 on other platforms"
+            "动态 python 安装目前仅支持 Windows（embeddable 包）；\
+             其他平台请使用内置 python3.11"
                 .into(),
         ));
     }
@@ -270,15 +270,15 @@ async fn java_recipe(version: &str) -> Result<CommunityRecipe> {
     let json = fetch_json(&url).await?;
     let releases = json
         .as_array()
-        .ok_or_else(|| CoreError::Download("Adoptium API: not an array".into()))?;
+        .ok_or_else(|| CoreError::Download("Adoptium API: 返回的不是数组".into()))?;
     let release = java_release_for(version, releases)?;
     let semver = release["version_data"]["semver"]
         .as_str()
-        .ok_or_else(|| CoreError::Download("Adoptium API: release has no semver".into()))?;
+        .ok_or_else(|| CoreError::Download("Adoptium API: 发布缺少 semver".into()))?;
     let release_name = release["release_name"].as_str().unwrap_or(semver);
     let binaries = release["binaries"]
         .as_array()
-        .ok_or_else(|| CoreError::Download("Adoptium API: release has no binaries".into()))?;
+        .ok_or_else(|| CoreError::Download("Adoptium API: 发布缺少二进制列表".into()))?;
 
     let arch = if std::env::consts::ARCH == "aarch64" {
         "aarch64"
@@ -347,8 +347,8 @@ fn java_release_for<'a>(
         }
     }
     Err(CoreError::Other(format!(
-        "version '{version}' not available from Adoptium (Temurin) — \
-         try `oneinit list versions java`"
+        "Adoptium (Temurin) 没有版本 '{version}' — \
+         试试 `oneinit list versions java`"
     )))
 }
 
@@ -435,7 +435,7 @@ async fn fetch_json(url: &str) -> Result<serde_json::Value> {
         .await
         .map_err(|e| CoreError::Download(format!("read {url} failed: {e}")))?;
     serde_json::from_slice(&bytes)
-        .map_err(|e| CoreError::Download(format!("parse {url} failed: {e}")))
+        .map_err(|e| CoreError::Download(format!("解析 {url} 失败: {e}")))
 }
 
 fn checksum_os() -> &'static str {

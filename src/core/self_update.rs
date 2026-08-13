@@ -18,20 +18,20 @@ pub async fn run_self_update(formatter: &crate::output::OutputFormatter) -> Resu
     let current = env!("CARGO_PKG_VERSION");
 
     formatter.output(
-        &format!("[UPDATE] Checking for updates... current v{}", current),
+        &format!("[UPDATE] 正在检查更新... 当前 v{}", current),
         None::<serde_json::Value>,
     );
 
     let latest = latest_release_tag().await?;
     if latest.trim_start_matches('v') == current {
         formatter.output(
-            &format!("[OK] Already up to date (v{})", current),
+            &format!("[OK] 已是最新版本 (v{})", current),
             None::<serde_json::Value>,
         );
         return Ok(false);
     }
     formatter.output(
-        &format!("[UPDATE] New version found: v{} → v{}", current, latest),
+        &format!("[UPDATE] 发现新版本: v{} → v{}", current, latest),
         None::<serde_json::Value>,
     );
 
@@ -54,7 +54,7 @@ pub async fn run_self_update(formatter: &crate::output::OutputFormatter) -> Resu
         });
     }
     formatter.output(
-        &format!("[OK] SHA256 verified: {asset_name}"),
+        &format!("[OK] SHA256 校验通过: {asset_name}"),
         None::<serde_json::Value>,
     );
 
@@ -78,7 +78,7 @@ pub async fn run_self_update(formatter: &crate::output::OutputFormatter) -> Resu
     let _ = std::fs::remove_dir_all(&tmp_dir);
 
     formatter.output(
-        &format!("[OK] Updated to v{latest} — restart terminals to use it"),
+        &format!("[OK] 已更新到 v{latest} — 重启终端后生效"),
         Some(serde_json::json!({
             "status": "success",
             "action": "self_update",
@@ -110,7 +110,7 @@ async fn latest_release_tag() -> Result<String> {
         .await
         .map_err(|e| CoreError::Download(format!("read latest release failed: {e}")))?;
     let json: serde_json::Value = serde_json::from_slice(&bytes)
-        .map_err(|e| CoreError::Download(format!("parse latest release failed: {e}")))?;
+        .map_err(|e| CoreError::Download(format!("解析最新版本失败: {e}")))?;
     json["tag_name"]
         .as_str()
         .map(|s| s.to_string())

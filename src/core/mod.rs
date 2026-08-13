@@ -6,6 +6,7 @@ pub mod config_gen;
 pub mod doctor;
 pub mod downloader;
 pub mod dynamic;
+pub mod install;
 pub mod manifest;
 pub mod migration;
 pub mod operation;
@@ -29,7 +30,7 @@ use std::path::PathBuf;
 pub fn data_dir() -> PathBuf {
     let home = dirs::home_dir().unwrap_or_else(|| {
         // 回退：使用当前工作目录
-        eprintln!("[WARN] Cannot determine home directory，falling back to current dir");
+        eprintln!("[WARN] 无法确定主目录，回退到当前目录");
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
     });
     home.join(".oneinit")

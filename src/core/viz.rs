@@ -369,7 +369,7 @@ pub fn render_html(report: &VizReport) -> String {
     out.push_str("</head>\n<body>\n");
 
     // 头部
-    out.push_str("<header><h1>🧰 OneInit Environment Report</h1><p class=\"meta\">");
+    out.push_str("<header><h1> OneInit Environment Report</h1><p class=\"meta\">");
     out.push_str(&format!(
         "oneinit {} · {} / {} · {}",
         html_escape(&report.tool_version),
@@ -669,7 +669,7 @@ pub fn render_issue(report: &VizReport) -> String {
                 } else {
                     &env.version
                 },
-                if env.active { "✅" } else { "—" },
+                if env.active { "[OK]" } else { "—" },
                 env.install_path
             ));
         }
@@ -860,7 +860,7 @@ mod tests {
     fn test_render_issue_snapshot() {
         let md = render_issue(&sample_report());
         assert!(md.contains("## Environment Snapshot"));
-        assert!(md.contains("| python3.11 | 3.11.9 | ✅ |"));
+        assert!(md.contains("| python3.11 | 3.11.9 | [OK] |"));
         assert!(md.contains("```text"));
         assert!(md.contains("numpy, pandas, requests"));
         assert!(md.contains("INDEX.json: 5 packages"));
