@@ -27,9 +27,7 @@ pub async fn build(
         "java" => java_recipe(version).await?,
         "rust" => rust_recipe(version)?,
         other => {
-            return Err(CoreError::Other(format!(
-                "暂不支持 '{other}' 的动态安装"
-            )));
+            return Err(CoreError::Other(format!("暂不支持 '{other}' 的动态安装")));
         }
     };
 
@@ -55,7 +53,7 @@ pub async fn build(
             }
             None => {
                 return Err(CoreError::Other(format!(
-                     "无法解析 {family}@{version} ({filename}) 的校验和。\
+                    "无法解析 {family}@{version} ({filename}) 的校验和。\
                      使用 --no-checksum 重试可跳过校验（有风险）。"
                 )));
             }
@@ -138,9 +136,7 @@ async fn go_recipe(version: &str) -> Result<CommunityRecipe> {
         ("darwin", "x86_64") => ("darwin", "amd64", "tar.gz", "tar_extract"),
         ("darwin", "aarch64") => ("darwin", "arm64", "tar.gz", "tar_extract"),
         (o, a) => {
-            return Err(CoreError::Other(format!(
-                "不支持 go 的平台: {o}/{a}"
-            )));
+            return Err(CoreError::Other(format!("不支持 go 的平台: {o}/{a}")));
         }
     };
     let filename = format!("go{version}.{os_name}-{a_name}.{ext}");
@@ -434,8 +430,7 @@ async fn fetch_json(url: &str) -> Result<serde_json::Value> {
         .bytes()
         .await
         .map_err(|e| CoreError::Download(format!("read {url} failed: {e}")))?;
-    serde_json::from_slice(&bytes)
-        .map_err(|e| CoreError::Download(format!("解析 {url} 失败: {e}")))
+    serde_json::from_slice(&bytes).map_err(|e| CoreError::Download(format!("解析 {url} 失败: {e}")))
 }
 
 fn checksum_os() -> &'static str {

@@ -5,8 +5,8 @@
 
 use std::path::Path;
 
-use super::manifest::{InstallRecord, Manifest};
 use super::Result;
+use super::manifest::{InstallRecord, Manifest};
 use crate::output::OutputFormatter;
 
 /// 安装失败回滚：恢复 PATH 备份并清理本次创建的安装目录。
@@ -14,11 +14,7 @@ use crate::output::OutputFormatter;
 /// 安装流程在操作执行前会清空并重建安装目录，失败时其中的内容均为本次
 /// 安装的半成品，直接删除可让环境回到"未安装"状态（PATH 已恢复、清单未写）。
 /// 调试时可用 `--no-rollback` 跳过。
-pub fn rollback_install(
-    formatter: &OutputFormatter,
-    install_dir: &Path,
-    path_backup: &str,
-) {
+pub fn rollback_install(formatter: &OutputFormatter, install_dir: &Path, path_backup: &str) {
     match super::path_mgr::restore(path_backup) {
         Ok(()) => formatter.output(
             "[ROLLBACK] 已恢复 PATH",

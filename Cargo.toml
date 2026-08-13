@@ -37,6 +37,9 @@ ed25519-dalek = { version = "2", features = ["std"] }
 winreg = "0.55"
 winapi = { version = "0.3", features = ["winuser", "winnt", "fileapi"] }
 
+[dev-dependencies]
+tiny_http = "0.12"
+
 [profile.release]
 lto = true
 strip = true

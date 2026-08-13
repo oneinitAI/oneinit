@@ -389,14 +389,16 @@ async fn main() {
             dry_run,
             project,
             allow_exec,
-        } => cli::run_init(
-            &formatter,
-            preset.as_deref(),
-            dry_run,
-            allow_exec,
-            project.as_deref(),
-        )
-        .await,
+        } => {
+            cli::run_init(
+                &formatter,
+                preset.as_deref(),
+                dry_run,
+                allow_exec,
+                project.as_deref(),
+            )
+            .await
+        }
         Commands::Install {
             package,
             allow_exec,
@@ -427,7 +429,10 @@ async fn main() {
         },
         Commands::Info { package } => cli::run_info(&formatter, &package).await,
         Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()).await,
-        Commands::Sync { dry_run, allow_exec } => cli::run_sync(&formatter, dry_run, allow_exec).await,
+        Commands::Sync {
+            dry_run,
+            allow_exec,
+        } => cli::run_sync(&formatter, dry_run, allow_exec).await,
         Commands::Capture { output } => {
             cli::run_capture(&formatter, output.as_deref().unwrap_or("oneinit.yaml")).await
         }
@@ -511,6 +516,11 @@ async fn main() {
         } => {
             cli::run_viz(&formatter, html, issue, output.as_deref(), open, no_scan).await;
         }
+    }
+
+    // 任何命令输出过错误 → 非零退出码（AI 自动化依赖失败信号）
+    if formatter.had_errors() {
+        std::process::exit(1);
     }
 }
 

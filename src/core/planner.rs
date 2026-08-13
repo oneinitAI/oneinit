@@ -290,9 +290,7 @@ pub fn default_shell() -> String {
 /// pre-install preview). Returns the rendered string.
 pub fn render_plan(plan: &OperationPlan, title: &str) -> String {
     let mut s = String::new();
-    s.push_str(&format!(
-        "[PLAN] {title} — 将要执行的操作:\n\n"
-    ));
+    s.push_str(&format!("[PLAN] {title} — 将要执行的操作:\n\n"));
     for (i, op) in plan.operations.iter().enumerate() {
         s.push_str(&format!("  {}. {}\n", i + 1, op.describe()));
     }
@@ -342,11 +340,7 @@ pub async fn execute_plan(
                     );
                 } else {
                     formatter.output(
-                        &format!(
-                        "[OK] 已下载: {} ({} 字节)",
-                            dest.display(),
-                            dl.file_size
-                        ),
+                        &format!("[OK] 已下载: {} ({} 字节)", dest.display(), dl.file_size),
                         None::<serde_json::Value>,
                     );
                 }

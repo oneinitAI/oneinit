@@ -89,10 +89,7 @@ async fn install_from_tui(name: &str, formatter: &OutputFormatter) -> String {
 
     // 3. 远程注册表（先确保有缓存索引，缺失则拉取）
     if registry::load_cached_index().is_none() {
-        formatter.output(
-            "[REMOTE] 拉取配方索引...",
-            Some(serde_json::Value::Null),
-        );
+        formatter.output("[REMOTE] 拉取配方索引...", Some(serde_json::Value::Null));
         if let Err(e) = registry::fetch_index().await {
             return format!("[ERROR] index refresh failed: {}", e);
         }

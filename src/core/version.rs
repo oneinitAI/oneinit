@@ -183,9 +183,7 @@ async fn fetch_node_versions() -> Result<Vec<String>> {
         }
     }
     if versions.is_empty() {
-        return Err(CoreError::Download(
-            "nodejs.org 索引中没有版本".into(),
-        ));
+        return Err(CoreError::Download("nodejs.org 索引中没有版本".into()));
     }
     Ok(versions)
 }

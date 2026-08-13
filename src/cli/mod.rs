@@ -84,8 +84,15 @@ pub async fn run_init(
 
             // batch install（--dry-run 只预览）
             if dry_run {
-                dry_run_packages(formatter, "init", &preset.packages, allow_exec, false, false)
-                    .await;
+                dry_run_packages(
+                    formatter,
+                    "init",
+                    &preset.packages,
+                    allow_exec,
+                    false,
+                    false,
+                )
+                .await;
                 return;
             }
             batch_install(&preset.packages, formatter, allow_exec, false, false).await;
@@ -124,47 +131,109 @@ async fn dry_run_single(
     refresh: bool,
     no_checksum: bool,
 ) -> Option<DryRunResult> {
-    use crate::core::planner;
+    dry_run_single_inner(
+        formatter,
+        name,
+        version_spec,
+        allow_exec,
+        refresh,
+        no_checksum,
+        0,
+    )
+    .await
+}
 
-    // 已安装 → 提示并跳过
-    if let Ok(manifest) = Manifest::open()
-        && let Ok(Some(record)) = manifest.get(name)
-    {
-        formatter.output(
-            &format!(
-                "[SKIP] '{}' 已安装 v{}",
-                name,
-                record.version.as_deref().unwrap_or("?")
-            ),
-            None::<serde_json::Value>,
-        );
-        return None;
-    }
+/// dry_run_single 内部实现；`depth` 用于依赖递归的循环保护（超过 10 层停止展开）。
+/// 返回 BoxFuture 以支持 async 递归（Rust 中 async fn 不能直接递归）。
+fn dry_run_single_inner<'a>(
+    formatter: &'a OutputFormatter,
+    name: &'a str,
+    version_spec: Option<&'a str>,
+    allow_exec: bool,
+    refresh: bool,
+    no_checksum: bool,
+    depth: usize,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<DryRunResult>> + 'a>> {
+    Box::pin(async move {
+        use crate::core::planner;
 
-    let plan =
+        // 依赖循环保护
+        if depth > 10 {
+            return None;
+        }
+
+        // 已安装 → 提示并跳过
+        if let Ok(manifest) = Manifest::open()
+            && let Ok(Some(record)) = manifest.get(name)
+        {
+            formatter.output(
+                &format!(
+                    "[SKIP] '{}' 已安装 v{}",
+                    name,
+                    record.version.as_deref().unwrap_or("?")
+                ),
+                None::<serde_json::Value>,
+            );
+            return None;
+        }
+
         match resolve_recipe_with_deps(name, version_spec, formatter, refresh, no_checksum).await {
-            RecipeResolution::Builtin(rec) => planner::plan_builtin_install(&rec),
-            RecipeResolution::Community(rec) => planner::plan_community_install(&rec, allow_exec),
+            RecipeResolution::Builtin(rec) => match planner::plan_builtin_install(&rec) {
+                Ok(plan) => Some(DryRunResult {
+                    operations: plan.operations.iter().map(|op| op.describe()).collect(),
+                    total_ops: plan.summary.total_ops,
+                    text: planner::render_plan(&plan, &format!("Install {name}")),
+                }),
+                Err(e) => {
+                    formatter.error(&e);
+                    None
+                }
+            },
+            RecipeResolution::Community(rec) => {
+                // 先递归渲染依赖计划
+                let mut dep_text = String::new();
+                if let Some(deps) = &rec.depends {
+                    for dep in deps {
+                        if let Some(r) = dry_run_single_inner(
+                            formatter,
+                            dep,
+                            None,
+                            allow_exec,
+                            refresh,
+                            no_checksum,
+                            depth + 1,
+                        )
+                        .await
+                        {
+                            dep_text.push_str(&r.text);
+                            dep_text.push('\n');
+                        }
+                    }
+                }
+                match planner::plan_community_install(&rec, allow_exec) {
+                    Ok(plan) => {
+                        let main_text = planner::render_plan(&plan, &format!("Install {name}"));
+                        Some(DryRunResult {
+                            operations: plan.operations.iter().map(|op| op.describe()).collect(),
+                            total_ops: plan.summary.total_ops,
+                            text: format!("{dep_text}{main_text}"),
+                        })
+                    }
+                    Err(e) => {
+                        formatter.error(&e);
+                        None
+                    }
+                }
+            }
             RecipeResolution::NotFound(hint) => {
                 formatter.output(
                     &format!("[ERROR] 未找到: '{}' 配方。{}", name, hint),
                     None::<serde_json::Value>,
                 );
-                return None;
+                None
             }
-        };
-
-    match plan {
-        Ok(plan) => Some(DryRunResult {
-            operations: plan.operations.iter().map(|op| op.describe()).collect(),
-            total_ops: plan.summary.total_ops,
-            text: planner::render_plan(&plan, &format!("Install {name}")),
-        }),
-        Err(e) => {
-            formatter.error(&e);
-            None
         }
-    }
+    })
 }
 
 /// Render the plan for a list of package names (four-tier resolution,
@@ -213,12 +282,7 @@ async fn dry_run_packages(
 
 /// Project-aware install: scan a project directory for manifest files and
 /// install the detected toolchains (init --project).
-async fn run_init_project(
-    formatter: &OutputFormatter,
-    dir: &str,
-    dry_run: bool,
-    allow_exec: bool,
-) {
+async fn run_init_project(formatter: &OutputFormatter, dir: &str, dry_run: bool, allow_exec: bool) {
     let path = std::path::Path::new(dir);
     if !path.is_dir() {
         formatter.output(
@@ -260,12 +324,23 @@ async fn run_init_project(
     // Install each toolchain (3-tier resolution, skips already installed)
     let packages: Vec<String> = detected.iter().map(|(r, _)| r.clone()).collect();
     if dry_run {
-        dry_run_packages(formatter, "init --project", &packages, allow_exec, false, false).await;
+        dry_run_packages(
+            formatter,
+            "init --project",
+            &packages,
+            allow_exec,
+            false,
+            false,
+        )
+        .await;
         return;
     }
     let mut stack = Vec::new();
     for pkg in &packages {
-        install_recursive(pkg, None, formatter, &mut stack, allow_exec, false, false, false).await;
+        install_recursive(
+            pkg, None, formatter, &mut stack, allow_exec, false, false, false,
+        )
+        .await;
     }
     formatter.output(
         "[PROJECT] 项目环境就绪 ✓",
@@ -353,9 +428,7 @@ async fn batch_install(
         .await;
         match outcome {
             InstallOutcome::Installed => succeeded.push(pkg_name),
-            InstallOutcome::AlreadyInstalled | InstallOutcome::Skipped(_) => {
-                skipped.push(pkg_name)
-            }
+            InstallOutcome::AlreadyInstalled | InstallOutcome::Skipped(_) => skipped.push(pkg_name),
             InstallOutcome::Failed(e) => failed.push((pkg_name, e)),
         }
     }
@@ -437,7 +510,16 @@ async fn dry_run_install(
     refresh: bool,
     no_checksum: bool,
 ) {
-    match dry_run_single(formatter, name, version_spec, allow_exec, refresh, no_checksum).await {
+    match dry_run_single(
+        formatter,
+        name,
+        version_spec,
+        allow_exec,
+        refresh,
+        no_checksum,
+    )
+    .await
+    {
         Some(result) => {
             formatter.output(
                 &result.text,
@@ -500,7 +582,7 @@ fn install_recursive<'a>(
         // 防止循环依赖
         if installing_stack.iter().any(|n| n == name) {
             formatter.output(
-                &format!(                "[WARN] 跳过循环依赖: {}", name),
+                &format!("[WARN] 跳过循环依赖: {}", name),
                 Some(serde_json::Value::Null),
             );
             return InstallOutcome::Skipped(format!("circular dependency: {name}"));
@@ -553,8 +635,8 @@ fn install_recursive<'a>(
                     installing_stack.pop();
                     return InstallOutcome::AlreadyInstalled;
                 }
-                // 先安装依赖
-                install_dependencies(
+                // 先安装依赖；依赖失败则中止主包安装
+                let deps_ok = install_dependencies(
                     &rec,
                     formatter,
                     installing_stack,
@@ -564,6 +646,10 @@ fn install_recursive<'a>(
                     no_rollback,
                 )
                 .await;
+                if !deps_ok {
+                    installing_stack.pop();
+                    return InstallOutcome::Failed(format!("依赖安装失败: {}", rec.name));
+                }
                 match community_recipe::install(&rec, formatter, allow_exec, no_rollback).await {
                     Ok(()) => InstallOutcome::Installed,
                     Err(e) => {
@@ -637,10 +723,7 @@ async fn resolve_recipe_with_deps(
                     v.to_string()
                 } else {
                     formatter.output(
-                        &format!(
-                            "[WARN] 版本 {} 不可用。可用版本: {:?}",
-                            v, entry.versions
-                        ),
+                        &format!("[WARN] 版本 {} 不可用。可用版本: {:?}", v, entry.versions),
                         Some(serde_json::Value::Null),
                     );
                     entry.latest.clone()
@@ -750,6 +833,8 @@ fn old_name_redirect(name: &str) -> Option<(String, String)> {
 }
 
 /// recursively install recipe dependencies
+///
+/// 返回是否全部成功；任一依赖失败即返回 `false`（调用方应中止主包安装）。
 async fn install_dependencies(
     recipe: &crate::core::community_recipe::CommunityRecipe,
     formatter: &OutputFormatter,
@@ -758,29 +843,43 @@ async fn install_dependencies(
     refresh: bool,
     no_checksum: bool,
     no_rollback: bool,
-) {
-    if let Some(ref deps) = recipe.depends {
-        if deps.is_empty() {
-            return;
-        }
-        formatter.output(
-            &format!("[DEPS] Checking dependencies: {:?}", deps),
-            Some(serde_json::Value::Null),
-        );
-        for dep in deps {
-            install_recursive(
-                dep,
-                None,
-                formatter,
-                installing_stack,
-                allow_exec,
-                refresh,
-                no_checksum,
-                no_rollback,
-            )
-            .await;
+) -> bool {
+    let Some(ref deps) = recipe.depends else {
+        return true;
+    };
+    if deps.is_empty() {
+        return true;
+    }
+    formatter.output(
+        &format!("[DEPS] 检查依赖: {:?}", deps),
+        Some(serde_json::Value::Null),
+    );
+    for dep in deps {
+        let outcome = install_recursive(
+            dep,
+            None,
+            formatter,
+            installing_stack,
+            allow_exec,
+            refresh,
+            no_checksum,
+            no_rollback,
+        )
+        .await;
+        if matches!(outcome, InstallOutcome::Failed(_)) {
+            formatter.output(
+                &format!("[ERROR] 依赖 '{}' 安装失败，中止安装主包", dep),
+                Some(serde_json::json!({
+                    "status": "error",
+                    "action": "install",
+                    "package": dep,
+                    "message": "Dependency install failed, aborting parent install",
+                })),
+            );
+            return false;
         }
     }
+    true
 }
 
 /// oneinit uninstall <package> — uninstall a tool
@@ -1828,10 +1927,7 @@ pub async fn run_publish(formatter: &OutputFormatter, file: &str) {
     }
 
     // 1. 验证recipe
-    formatter.output(
-        "[PUBLISH] 正在验证配方...",
-        Some(serde_json::Value::Null),
-    );
+    formatter.output("[PUBLISH] 正在验证配方...", Some(serde_json::Value::Null));
     let verify_result = match community_recipe::verify(&path) {
         Ok(r) => r,
         Err(e) => {

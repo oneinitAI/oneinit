@@ -3,7 +3,7 @@
 
 use crate::core::CoreError;
 use serde::Serialize;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 /// 所有命令返回的 JSON 结构统一包装
 #[derive(Serialize)]
@@ -34,6 +34,8 @@ pub struct OutputFormatter {
     /// buffered and flushed as one document by `end_document`.
     json_doc: RefCell<Option<String>>,
     json_items: RefCell<Vec<serde_json::Value>>,
+    /// 是否输出过错误（`error()` 被调用）。main 据此决定进程退出码。
+    had_errors: Cell<bool>,
 }
 
 impl OutputFormatter {
@@ -44,7 +46,13 @@ impl OutputFormatter {
             debug: false,
             json_doc: RefCell::new(None),
             json_items: RefCell::new(Vec::new()),
+            had_errors: Cell::new(false),
         }
+    }
+
+    /// 是否输出过错误（决定进程退出码）
+    pub fn had_errors(&self) -> bool {
+        self.had_errors.get()
     }
 
     /// 是否为 JSON 模式
@@ -107,6 +115,10 @@ impl OutputFormatter {
 
     /// 输出成功结果
     pub fn output<T: Serialize>(&self, human_text: &str, json_data: Option<T>) {
+        // 文本级 [ERROR] 同样标记进程错误（决定退出码）——部分命令用 output 而非 error() 报告失败
+        if human_text.starts_with("[ERROR]") || human_text.starts_with("  [ERROR]") {
+            self.had_errors.set(true);
+        }
         if !self.json_mode {
             println!("{}", human_text);
             return;
@@ -131,6 +143,7 @@ impl OutputFormatter {
 
     /// 输出错误信息（附带解决建议 HINT）
     pub fn error(&self, err: &CoreError) {
+        self.had_errors.set(true);
         let suggestion = err.suggestion();
         if self.json_mode {
             let value = serde_json::json!({

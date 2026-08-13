@@ -29,7 +29,8 @@ pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
         match download_attempt(url, dest).await {
             Ok(result) => return Ok(result),
             Err(e) => {
-                let retryable = matches!(e, CoreError::Download(_)) || matches!(e, CoreError::Io(_));
+                let retryable =
+                    matches!(e, CoreError::Download(_)) || matches!(e, CoreError::Io(_));
                 if attempt < MAX_DOWNLOAD_RETRIES && retryable {
                     let wait = std::time::Duration::from_secs(1 << attempt);
                     eprintln!(
@@ -47,7 +48,10 @@ pub async fn download(url: &str, dest: &Path) -> Result<DownloadResult> {
         }
     }
     Err(last_err.unwrap_or_else(|| {
-        CoreError::Download(format!("download failed after {} retries: {url}", MAX_DOWNLOAD_RETRIES))
+        CoreError::Download(format!(
+            "download failed after {} retries: {url}",
+            MAX_DOWNLOAD_RETRIES
+        ))
     }))
 }
 

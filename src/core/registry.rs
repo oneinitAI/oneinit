@@ -266,16 +266,10 @@ async fn fetch_index_from(client: &reqwest::Client, base_url: &str) -> Result<In
             }
         }
         Ok(_) => {
-            eprintln!(
-                "[WARN] {} 没有 INDEX.json.sig — 跳过签名校验",
-                base_url
-            );
+            eprintln!("[WARN] {} 没有 INDEX.json.sig — 跳过签名校验", base_url);
         }
         Err(e) => {
-            eprintln!(
-                "[WARN] 无法获取 {} 的签名: {} — 跳过签名校验",
-                sig_url, e
-            );
+            eprintln!("[WARN] 无法获取 {} 的签名: {} — 跳过签名校验", sig_url, e);
         }
     }
 

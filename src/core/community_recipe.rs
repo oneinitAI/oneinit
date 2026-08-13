@@ -525,10 +525,7 @@ pub async fn install(
         io::stdout().flush()?;
         let confirmed = wait_for_confirmation();
         if !confirmed {
-            formatter.output(
-                "[CANCEL] 安装已取消",
-                Some(serde_json::Value::Null),
-            );
+            formatter.output("[CANCEL] 安装已取消", Some(serde_json::Value::Null));
             return Ok(());
         }
     }
