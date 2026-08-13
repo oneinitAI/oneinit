@@ -120,6 +120,17 @@ fn run_oneinit(data: &Path, args: &[&str]) -> std::process::Output {
         .expect("failed to run oneinit")
 }
 
+/// 在指定工作目录下以隔离的 ONEINIT_HOME 运行 oneinit 二进制
+/// （freeze / sync 依赖当前工作目录读写 oneinit.yaml / oneinit.lock.yaml）
+fn run_oneinit_in(data: &Path, dir: &Path, args: &[&str]) -> std::process::Output {
+    std::process::Command::new(env!("CARGO_BIN_EXE_oneinit"))
+        .args(args)
+        .current_dir(dir)
+        .env("ONEINIT_HOME", data)
+        .output()
+        .expect("failed to run oneinit")
+}
+
 fn stdout(out: &std::process::Output) -> String {
     String::from_utf8_lossy(&out.stdout).to_string()
 }
@@ -253,6 +264,87 @@ fn dynamic_family_resolution_graceful() {
             || text.contains("动态配方失败"),
         "unexpected output:\n{text}"
     );
+
+    std::fs::remove_dir_all(&root).ok();
+}
+
+/// freeze：先真实安装一个工具写入清单，再 freeze 生成 oneinit.lock.yaml，
+/// 断言锁文件含 version: 1 与非空 tools: 精确锁定条目
+#[test]
+fn freeze_writes_lockfile() {
+    let root = temp_root();
+    let data = setup_isolated_data(&root);
+    let server = TestServer::new();
+    let content = b"oneinit-freeze-test-binary";
+    server.serve(content.to_vec(), 1);
+    let url = format!("{}/tool.bin", server.url);
+    write_binary_recipe(&data, "locktool", &url, &sha256_hex(content));
+
+    let out = run_oneinit(&data, &["-y", "install", "locktool"]);
+    assert!(
+        out.status.success(),
+        "install failed:\nstdout:\n{}\nstderr:\n{}",
+        stdout(&out),
+        stderr(&out)
+    );
+
+    // freeze 依赖当前工作目录写 oneinit.yaml / oneinit.lock.yaml
+    let out = run_oneinit_in(&data, &root, &["freeze"]);
+    assert!(
+        out.status.success(),
+        "freeze failed:\nstdout:\n{}\nstderr:\n{}",
+        stdout(&out),
+        stderr(&out)
+    );
+
+    let lock_path = root.join("oneinit.lock.yaml");
+    assert!(lock_path.exists(), "oneinit.lock.yaml was not written");
+    let lock_content = std::fs::read_to_string(&lock_path).unwrap();
+    assert!(
+        lock_content.contains("version: 1"),
+        "lockfile missing version 1:\n{lock_content}"
+    );
+    assert!(
+        lock_content.contains("tools:"),
+        "lockfile missing tools section:\n{lock_content}"
+    );
+    assert!(
+        lock_content.contains("locktool:"),
+        "lockfile missing locked tool:\n{lock_content}"
+    );
+
+    assert!(
+        root.join("oneinit.yaml").exists(),
+        "freeze did not write oneinit.yaml"
+    );
+
+    std::fs::remove_dir_all(&root).ok();
+}
+
+/// sync --dry-run：预置 oneinit.lock.yaml，断言优先按锁文件还原（[LOCK] 标记），不报错
+#[test]
+fn sync_dry_run_prefers_lockfile() {
+    let root = temp_root();
+    let data = setup_isolated_data(&root);
+
+    // oneinit.yaml 必须存在（sync 第一步检查）；锁文件存在时以锁文件为准
+    std::fs::write(root.join("oneinit.yaml"), "envs:\n  python: \"3.11\"\n").unwrap();
+    std::fs::write(
+        root.join("oneinit.lock.yaml"),
+        "version: 1\ntools:\n  python:\n    recipe: python3.11\n    version: \"3.11.9\"\n    sha256: \"\"\n    source: builtin\n    archive_url: \"\"\n",
+    )
+    .unwrap();
+
+    let out = run_oneinit_in(&data, &root, &["sync", "--dry-run"]);
+    assert!(
+        out.status.success(),
+        "sync --dry-run failed:\nstdout:\n{}\nstderr:\n{}",
+        stdout(&out),
+        stderr(&out)
+    );
+    let text = stdout(&out);
+    assert!(text.contains("[LOCK]"), "no [LOCK] marker:\n{text}");
+    assert!(text.contains("[PLAN]"), "no plan rendered:\n{text}");
 
     std::fs::remove_dir_all(&root).ok();
 }

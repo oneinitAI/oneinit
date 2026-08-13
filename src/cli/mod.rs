@@ -1237,8 +1237,31 @@ pub async fn run_sync(formatter: &OutputFormatter, dry_run: bool, allow_exec: bo
         })),
     );
 
-    // 3. 批量安装 envs
-    let recipe_names = sync::envs_to_recipe_names(&config);
+    // 3. 批量安装 envs（优先按 oneinit.lock.yaml 精确还原；无锁文件则按 oneinit.yaml 解析）
+    let lock_path = std::path::Path::new("oneinit.lock.yaml");
+    let recipe_names: Vec<String> = if lock_path.exists() {
+        match crate::core::lockfile::Lockfile::read(lock_path) {
+            Ok(Some(lock)) => {
+                let names = sync::lockfile_to_package_names(&lock);
+                formatter.output(
+                    &format!("[LOCK] 按 oneinit.lock.yaml 还原 {} 个工具", names.len()),
+                    Some(serde_json::json!({
+                        "status": "success", "action": "sync",
+                        "lockfile": "oneinit.lock.yaml",
+                        "locked_count": names.len(),
+                    })),
+                );
+                names
+            }
+            Ok(None) => sync::envs_to_recipe_names(&config),
+            Err(e) => {
+                formatter.error(&e);
+                return;
+            }
+        }
+    } else {
+        sync::envs_to_recipe_names(&config)
+    };
     if dry_run {
         dry_run_packages(formatter, "sync", &recipe_names, allow_exec, false, false).await;
         return;
@@ -1808,65 +1831,6 @@ pub async fn run_import(formatter: &OutputFormatter, file: &str, dry_run: bool, 
     {
         formatter.error(&e);
     }
-}
-
-/// oneinit update — update remote recipe index
-pub async fn run_update(formatter: &OutputFormatter) {
-    if let Err(e) = ensure_dirs() {
-        formatter.error(&e);
-        return;
-    }
-
-    use crate::core::registry;
-
-    let urls = registry::all_registry_urls();
-    formatter.begin_document("update");
-    formatter.output(
-        &format!(
-            "[UPDATE] 从 {} 个注册表拉取配方索引: {}",
-            urls.len(),
-            urls.join(", ")
-        ),
-        Some(serde_json::json!({
-            "status": "fetching",
-            "action": "update",
-            "registries": urls,
-        })),
-    );
-
-    match registry::fetch_index().await {
-        Ok(index) => {
-            let count = index.packages.len();
-            formatter.output(
-                &format!(
-                    "[OK] 索引已更新: {} 个包，来自 {} 个注册表（更新于 {}）",
-                    count,
-                    urls.len(),
-                    index.last_updated
-                ),
-                Some(serde_json::json!({
-                    "status": "success",
-                    "action": "update",
-                    "registry_count": urls.len(),
-                    "package_count": count,
-                    "last_updated": index.last_updated,
-                    "packages": index.packages.keys().collect::<Vec<_>>(),
-                })),
-            );
-        }
-        Err(e) => {
-            formatter.output(
-                &format!("[ERROR] 索引更新失败: {}", e),
-                Some(serde_json::json!({
-                    "status": "error",
-                    "action": "update",
-                    "error": e.to_string(),
-                    "hint": "If 404, the registry repo may not exist yet. Use oneinit publish.",
-                })),
-            );
-        }
-    }
-    formatter.end_document();
 }
 
 /// oneinit issue [recipe|bug] — 打开配方仓库 issue 表单
@@ -2488,11 +2452,26 @@ pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
 
     // 构建 envs map: tool_name -> version
     let mut envs: BTreeMap<String, String> = BTreeMap::new();
+    // 构建锁文件 tools map: tool_name -> 精确锁定条目
+    let mut locked_tools: BTreeMap<String, crate::core::lockfile::LockedTool> = BTreeMap::new();
     for record in &records {
         let version = record.version.as_deref().unwrap_or("latest");
         // 从 name 中提取工具类型（如 python3.11 -> python, node20 -> node）
         let tool_name = extract_tool_name(&record.name);
-        envs.insert(tool_name, version.to_string());
+        envs.insert(tool_name.clone(), version.to_string());
+        locked_tools.insert(
+            tool_name,
+            crate::core::lockfile::LockedTool {
+                recipe: record.name.clone(),
+                version: record
+                    .version
+                    .clone()
+                    .unwrap_or_else(|| "latest".to_string()),
+                sha256: record.sha256.clone().unwrap_or_default(),
+                source: lock_source(&record.name),
+                archive_url: record.archive_url.clone().unwrap_or_default(),
+            },
+        );
     }
 
     // 生成 YAML
@@ -2513,6 +2492,25 @@ pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
         );
     });
 
+    // 生成锁文件（精确版本 + 校验和，供 oneinit sync 精确还原）
+    let lock = crate::core::lockfile::Lockfile {
+        version: 1,
+        tools: locked_tools,
+    };
+    if let Err(e) =
+        crate::core::lockfile::Lockfile::write(std::path::Path::new("oneinit.lock.yaml"), &lock)
+    {
+        formatter.error(&e);
+        return;
+    }
+    formatter.output(
+        &format!(
+            "[LOCK] 已生成 oneinit.lock.yaml（{} 个工具精确锁定）",
+            lock.tools.len()
+        ),
+        Some(serde_json::Value::Null),
+    );
+
     formatter.output(
         &format!(
             "[OK] 已导出 {} 个工具到 {}（在新机器上运行 oneinit sync 恢复）",
@@ -2524,6 +2522,8 @@ pub async fn run_freeze(formatter: &OutputFormatter, output: &str) {
             "output": output, "count": records.len(),
             "tools": envs.keys().collect::<Vec<_>>(),
             "envs": envs,
+            "lockfile": "oneinit.lock.yaml",
+            "locked": lock.tools.len(),
         })),
     );
 }
@@ -2536,6 +2536,24 @@ fn extract_tool_name(name: &str) -> String {
         .find(|c: char| c.is_ascii_digit())
         .unwrap_or(name.len());
     name[..pos].trim_end_matches('-').to_string()
+}
+
+/// 判定已安装工具的配方来源（builtin | dynamic | community | registry | unknown）
+fn lock_source(record_name: &str) -> String {
+    if recipe::resolve(record_name).is_some() {
+        return "builtin".to_string();
+    }
+    if let Some(rec) = community_recipe::resolve(record_name) {
+        return if rec.dynamic.is_some() {
+            "dynamic".to_string()
+        } else {
+            "community".to_string()
+        };
+    }
+    if registry::resolve(record_name).is_some() {
+        return "registry".to_string();
+    }
+    "unknown".to_string()
 }
 
 /// oneinit skill install [--target <agent>] -- install AI Skill
@@ -2623,6 +2641,225 @@ pub async fn run_self_update(formatter: &OutputFormatter) {
     }
 }
 
+/// 已安装工具的可升级项
+struct UpdateItem {
+    name: String,
+    installed: String,
+    latest: String,
+}
+
+/// oneinit update — 批量检查/升级已安装工具（apt upgrade 风格）
+///
+/// 默认 dry-run：仅展示可升级列表；--apply 实际执行升级。
+pub async fn run_update(formatter: &OutputFormatter, apply: bool, refresh: bool) {
+    let manifest = match Manifest::open() {
+        Ok(m) => m,
+        Err(e) => {
+            formatter.error(&e);
+            return;
+        }
+    };
+    let records = match manifest.list() {
+        Ok(r) => r,
+        Err(e) => {
+            formatter.error(&e);
+            return;
+        }
+    };
+
+    if records.is_empty() {
+        formatter.output(
+            "[INFO] 未安装任何工具，无可升级",
+            Some(serde_json::json!({
+                "status": "update_check", "count": 0,
+            })),
+        );
+        return;
+    }
+
+    // 1. 解析每个已装工具的最新版本（按 family 名去重），再计算可升级差异列表
+    let mut latest: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+    for record in &records {
+        let Some(ver) = resolve_latest_version(&record.name, refresh).await else {
+            formatter.output(
+                &format!("[WARN] 无法解析 '{}' 的最新版本，跳过升级检查", record.name),
+                None::<serde_json::Value>,
+            );
+            continue;
+        };
+        let key = record
+            .name
+            .split('@')
+            .next()
+            .unwrap_or(&record.name)
+            .to_string();
+        latest.insert(key, ver);
+    }
+    let candidates = find_updates(&records, &latest);
+
+    // 2. 输出检查总结
+    formatter.output(
+        &format!("[UPDATE] {} 个工具可升级", candidates.len()),
+        Some(serde_json::json!({
+            "status": "update_check",
+            "count": candidates.len(),
+            "updates": candidates.iter().map(|u| serde_json::json!({
+                "name": u.name, "installed": u.installed, "latest": u.latest,
+            })).collect::<Vec<_>>(),
+        })),
+    );
+    for u in &candidates {
+        formatter.output(
+            &format!(
+                "[UPDATE] {}: v{} → v{}（oneinit update --apply）",
+                u.name, u.installed, u.latest
+            ),
+            None::<serde_json::Value>,
+        );
+    }
+
+    // 3. --apply 实际执行升级（卸载 → 重装新版本）
+    if !apply || candidates.is_empty() {
+        return;
+    }
+    let mut results: Vec<serde_json::Value> = Vec::new();
+    for u in &candidates {
+        let confirmed = if formatter.auto_yes {
+            true
+        } else {
+            use std::io::Write;
+            print!(
+                "[SECURITY] 升级 {} v{} → v{}? (y/N): ",
+                u.name, u.installed, u.latest
+            );
+            let _ = std::io::stdout().flush();
+            let mut input = String::new();
+            let _ = std::io::stdin().read_line(&mut input);
+            input.trim().to_lowercase() == "y"
+        };
+        if !confirmed {
+            formatter.output(
+                &format!("[SKIP] 已取消升级 {}", u.name),
+                None::<serde_json::Value>,
+            );
+            continue;
+        }
+
+        // 卸载旧版本（builtin → community 回退，与 run_uninstall 同机制）
+        let uninstalled = if recipe::uninstall(&u.name, formatter).await.is_ok() {
+            true
+        } else {
+            community_recipe::uninstall(&u.name, formatter)
+                .await
+                .is_ok()
+        };
+        if !uninstalled {
+            formatter.output(
+                &format!("[ERROR] 卸载 '{}' 失败，跳过升级", u.name),
+                Some(serde_json::Value::Null),
+            );
+            results.push(serde_json::json!({
+                "name": u.name, "installed": u.installed, "latest": u.latest, "ok": false,
+            }));
+            continue;
+        }
+
+        // 重装新版本（name@version 记录取 family 名，如 node@22.11.0 → node）
+        let (pkg, _) = parse_package_spec(&u.name);
+        let mut stack = Vec::new();
+        let ok = matches!(
+            install_recursive(
+                &pkg,
+                Some(&u.latest),
+                formatter,
+                &mut stack,
+                InstallOptions {
+                    ..Default::default()
+                },
+            )
+            .await,
+            InstallOutcome::Installed
+        );
+        results.push(serde_json::json!({
+            "name": u.name, "installed": u.installed, "latest": u.latest, "ok": ok,
+        }));
+    }
+
+    let ok_count = results.iter().filter(|r| r["ok"] == true).count();
+    formatter.output(
+        &format!(
+            "[UPDATE] 升级完成: {} 个成功, {} 个失败",
+            ok_count,
+            results.len() - ok_count
+        ),
+        Some(serde_json::json!({
+            "status": "update_applied",
+            "results": results,
+        })),
+    );
+}
+
+/// 计算已装工具中可升级的差异列表（纯函数，便于测试）
+fn find_updates(
+    installed: &[crate::core::manifest::InstallRecord],
+    latest: &std::collections::BTreeMap<String, String>,
+) -> Vec<UpdateItem> {
+    let mut candidates: Vec<UpdateItem> = Vec::new();
+    for record in installed {
+        // 记录名可能带 @version 后缀（如 node@22.11.0），取 @ 前部分作为查找键
+        let key = record.name.split('@').next().unwrap_or(&record.name);
+        let Some(latest_ver) = latest.get(key) else {
+            continue;
+        };
+        let installed_ver = record.version.clone().unwrap_or_default();
+        if latest_ver != &installed_ver {
+            candidates.push(UpdateItem {
+                name: record.name.clone(),
+                installed: installed_ver,
+                latest: latest_ver.clone(),
+            });
+        }
+    }
+    candidates
+}
+
+/// 解析已安装工具的最新可用版本（无升级路径则返回 None）
+async fn resolve_latest_version(name: &str, refresh: bool) -> Option<String> {
+    use crate::core::version;
+
+    // 1. GitHub Release 动态配方（社区配方声明了 dynamic 字段）
+    if let Some(rec) = community_recipe::resolve(name)
+        && let Some(dyn_spec) = &rec.dynamic
+    {
+        return match crate::core::dynamic::build_github_release(
+            name,
+            dyn_spec,
+            Some("latest"),
+            false,
+        )
+        .await
+        {
+            Ok(r) => Some(r.version),
+            Err(_) => None,
+        };
+    }
+
+    // 2. versioned family（记录可能为 family@version，如 node@22.11.0）
+    let family = name.split('@').next().unwrap_or(name);
+    if version::is_versioned(family) {
+        if refresh {
+            let _ = version::refresh(family).await;
+        }
+        return match version::list(family) {
+            Ok(versions) => versions.first().cloned(),
+            Err(_) => None,
+        };
+    }
+
+    // 3. 其他（内置固定版本等）→ 无升级路径
+    None
+}
+
 /// oneinit list versions <recipe> — list available versions for a family
 pub async fn run_list_versions(formatter: &OutputFormatter, recipe: &str) {
     use crate::core::version;
@@ -2708,7 +2945,7 @@ pub async fn run_info(formatter: &OutputFormatter, package: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{detect_project_toolchains, render_table};
+    use super::{detect_project_toolchains, find_updates, render_table};
     use std::path::Path;
 
     #[test]
@@ -2755,5 +2992,73 @@ mod tests {
     fn test_render_table_empty() {
         let t = render_table(&["A"], &[], Some("nothing"));
         assert_eq!(t, "nothing");
+    }
+
+    fn install_record(name: &str, version: Option<&str>) -> crate::core::manifest::InstallRecord {
+        crate::core::manifest::InstallRecord {
+            id: String::new(),
+            name: name.to_string(),
+            version: version.map(|v| v.to_string()),
+            install_path: String::new(),
+            archive_url: None,
+            sha256: None,
+            path_entries: Vec::new(),
+            config_files: Vec::new(),
+            installed_at: String::new(),
+            original_path: None,
+            env_vars_backup: serde_json::json!({}),
+        }
+    }
+
+    #[test]
+    fn test_find_updates_only_newer() {
+        let installed = vec![
+            install_record("python3.11", Some("3.11.9")),
+            install_record("rg", Some("15.2.0")),
+        ];
+        let latest: std::collections::BTreeMap<String, String> = [
+            ("python3.11".to_string(), "3.11.10".to_string()),
+            ("rg".to_string(), "15.2.0".to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let updates = find_updates(&installed, &latest);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].name, "python3.11");
+        assert_eq!(updates[0].installed, "3.11.9");
+        assert_eq!(updates[0].latest, "3.11.10");
+    }
+
+    #[test]
+    fn test_find_updates_at_suffix_lookup() {
+        let installed = vec![install_record("node@22.11.0", Some("22.0.0"))];
+        let latest: std::collections::BTreeMap<String, String> =
+            [("node".to_string(), "22.11.0".to_string())]
+                .into_iter()
+                .collect();
+        let updates = find_updates(&installed, &latest);
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].name, "node@22.11.0");
+        assert_eq!(updates[0].installed, "22.0.0");
+        assert_eq!(updates[0].latest, "22.11.0");
+    }
+
+    #[test]
+    fn test_find_updates_empty_latest() {
+        let installed = vec![install_record("python3.11", Some("3.11.9"))];
+        let latest: std::collections::BTreeMap<String, String> = Default::default();
+        let updates = find_updates(&installed, &latest);
+        assert!(updates.is_empty());
+    }
+
+    #[test]
+    fn test_find_updates_empty_installed() {
+        let installed: Vec<crate::core::manifest::InstallRecord> = Vec::new();
+        let latest: std::collections::BTreeMap<String, String> =
+            [("python3.11".to_string(), "3.11.10".to_string())]
+                .into_iter()
+                .collect();
+        let updates = find_updates(&installed, &latest);
+        assert!(updates.is_empty());
     }
 }

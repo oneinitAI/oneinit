@@ -8,6 +8,7 @@ pub mod downloader;
 pub mod dynamic;
 pub mod github_release;
 pub mod install;
+pub mod lockfile;
 pub mod manifest;
 pub mod migration;
 pub mod operation;

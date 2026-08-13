@@ -150,8 +150,15 @@ enum Commands {
         file: String,
     },
 
-    /// Update remote recipe index (like apt update)
-    Update,
+    /// 批量检查/升级已安装工具（apt upgrade 风格）
+    Update {
+        /// 实际执行升级（默认仅展示可升级列表）
+        #[arg(long)]
+        apply: bool,
+        /// 强制从官方 API 刷新版本目录（默认用缓存）
+        #[arg(long)]
+        refresh: bool,
+    },
 
     /// 管理配方订阅源（多注册表）
     Registry {
@@ -365,7 +372,7 @@ async fn main() {
     // 每次使用自动拉取配方索引（缓存缺失或过期 >24h 时静默更新）
     let skip_auto_update = matches!(
         cli.command,
-        Commands::Update
+        Commands::Update { .. }
             | Commands::Registry { .. }
             | Commands::Completions { .. }
             | Commands::Team { .. }
@@ -384,7 +391,7 @@ async fn main() {
     // 团队环境自动检测（仅检测 + 内容变化时提示，不阻塞主命令）
     let skip_team_check = matches!(
         cli.command,
-        Commands::Update
+        Commands::Update { .. }
             | Commands::Registry { .. }
             | Commands::Completions { .. }
             | Commands::Team { .. }
@@ -463,7 +470,7 @@ async fn main() {
             .await
         }
         Commands::Verify { file } => cli::run_verify(&formatter, &file).await,
-        Commands::Update => cli::run_update(&formatter).await,
+        Commands::Update { apply, refresh } => cli::run_update(&formatter, apply, refresh).await,
         Commands::Registry { action } => match action {
             RegistryAction::Add { url } => cli::run_registry_add(&formatter, &url),
             RegistryAction::Remove { url } => cli::run_registry_remove(&formatter, &url),

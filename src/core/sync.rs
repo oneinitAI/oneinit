@@ -4,6 +4,8 @@ use std::process::Command;
 
 use serde::Deserialize;
 
+use super::lockfile::Lockfile;
+
 /// oneinit.yaml / team.yaml 配置文件结构
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct SyncConfig {
@@ -78,6 +80,11 @@ pub fn envs_to_recipe_names(config: &SyncConfig) -> Vec<String> {
             }
         })
         .collect()
+}
+
+/// 从锁文件提取所有需要安装的包名（recipe 字段）
+pub fn lockfile_to_package_names(lock: &Lockfile) -> Vec<String> {
+    lock.tools.values().map(|t| t.recipe.clone()).collect()
 }
 
 /// execute post_install 命令列表
@@ -173,6 +180,48 @@ mod tests {
             ..Default::default()
         };
         assert!(envs_to_recipe_names(&config).is_empty());
+    }
+
+    #[test]
+    fn test_lockfile_to_package_names() {
+        let mut tools = BTreeMap::new();
+        tools.insert(
+            "python".to_string(),
+            crate::core::lockfile::LockedTool {
+                recipe: "python3.11".to_string(),
+                version: "3.11.9".to_string(),
+                sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                    .to_string(),
+                source: "builtin".to_string(),
+                archive_url: "https://example.com/python-3.11.9.tar.gz".to_string(),
+            },
+        );
+        tools.insert(
+            "rg".to_string(),
+            crate::core::lockfile::LockedTool {
+                recipe: "rg".to_string(),
+                version: "15.2.0".to_string(),
+                sha256: "d6a1f5c3d8b0e9a27e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934c"
+                    .to_string(),
+                source: "dynamic".to_string(),
+                archive_url: "https://example.com/rg-15.2.0.zip".to_string(),
+            },
+        );
+        let lock = crate::core::lockfile::Lockfile { version: 1, tools };
+
+        let names = lockfile_to_package_names(&lock);
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"python3.11".to_string()));
+        assert!(names.contains(&"rg".to_string()));
+    }
+
+    #[test]
+    fn test_lockfile_to_package_names_empty() {
+        let lock = crate::core::lockfile::Lockfile {
+            version: 1,
+            tools: BTreeMap::new(),
+        };
+        assert!(lockfile_to_package_names(&lock).is_empty());
     }
 
     #[test]
