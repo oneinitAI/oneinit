@@ -61,6 +61,9 @@ enum Commands {
         /// Cargo.toml / go.mod），自动识别并安装对应工具链（默认当前目录）
         #[arg(long, num_args = 0..=1, default_missing_value = ".")]
         project: Option<String>,
+        /// 允许执行含命令的配方（默认拒绝）
+        #[arg(long)]
+        allow_exec: bool,
     },
 
     /// Install a tool（如 python3.7, node18, python@3.11, node@lts）
@@ -123,6 +126,9 @@ enum Commands {
         /// 只预览将要安装的工具，不实际安装
         #[arg(long)]
         dry_run: bool,
+        /// 允许执行含命令的配方（默认拒绝）
+        #[arg(long)]
+        allow_exec: bool,
     },
 
     /// Capture environment to oneinit.yaml
@@ -379,7 +385,15 @@ async fn main() {
             preset,
             dry_run,
             project,
-        } => cli::run_init(&formatter, preset.as_deref(), dry_run, project.as_deref()).await,
+            allow_exec,
+        } => cli::run_init(
+            &formatter,
+            preset.as_deref(),
+            dry_run,
+            allow_exec,
+            project.as_deref(),
+        )
+        .await,
         Commands::Install {
             package,
             allow_exec,
@@ -408,7 +422,7 @@ async fn main() {
         },
         Commands::Info { package } => cli::run_info(&formatter, &package).await,
         Commands::Search { keyword } => cli::run_search(&formatter, keyword.as_deref()).await,
-        Commands::Sync { dry_run } => cli::run_sync(&formatter, dry_run).await,
+        Commands::Sync { dry_run, allow_exec } => cli::run_sync(&formatter, dry_run, allow_exec).await,
         Commands::Capture { output } => {
             cli::run_capture(&formatter, output.as_deref().unwrap_or("oneinit.yaml")).await
         }
@@ -513,7 +527,7 @@ async fn maybe_auto_update(formatter: &output::OutputFormatter) {
     if let Err(e) = registry::fetch_index().await {
         // 静默失败，不阻塞主命令；JSON 模式下输出错误供 AI 参考
         formatter.output(
-            &format!("[WARN] Recipe index refresh failed: {}", e),
+            &format!("[WARN] 配方索引刷新失败: {}", e),
             Some(serde_json::json!({
                 "status": "warning",
                 "action": "auto_update",

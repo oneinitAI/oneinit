@@ -135,7 +135,7 @@ pub fn install_all(formatter: &OutputFormatter) -> usize {
     let agents = detect_agents();
     if agents.is_empty() {
         formatter.output(
-            "[WARN] not detected任何 AI 助手目录。手动安装：将 .agents/skills/oneinit/SKILL.md 复制到你的 AI 助手 skills 目录。",
+            "[WARN] 未检测到任何 AI 助手目录。手动安装：将 .agents/skills/oneinit/SKILL.md 复制到你的 AI 助手 skills 目录。",
             Some(serde_json::json!({
                 "status": "warning", "action": "skill_install",
                 "message": "No AI agent directories detected",
@@ -152,7 +152,7 @@ pub fn install_all(formatter: &OutputFormatter) -> usize {
     }
 
     formatter.output(
-        &format!("[OK] Skill installed to {} AI agents", count),
+        &format!("[OK] Skill 已安装到 {} 个 AI 助手", count),
         Some(serde_json::json!({
             "status": "success", "action": "skill_install",
             "installed_count": count,
@@ -167,7 +167,7 @@ pub fn status(formatter: &OutputFormatter) {
     let agents = detect_agents();
     if agents.is_empty() {
         formatter.output(
-            "[INFO] not detected AI 助手目录",
+            "[INFO] 未检测到 AI 助手目录",
             Some(serde_json::json!({
                 "status": "empty", "action": "skill_status",
             })),
@@ -236,7 +236,7 @@ pub fn uninstall(formatter: &OutputFormatter) {
         );
     } else {
         formatter.output(
-            &format!("[OK] Skill uninstalled from {} agents", count),
+            &format!("[OK] Skill 已从 {} 个助手卸载", count),
             Some(serde_json::json!({
                 "status": "success", "action": "skill_uninstall",
                 "uninstalled_count": count,
