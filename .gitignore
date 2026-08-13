@@ -29,16 +29,13 @@ desktop.ini
 *.zip
 .zcode/
 
-# Internal docs (not for public repo)
+# Internal docs (all dev docs live in 开发/, not for public repo)
+开发/
 Important.md
 dev.sh
 tui.md
 plan.md
 oneinit.yaml
-开发.md
-优化.md
-数据的采集与迁移.md
-社区配方.md
 
 # Added by cargo
 
